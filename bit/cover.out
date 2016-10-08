@@ -1,0 +1,25 @@
+mode: set
+GoAlaric\bit\bit.go:41.25,43.2 1 0
+GoAlaric\bit\bit.go:46.20,49.2 1 0
+GoAlaric\bit\bit.go:53.24,56.2 1 0
+GoAlaric\bit\bit.go:59.27,61.2 1 0
+GoAlaric\bit\bit.go:64.22,73.2 4 1
+GoAlaric\bit\bit.go:76.26,79.28 2 0
+GoAlaric\bit\bit.go:83.2,83.10 1 0
+GoAlaric\bit\bit.go:79.28,81.3 1 0
+GoAlaric\bit\bit.go:91.22,94.2 1 1
+GoAlaric\bit\bit.go:97.26,101.2 2 1
+GoAlaric\bit\bit.go:104.22,107.2 1 1
+GoAlaric\bit\bit.go:110.24,113.2 1 1
+GoAlaric\bit\bit.go:116.23,119.2 1 1
+GoAlaric\bit\bit.go:123.29,126.2 2 0
+GoAlaric\bit\bit.go:130.28,133.2 2 1
+GoAlaric\bit\bit.go:136.20,139.2 1 1
+GoAlaric\bit\bit.go:142.22,149.2 1 1
+GoAlaric\bit\bit.go:153.13,158.19 5 1
+GoAlaric\bit\bit.go:165.2,168.25 3 1
+GoAlaric\bit\bit.go:175.2,175.24 1 1
+GoAlaric\bit\bit.go:158.19,163.3 4 1
+GoAlaric\bit\bit.go:168.25,173.3 4 1
+GoAlaric\bit\bit.go:175.24,180.3 4 1
+GoAlaric\bit\bit.go:184.30,186.2 1 0

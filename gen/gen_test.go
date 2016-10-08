@@ -1,0 +1,68 @@
+// gen_test.go
+package gen
+
+import (
+	//	"GoAlaric/attack"
+
+	"GoAlaric/board"
+	//	"GoAlaric/move"
+	//	"GoAlaric/pawn"
+	//	"GoAlaric/pst"
+	//	"GoAlaric/square"
+	//"GoAlaric/uci"
+
+	"testing"
+)
+
+func TestGen_legals(t *testing.T) {
+
+	//material.Init()
+	//eval.PstInit()
+	//eval.PawnInit()
+	//eval.Init()
+
+	//bit.InitBits()
+
+	//castling.Init()
+	//eval.AtkInit()
+
+	var bd board.Board
+	var ml ScMvList
+	board.SetFen(board.StartFen, &bd)
+
+	//uci.SetPosition("position startpos")
+
+	LegalMoves(&ml, &bd)
+	if ml.Size() != 20 {
+		t.Errorf("Test 1: Borde vara 20 drag men är %v", ml.Size())
+		PrintAllMoves(&ml)
+	}
+
+	board.SetFen("r3k2r/pppqbppp/2n1bn2/3pp3/3PP3/2N1BN2/PPPQBPPP/R3K2R w KQkq - 10 8", &bd)
+	LegalMoves(&ml, &bd)
+	if ml.Size() != 40 {
+		t.Errorf("Test 2: Borde vara 37 drag men är %v", ml.Size())
+		PrintAllMoves(&ml)
+	}
+
+	board.SetFen("rnbqkbnr/pp2pppp/8/2ppP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3", &bd)
+	LegalMoves(&ml, &bd)
+	if ml.Size() != 31 {
+		t.Errorf("Test 3: Borde vara 31 drag men är %v", ml.Size())
+		PrintAllMoves(&ml)
+	}
+
+	board.SetFen("rnbqkbnr/pp1pp1pp/8/2p1Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3", &bd)
+	LegalMoves(&ml, &bd)
+	if ml.Size() != 31 {
+		t.Errorf("Test 4: Borde vara 31 drag men är %v", ml.Size())
+		PrintAllMoves(&ml)
+	}
+	board.SetFen("3K4/PPP1PPPP/8/8/8/8/ppp1pppp/3k4 w - - 1 58", &bd)
+	LegalMoves(&ml, &bd)
+	if ml.Size() != 31 {
+		t.Errorf("Test 5: Borde vara 31 drag men är %v", ml.Size())
+		PrintAllMoves(&ml)
+	}
+
+}
