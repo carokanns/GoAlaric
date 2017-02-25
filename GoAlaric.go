@@ -2,12 +2,13 @@
 package main
 
 import (
-	"GoAlaric/input"
 	"GoAlaric/search"
-	//"GoAlaric/trans"
 	"GoAlaric/uci"
 	"GoAlaric/util"
+	"bufio"
 	"fmt"
+	"io"
+	"os"
 )
 
 var tellGUI = util.TellGUI
@@ -23,7 +24,7 @@ func main() {
 	chSearch := make(chan int)
 	chBestmove := make(chan string)
 
-	go input.GetInput(chInput)
+	go getInput(chInput)
 	go search.StartSearch(chSearch, chBestmove, &uci.Bd)
 
 	search.Infinite = false
@@ -52,6 +53,19 @@ func main() {
 	}
 
 	fmt.Println("info string program exits")
+}
+
+var reader = bufio.NewReader(os.Stdin)
+
+// getInput gets the next input from stdin (the GUI)
+func getInput(line chan<- string) {
+	//reader = bufio.NewReader(os.Stdin)
+	for {
+		text, err := reader.ReadString('\n')
+		if err != io.EOF && len(text) > 0 {
+			line <- text
+		}
+	}
 }
 
 // initSession görs endast en gång; när programmet startas

@@ -2,7 +2,6 @@
 package uci
 
 import (
-	"GoAlaric/engine"
 	"GoAlaric/search"
 	"testing"
 )
@@ -10,13 +9,9 @@ import (
 var chSearch = make(chan int)
 
 func TestSetoption(t *testing.T) {
-	HandleInput("setoption name Hash value 234", &chSearch)
-	if engine.Engine.Hash != 234 {
-		t.Errorf("Hash borde vara %v men är %v", 234, engine.Engine.Hash)
-	}
-	HandleInput("setoption name Hash value 567", &chSearch)
-	if engine.Engine.Hash != 567 {
-		t.Errorf("Hash borde vara %v men är %v", 567, engine.Engine.Hash)
+	HandleInput("setoption name Hash value 256", &chSearch)
+	if search.Engine.Hash != 256 {
+		t.Errorf("Hash borde vara %v men är %v", 256, search.Engine.Hash)
 	}
 
 }

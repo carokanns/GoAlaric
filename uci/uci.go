@@ -5,17 +5,14 @@ package uci
 
 import (
 	"GoAlaric/board"
-	"GoAlaric/engine"
 	"GoAlaric/eval"
 	"GoAlaric/gen"
 	"GoAlaric/move"
 	"GoAlaric/search"
 	"GoAlaric/util"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
-	"time"
 )
 
 var tellGUI = util.TellGUI
@@ -34,10 +31,10 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI("id name GoAlaric")
 			tellGUI("id author Peter Fendrich")
 
-			tellGUI(fmt.Sprintf("option name Hash type spin default %v  min 16 max 16384\n", engine.Engine.Hash))
-			tellGUI(fmt.Sprintf("option name Ponder type check default %v\n", engine.Engine.Ponder))
-			tellGUI(fmt.Sprintf("option name Threads type spin default %v min 1 max 16\n", engine.Engine.Threads))
-			tellGUI(fmt.Sprintf("option name LogFile type check default %v\n", engine.Engine.Log))
+			tellGUI(fmt.Sprintf("option name Hash type spin default %v  min 16 max 16384\n", search.Engine.Hash))
+			tellGUI(fmt.Sprintf("option name Ponder type check default %v\n", search.Engine.Ponder))
+			tellGUI(fmt.Sprintf("option name Threads type spin default %v min 1 max 16\n", search.Engine.Threads))
+			tellGUI(fmt.Sprintf("option name LogFile type check default %v\n", search.Engine.Log))
 
 			tellGUI("uciok")
 		case "isready":
@@ -55,11 +52,6 @@ func HandleInput(line string, chSearch *chan int) string {
 			return "stop"
 		case "quit", "q":
 			search.SetStop(true)
-			if util.Profiling {
-				*chSearch <- search.Profiling
-				time.Sleep(1000 * time.Millisecond)
-				util.TellGUI("info string nu stänger vi butiken")
-			}
 			return "quit"
 		case "ucinewgame":
 			initGame()
@@ -84,7 +76,7 @@ func HandleInput(line string, chSearch *chan int) string {
 			e := eval.CompEval(&Bd, &pawnHash) // NOTE: score for white
 			tellGUI(fmt.Sprintf("eval(w): %v", e))
 		case "peng":
-			txt := fmt.Sprintf("Hash: %v Threads: %v Ponder: %v Log: %v \n", engine.Engine.Hash, engine.Engine.Threads, engine.Engine.Ponder, engine.Engine.Log)
+			txt := fmt.Sprintf("Hash: %v Threads: %v Ponder: %v Log: %v \n", search.Engine.Hash, search.Engine.Threads, search.Engine.Ponder, search.Engine.Log)
 			tellGUI(txt)
 		case "pb":
 			Bd.PrintBoard()
@@ -256,36 +248,36 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 	value := strings.ToLower(strings.TrimSpace(words[3]))
 	switch word {
 	case "hash":
-		fmt.Println("info string Hash before:", engine.Engine.Hash)
+		fmt.Println("info string Hash before:", search.Engine.Hash)
 		hashVal, err := strconv.ParseInt(value, 10, 32)
 		if err != nil {
 			return
 		}
-		engine.Engine.Hash = int(hashVal)
+		search.Engine.Hash = int(hashVal)
 		search.SG.Trans.InitTable()
-		search.SG.Trans.SetSize(engine.Engine.Hash)
+		search.SG.Trans.SetSize(search.Engine.Hash)
 		search.SG.Trans.Alloc()
 
-		log.Println("info string Hash after:", engine.Engine.Hash)
+		fmt.Println("info string Hash after:", search.Engine.Hash)
 
 	case "threads":
 		threads, err := strconv.ParseInt(value, 10, 32)
 		if err != nil {
 			return
 		}
-		engine.Engine.Threads = int(threads)
+		search.Engine.Threads = int(threads)
 	case "log":
 		log, err := strconv.ParseBool(value)
 		if err != nil {
 			return
 		}
-		engine.Engine.Log = log
+		search.Engine.Log = log
 	case "ponder":
 		ponder, err := strconv.ParseBool(value)
 		if err != nil {
 			return
 		}
-		engine.Engine.Ponder = ponder
+		search.Engine.Ponder = ponder
 	}
 }
 

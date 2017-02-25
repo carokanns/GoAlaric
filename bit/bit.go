@@ -148,7 +148,7 @@ func First(b BB) int {
 	//return __builtin_ctzll(b); // in GCC but I can't find it in my env
 }
 
-// InitBits set bits for what is left,right,in front of and behind a square
+// init set bits for what is left,right,in front of and behind a square
 // This should be run before other inits for pawns and eval
 func init() {
 	fmt.Println("info string Bit init startar")

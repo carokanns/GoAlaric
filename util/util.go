@@ -18,9 +18,6 @@ func ASSERT(cond bool, msg ...interface{}) {
 	//	}
 }
 
-// Profiling = true means that we are running a profiling test
-var Profiling = false
-
 // TellGUI prints a line to stdout (to the GUI)
 func TellGUI(line string) {
 	fmt.Println(line)

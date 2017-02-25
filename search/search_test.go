@@ -6,9 +6,11 @@ import (
 	//	"GoAlaric/attack"
 
 	"GoAlaric/board"
+	_ "GoAlaric/engine"
 	"GoAlaric/eval"
 	"GoAlaric/gen"
 	"GoAlaric/gen2"
+	_ "GoAlaric/material"
 	"GoAlaric/move"
 	"GoAlaric/piece"
 	"GoAlaric/score"
@@ -26,22 +28,7 @@ import (
 var bd board.Board
 var sl searchLocal
 
-func initAll() { // copy of main initSession()
-	//input.Init()
-	//engine.Init()
-	//material.Init()
-	//eval.PstInit()
-	//eval.PawnInit()
-	//eval.Init()
-	//Init()
-	//bit.InitBits()
-	//hash.Init()
-	//castling.Init()
-	//eval.AtkInit()
-}
-
 func Test_Next(t *testing.T) {
-	initAll()
 	board.SetFen("8/6kp/5p2/3n2pq/3N1n1R/1P3P2/P6P/4QK2 w - - 2 2", &bd)
 	var attacks eval.Attacks
 	var killer sort.Killer
@@ -74,7 +61,6 @@ func Test_Next(t *testing.T) {
 
 // testing a bug in prom. Where pawn captured forward 8 squares when prom
 func Test_promGen(t *testing.T) {
-	initAll()
 	board.SetFen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPbbPPP/R3K2R w KQkq -", &bd)
 	board.FenMoves([]string{"d5e6", "h3g2", "h1g1"}, &bd)
 	var ml gen.ScMvList
@@ -157,7 +143,6 @@ func Test_QS(t *testing.T) {
 	var bd board.Board
 	sl.ID = 0
 	sl.board = bd
-	initAll()
 	for ix, ss := range seeTest {
 		board.SetFen(ss.fen, &sl.board)
 		//alpha := 0
@@ -174,7 +159,6 @@ func Test_QS(t *testing.T) {
 }
 
 func Test_RootSearch(t *testing.T) {
-	initAll()
 	chSearch := make(chan int)
 	chBestmove := make(chan string)
 	Infinite = false
@@ -201,7 +185,6 @@ func Test_RootSearch(t *testing.T) {
 }
 
 func TestSetHard(t *testing.T) {
-	initAll()
 	board.SetFen("8/6kp/5p2/3n2pq/3N1n1R/1P3P2/P6P/4QK2 w - - 2 2", &bd)
 
 	wtime := int64(1 * 60 * 1000)
@@ -229,7 +212,6 @@ func TestSetHard(t *testing.T) {
 }
 
 func BenchmarkSearch(b *testing.B) {
-	initAll()
 	chSearch := make(chan int)
 	chBestmove := make(chan string)
 	Infinite = false
@@ -249,5 +231,5 @@ func BenchmarkSearch(b *testing.B) {
 		}
 	}
 	SetStop(true)
-	bm = bm
+	_ = bm
 }

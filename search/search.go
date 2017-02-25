@@ -1,11 +1,6 @@
 package search
 
 import (
-	"GoAlaric/engine"
-	"fmt"
-	"math"
-	"time"
-	//	"GoAlaric/attack"
 	"GoAlaric/bit"
 	"GoAlaric/board"
 	"GoAlaric/eval"
@@ -13,17 +8,41 @@ import (
 	"GoAlaric/gen2"
 	"GoAlaric/hash"
 	"GoAlaric/move"
-	//"GoAlaric/pawn"
-	//	"GoAlaric/piece"
 	"GoAlaric/score"
 	"GoAlaric/sort"
 	"GoAlaric/trans"
 	"GoAlaric/util"
-
-	"github.com/pkg/profile"
+	"fmt"
+	"math"
+	"time"
 )
 
 var tellGUI = util.TellGUI
+
+////// Engine paramters ///////
+
+const defaultHash = 128
+
+type engineStruct struct {
+	Hash    int
+	Ponder  bool
+	Threads int
+	Log     bool
+}
+
+// Engine is the var holding engineStruct values
+var Engine engineStruct
+
+// Init the engine valuse
+func init() {
+	fmt.Printf("info string Engine init starts\n")
+	Engine.Hash = defaultHash
+	Engine.Ponder = false
+	Engine.Threads = 1
+	Engine.Log = false
+}
+
+////// Engine paramters END //////
 
 const maxDepth = 100
 const maxPly = 100
@@ -217,7 +236,7 @@ func sgAbort() {
 
 	rootSP.updateRoot()
 
-	for id := 0; id < engine.Engine.Threads; id++ {
+	for id := 0; id < Engine.Threads; id++ {
 		// sl_signal(p_sl[id]); vänta in trådarna
 	}
 }
@@ -303,7 +322,7 @@ func (sl *searchLocal) init() {
 func init() {
 	tellGUI("info string Search init startar")
 	SG.Trans.InitTable()
-	SG.Trans.SetSize(engine.Engine.Hash)
+	SG.Trans.SetSize(Engine.Hash)
 	SG.Trans.Alloc()
 	Status = idle
 }
@@ -386,7 +405,7 @@ func SetHard(bd *board.Board, wtime, btime, winc, binc, mtg int64) {
 	}
 	total := time + inc*(mtg-1)
 	factor := 120
-	if engine.Engine.Ponder {
+	if Engine.Ponder {
 		factor = 140
 	}
 	alloc := total / mtg * int64(factor) / 100
@@ -453,9 +472,6 @@ func StartSearch(searchType chan int, bestmove chan string, bd *board.Board) {
 	//  Vi kommer att stå blockade här i väntan på return från RootSearch
 	//  Uci tar hand om quit som bryter, stop och ponderhit skickas vidare
 	//  till search.bStop resp bPonderHit
-	if util.Profiling {
-		defer profile.Start().Stop()
-	}
 	if Status == Running {
 		fmt.Println("StartSearch - already running.... error")
 		return
@@ -507,13 +523,13 @@ func searchGo(bd *board.Board) {
 	initSg()
 	SG.Trans.IncDate()
 
-	for id := 0; id < engine.Engine.Threads; id++ {
+	for id := 0; id < Engine.Threads; id++ {
 		slInitEarly(&slEntries[id], id)
 	}
 
 	rootSP.initRoot(&slEntries[0])
 
-	for id := 1; id < engine.Engine.Threads; id++ { // skip 0
+	for id := 1; id < Engine.Threads; id++ { // skip 0
 		//p_sl[id].thread = std::thread(helper_program, &p_sl[id]);
 	}
 
@@ -524,7 +540,7 @@ func searchGo(bd *board.Board) {
 		sgAbort() // vänta in trådarna
 	}
 
-	for id := 1; id < engine.Engine.Threads; id++ { // skip 0
+	for id := 1; id < Engine.Threads; id++ { // skip 0
 		//          p_sl[id].thread.join();
 	}
 
@@ -1153,7 +1169,7 @@ func updateCurrent() {
 	node := int64(0)
 	maxPly := 0
 
-	for id := 0; id < engine.Engine.Threads; id++ {
+	for id := 0; id < Engine.Threads; id++ {
 
 		sl := &slEntries[id]
 
