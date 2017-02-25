@@ -2,27 +2,18 @@
 package search
 
 import (
-	"strings"
-	//	"GoAlaric/attack"
-
 	"GoAlaric/board"
-	_ "GoAlaric/engine"
 	"GoAlaric/eval"
 	"GoAlaric/gen"
 	"GoAlaric/gen2"
 	_ "GoAlaric/material"
 	"GoAlaric/move"
 	"GoAlaric/piece"
-	"GoAlaric/score"
 	"GoAlaric/sort"
 	"fmt"
-	"time"
-
-	//	"GoAlaric/input"
-
-	//	"GoAlaric/pawn"
-	//"GoAlaric/pst"
+	"strings"
 	"testing"
+	"time"
 )
 
 var bd board.Board
@@ -150,7 +141,7 @@ func Test_QS(t *testing.T) {
 		//mv := move.Make(fr, to, pc, cp, pr)
 		rightVal := ss.val
 
-		val := qs(&sl, score.Max, 0)
+		val := qs(&sl, maxScore, 0)
 
 		if val != rightVal {
 			t.Errorf("Case %v: gav %v istf %v - %v", ix+1, val, rightVal, ss.comment)

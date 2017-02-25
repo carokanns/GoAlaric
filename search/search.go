@@ -9,7 +9,6 @@ import (
 	"GoAlaric/hash"
 	"GoAlaric/move"
 	"GoAlaric/sort"
-	"GoAlaric/trans"
 	"GoAlaric/util"
 	"fmt"
 	"math"
@@ -230,9 +229,7 @@ var (
 
 type searchGlobal struct { ////////: public util::Lockable {
 
-	// public:
-
-	Trans   trans.Table
+	Trans   transTable
 	History sort.HistoryTab
 }
 
@@ -355,16 +352,16 @@ func clear() {
 	best.depth = 0
 	best.move = move.None
 	best.score = noScore
-	best.flags = trans.FlagsNone
+	best.flags = flagsNone
 	best.pv.clear()
 }
 
 func updateBest(best *bestStruct, sc, flags int, pv *pvStruct) {
 
-	//util.ASSERT(sc != trans.None)
+	//util.ASSERT(sc != None)
 	//util.ASSERT(pv.size() != 0)
 
-	limit.drop = flags == trans.FlagsUpper || (sc <= limit.lastScore-30 && current.size > 1)
+	limit.drop = flags == flagsUpper || (sc <= limit.lastScore-30 && current.size > 1)
 
 	if pv.getMove(0) != best.move || limit.drop {
 		limit.flag = false
@@ -640,13 +637,13 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 
 	//util.ASSERT(depth <= 1 || p_time.last_score == best.score)
 
-	if depth >= 6 && !trans.IsMateScore(limit.lastScore) {
+	if depth >= 6 && !IsMateScore(limit.lastScore) {
 
 		for margin := 10; margin < 500; margin *= 2 {
 
 			a := limit.lastScore - margin
 			b := limit.lastScore + margin
-			//util.ASSERT(trans.EVAL_MIN <= a && a < b && b <= trans.EVAL_MAX)
+			//util.ASSERT(EVAL_MIN <= a && a < b && b <= EVAL_MAX)
 
 			searchRoot(sl, ml, depth, a, b)
 			if bStop {
@@ -655,7 +652,7 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 
 			if best.score > a && best.score < b {
 				return
-			} else if trans.IsMateScore(best.score) {
+			} else if IsMateScore(best.score) {
 				break
 			}
 		}
@@ -734,7 +731,7 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 			var pv pvStruct
 
 			pv.catenate(mv, &npv)
-			updateBest(&best, sc, trans.Flags(sc, alpha, beta), &pv)
+			updateBest(&best, sc, flags(sc, alpha, beta), &pv)
 
 			updateCurrent()
 			writePV(&best)
@@ -750,7 +747,7 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 
 				///// Search_Global här
 				if depth >= 0 {
-					SG.Trans.Store(key, depth, bd.Ply(), mv, sc, trans.FlagsLower)
+					SG.Trans.Store(key, depth, bd.Ply(), mv, sc, flagsLower)
 				}
 
 				if sc >= beta {
@@ -760,11 +757,11 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 		}
 	}
 
-	//util.ASSERT(bs != trans.None)
+	//util.ASSERT(bs != None)
 	//util.ASSERT(bs < beta)
 
 	if depth >= 0 {
-		flags := trans.Flags(bs, oldAlpha, beta)
+		flags := flags(bs, oldAlpha, beta)
 
 		///// Search_Global här
 		SG.Trans.Store(key, depth, bd.Ply(), bm, bs, flags)
@@ -791,7 +788,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	// mate-distance pruning
 
-	mateSc := trans.HashScore(mateScore-1, bd.Ply())
+	mateSc := HashScore(mateScore-1, bd.Ply())
 
 	if mateSc < beta {
 
@@ -833,13 +830,13 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		var flags int
 
 		if SG.Trans.Retrieve(key, transDepth, bd.Ply(), &transMove, &transSc, &flags) && !pvNode { // assigns trans_move #
-			if flags == trans.FlagsLower && transSc >= beta {
+			if flags == flagsLower && transSc >= beta {
 				return transSc
 			}
-			if flags == trans.FlagsUpper && transSc <= alpha {
+			if flags == flagsUpper && transSc <= alpha {
 				return transSc
 			}
-			if flags == trans.FlagsExact {
+			if flags == flagsExact {
 				return transSc
 			}
 		}
@@ -853,7 +850,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	ev := evalu8(stm, sl)
 	// beta pruning
-	if !pvNode && depth > 0 && depth <= 3 && !trans.IsMateScore(beta) && !inCheck {
+	if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(beta) && !inCheck {
 
 		sc := ev - depth*50
 
@@ -864,7 +861,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	// null-move pruning
 
-	if !pvNode && depth > 0 && !trans.IsMateScore(beta) && !inCheck && !board.LoneKing(stm, bd) && ev >= beta {
+	if !pvNode && depth > 0 && !IsMateScore(beta) && !inCheck && !board.LoneKing(stm, bd) && ev >= beta {
 
 		bd.MoveNull() // TODO: use sl?
 
@@ -884,7 +881,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		if sc >= beta {
 
 			if useTrans {
-				SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, trans.FlagsLower)
+				SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, flagsLower)
 			}
 			return sc
 		}
@@ -915,7 +912,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	useFP := false
 
-	if depth > 0 && depth <= 8 && !trans.IsMateScore(alpha) && !inCheck {
+	if depth > 0 && depth <= 8 && !IsMateScore(alpha) && !inCheck {
 
 		sc := ev + depth*40
 		val = sc + 50 // FP-DP margin, extra 50 for captures
@@ -961,7 +958,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 			continue
 		}
 
-		if !pvNode && depth > 0 && depth <= 3 && !trans.IsMateScore(bs) && searched.Size() >= depth*4 && !dangerous { // late-move pruning
+		if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(bs) && searched.Size() >= depth*4 && !dangerous { // late-move pruning
 			continue
 		}
 
@@ -1007,7 +1004,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 				alpha = sc
 
 				if useTrans {
-					SG.Trans.Store(key, transDepth, bd.Ply(), mv, sc, trans.FlagsLower)
+					SG.Trans.Store(key, transDepth, bd.Ply(), mv, sc, flagsLower)
 				}
 
 				if sc >= beta {
@@ -1039,7 +1036,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 	//util.ASSERT(bs < beta)
 
 	if useTrans {
-		flags := trans.Flags(bs, oldAlpha, beta)
+		flags := flags(bs, oldAlpha, beta)
 		SG.Trans.Store(key, transDepth, bd.Ply(), bm, bs, flags)
 	}
 
@@ -1114,7 +1111,7 @@ func qs(sl *searchLocal, beta, gain int) int { // for static NMP
 
 		bit.Set(&done, move.To(mv))
 
-		see, cnt := se.See(mv, 0, trans.EvalMAX, bd) // TODO: beta - val?
+		see, cnt := se.See(mv, 0, EvalMAX, bd) // TODO: beta - val?
 		if cnt > 0 {
 			incNode(sl, cnt-1)
 		}
@@ -1355,9 +1352,9 @@ func infoToGUI() {
 
 // MateWithSign put +/- to a mate score
 func mateWithSign(sc int) int {
-	if sc < trans.EvalMin { // -MATE
+	if sc < EvalMin { // -MATE
 		return -(mateScore + sc) / 2
-	} else if sc > trans.EvalMAX { // +MATE
+	} else if sc > EvalMAX { // +MATE
 		return (mateScore - sc + 1) / 2
 	}
 	// assert(false);
@@ -1371,16 +1368,16 @@ func writePV(best *bestStruct) {
 
 	line := fmt.Sprintf("info depth %v seldepth %v ", best.depth, current.maxPly)
 	line += fmt.Sprintf("nodes %v time %v ", current.node, current.time)
-	if trans.IsMateScore(best.score) {
+	if IsMateScore(best.score) {
 		line += fmt.Sprintf(" score mate %v ", mateWithSign(best.score))
 	} else {
 		line += fmt.Sprintf(" score cp %v ", best.score)
 	}
 
-	if best.flags == trans.FlagsLower {
+	if best.flags == flagsLower {
 		line += fmt.Sprintf("lowerbound ")
 	}
-	if best.flags == trans.FlagsUpper {
+	if best.flags == flagsUpper {
 		line += fmt.Sprintf("upperbound ")
 	}
 
@@ -1398,8 +1395,8 @@ func writePV(best *bestStruct) {
 	   } else {
 	      std::cout << " score cp " << best.score;
 	   }
-	   if (best.flags == score::FLAGS_LOWER) std::cout << " lowerbound";
-	   if (best.flags == score::FLAGS_UPPER) std::cout << " upperbound";
+	   if (best.flags == score::flags_LOWER) std::cout << " lowerbound";
+	   if (best.flags == score::flags_UPPER) std::cout << " upperbound";
 
 	   std::cout << " pv " << best.pv.to_can();
 	   std::cout << std::endl;

@@ -1,15 +1,13 @@
 // trans_test.go
-package trans
+package search
 
 import (
 	"GoAlaric/board"
 	"GoAlaric/hash"
-	//"GoAlaric/move"
-
 	"testing"
 )
 
-var bd board.Board
+//var bd board.Board
 
 //var sl Search_Local
 
@@ -30,7 +28,7 @@ func initAll() { // copy of main initSession()
 func Test_Trans(t *testing.T) {
 	initAll()
 	board.SetFen("8/6kp/5p2/3n2pq/3N1n1R/1P3P2/P6P/4QK2 w - - 2 2", &bd)
-	var hashTab Table
+	var hashTab transTable
 	hashTab.InitTable()
 	hashTab.SetSize(64)
 	hashTab.Alloc()

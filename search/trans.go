@@ -1,4 +1,4 @@
-package trans
+package search
 
 import (
 	"GoAlaric/hash"
@@ -16,21 +16,21 @@ const (
 //
 // Castling flags
 const (
-	FlagsNone  = 0
-	FlagsLower = 1 << 0
-	FlagsUpper = 1 << 1
-	FlagsExact = FlagsLower | FlagsUpper
+	flagsNone  = 0
+	flagsLower = 1 << 0
+	flagsUpper = 1 << 1
+	flagsExact = flagsLower | flagsUpper
 )
 
-// Flags sets if it is an upper or lower scpre
-func Flags(sc, alpha, beta int) int {
+// flags sets if it is an upper or lower scpre
+func flags(sc, alpha, beta int) int {
 
-	flags := FlagsNone
+	flags := flagsNone
 	if sc > alpha {
-		flags |= FlagsLower
+		flags |= flagsLower
 	}
 	if sc < beta {
-		flags |= FlagsUpper
+		flags |= flagsUpper
 	}
 
 	return flags
@@ -50,7 +50,7 @@ type entry struct { // 16 bytes
 }
 
 // Table is a "header" to hash tables
-type Table struct {
+type transTable struct {
 	entries []entry
 	cntBits int
 	size    uint64
@@ -62,7 +62,7 @@ type Table struct {
 
 // IncDate increments the date for the hahs table.
 // The date is used to know if an entry is fresh or old
-func (t *Table) IncDate() {
+func (t *transTable) IncDate() {
 	t.generation = (t.generation + 1) % 256
 	t.cntUsed = 0
 }
@@ -79,7 +79,7 @@ func sizeToBits(size int) int {
 //   public:
 
 // InitTable nullfies all the "header" values
-func (t *Table) InitTable() {
+func (t *transTable) InitTable() {
 	fmt.Println("info string Trans init startar")
 	t.entries = nil
 	t.cntBits = 0
@@ -91,7 +91,7 @@ func (t *Table) InitTable() {
 }
 
 // Clear all entries
-func (t *Table) Clear() {
+func (t *transTable) Clear() {
 	var e entry
 	clearEntry(&e)
 
@@ -108,7 +108,7 @@ func (t *Table) Clear() {
 // From the key we get an index to the table.
 // We will try 4 entries in a sequence until a lock is found
 // We always try to replace another generation and/or a lower searched depth
-func (t *Table) Store(key hash.Key, depth, ply, mv, sc, flags int) {
+func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, flags int) {
 	//fmt.Println(key, depth, ply, mv, sc, flags)
 	//util.ASSERT(depth >= 0 && depth < 100)
 	//util.ASSERT(mv != move.NULL_)
@@ -177,7 +177,7 @@ func (t *Table) Store(key hash.Key, depth, ply, mv, sc, flags int) {
 }
 
 // SetSize sets the size that will be used next time we Allocate a new Hash Table
-func (t *Table) SetSize(size int) {
+func (t *transTable) SetSize(size int) {
 	bits := sizeToBits(size)
 	if bits == t.cntBits {
 		return
@@ -189,7 +189,7 @@ func (t *Table) SetSize(size int) {
 }
 
 // Alloc makes a Hash table with the size that is set by SetSize
-func (t *Table) Alloc() {
+func (t *transTable) Alloc() {
 	util.ASSERT(t.entries == nil)
 	t.entries = make([]entry, t.size)
 	t.Clear()
@@ -199,7 +199,7 @@ func (t *Table) Alloc() {
 // if no entry is matching return false else return true
 // the pointers mv (move), sc (score) and flags (UPPER/LOWER) are used to return values
 // We will try the 4 entries in sequence until lock match otherwise return false
-func (t *Table) Retrieve(key hash.Key, depth, ply int, mv *int, sc *int, flags *int) bool {
+func (t *transTable) Retrieve(key hash.Key, depth, ply int, mv *int, sc *int, flags *int) bool {
 
 	//util.ASSERT(depth >= 0 && depth < 100)
 
@@ -226,9 +226,9 @@ func (t *Table) Retrieve(key hash.Key, depth, ply int, mv *int, sc *int, flags *
 			}
 
 			if IsMateScore(*sc) {
-				*flags &= ^FlagsUpper // assume value
+				*flags &= ^flagsUpper // assume value
 				if *sc < 0 {
-					*flags &= ^FlagsLower
+					*flags &= ^flagsLower
 				}
 				//flags &= ~(score < 0 ? FLAGS_LOWER : FLAGS_UPPER);
 				return true
@@ -242,7 +242,7 @@ func (t *Table) Retrieve(key hash.Key, depth, ply int, mv *int, sc *int, flags *
 }
 
 // Used returns how much of the Hash Table that is used where 500 means 50%
-func (t *Table) Used() int {
+func (t *transTable) Used() int {
 	return int((t.cntUsed*1000 + t.size/2) / t.size)
 }
 
@@ -256,7 +256,7 @@ func clearEntry(entry *entry) {
 	entry.score = 0
 	entry.date = 0
 	entry.depth = -1
-	entry.flags = FlagsNone
+	entry.flags = flagsNone
 	//entry.tomt = 0   behövs inte
 }
 

@@ -6,11 +6,9 @@ import (
 
 	"GoAlaric/board"
 	"GoAlaric/move"
-	//	"GoAlaric/pawn"
 	"GoAlaric/piece"
-	//	"GoAlaric/pst"
-	"GoAlaric/score"
 	"GoAlaric/square"
+	//	"GoAlaric/trans"
 
 	"testing"
 )
@@ -98,6 +96,8 @@ func Test_SEE(t *testing.T) {
 	var bd board.Board
 	initAll()
 	var se SEE
+	const EvalMAX = +8999 //HACK: declared in search/trans
+
 	for ix, ss := range seeTest {
 		board.SetFen(ss.fen, &bd)
 		fr := ss.fr
@@ -106,7 +106,7 @@ func Test_SEE(t *testing.T) {
 		cp := ss.cp
 		pr := ss.pr
 		alpha := 0
-		beta := score.EvalMAX
+		beta := EvalMAX
 		mv := move.Build(fr, to, pc, cp, pr)
 		rightVal := ss.val
 		if fr >= square.BoardSize || to >= square.BoardSize || pc >= piece.Size || pr >= piece.Size ||
