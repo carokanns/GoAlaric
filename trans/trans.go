@@ -3,12 +3,38 @@ package trans
 import (
 	"GoAlaric/hash"
 	"GoAlaric/move"
-	"GoAlaric/score"
 	"GoAlaric/util"
 	"fmt"
 )
 
+// score types
+const (
+	EvalMin = -8999
+	EvalMAX = +8999
+)
+
 //
+// Castling flags
+const (
+	FlagsNone  = 0
+	FlagsLower = 1 << 0
+	FlagsUpper = 1 << 1
+	FlagsExact = FlagsLower | FlagsUpper
+)
+
+// Flags sets if it is an upper or lower scpre
+func Flags(sc, alpha, beta int) int {
+
+	flags := FlagsNone
+	if sc > alpha {
+		flags |= FlagsLower
+	}
+	if sc < beta {
+		flags |= FlagsUpper
+	}
+
+	return flags
+}
 
 const sizeEntry = 16
 
@@ -88,7 +114,7 @@ func (t *Table) Store(key hash.Key, depth, ply, mv, sc, flags int) {
 	//util.ASSERT(mv != move.NULL_)
 	//util.ASSERT(sc >= score.MIN && sc <= score.MAX)
 
-	sc = score.ToHashScore(sc, ply)
+	sc = ToHashScore(sc, ply)
 
 	index := hash.Index(key) & int64(t.mask)
 	lock := hash.Lock(key)
@@ -192,19 +218,19 @@ func (t *Table) Retrieve(key hash.Key, depth, ply int, mv *int, sc *int, flags *
 				t.cntUsed++
 			}
 			*mv = int(entry.move)
-			*sc = score.HashScore(int(entry.score), ply)
+			*sc = HashScore(int(entry.score), ply)
 			*flags = int(entry.flags)
 
 			if int(entry.depth) >= depth {
 				return true
 			}
 
-			if score.IsMateScore(*sc) {
-				*flags &= ^score.FlagsUpper // assume value
+			if IsMateScore(*sc) {
+				*flags &= ^FlagsUpper // assume value
 				if *sc < 0 {
-					*flags &= ^score.FlagsLower
+					*flags &= ^FlagsLower
 				}
-				//flags &= ~(score < 0 ? score.FLAGS_LOWER : score.FLAGS_UPPER);
+				//flags &= ~(score < 0 ? FLAGS_LOWER : FLAGS_UPPER);
 				return true
 			}
 
@@ -230,6 +256,34 @@ func clearEntry(entry *entry) {
 	entry.score = 0
 	entry.date = 0
 	entry.depth = -1
-	entry.flags = score.FlagsNone
+	entry.flags = FlagsNone
 	//entry.tomt = 0   behövs inte
+}
+
+// ToHashScore removes ply from the score value (score - ply) if mate
+// in order to ensure that we use the shortest mate variant
+func ToHashScore(sc, ply int) int {
+	if sc < EvalMin {
+		return sc - ply
+	} else if sc > EvalMAX {
+		return sc + ply
+	} else {
+		return sc
+	}
+}
+
+// HashScore puts back ply to the score value (mate)
+//
+func HashScore(sc, ply int) int {
+	if sc < EvalMin {
+		return sc + ply
+	} else if sc > EvalMAX {
+		return sc - ply
+	}
+	return sc
+}
+
+// IsMateScore returns true if the score is a mate score
+func IsMateScore(sc int) bool {
+	return sc < EvalMin || sc > EvalMAX
 }

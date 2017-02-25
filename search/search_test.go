@@ -199,14 +199,14 @@ func TestSetHard(t *testing.T) {
 	//	p_time.limit_2 = int64(max)
 	//	p_time.last_score = score.None
 	//	p_time.drop = false
-	if !timeInfo.hard {
+	if !limit.hard {
 		t.Errorf("hard ej satt")
 	}
 	if false {
 		t.Errorf("Kolla upp wtime %v", wtime)
-		t.Errorf("Kolla upp p_time.limit_0 %v", timeInfo.limitA)
-		t.Errorf("Kolla upp p_time.limit_1 %v", timeInfo.limitB)
-		t.Errorf("Kolla upp p_time.limit_2 %v", timeInfo.limitC)
+		t.Errorf("Kolla upp p_time.limit_0 %v", limit.step1)
+		t.Errorf("Kolla upp p_time.limit_1 %v", limit.stepB)
+		t.Errorf("Kolla upp p_time.limit_2 %v", limit.stepC)
 	}
 
 }

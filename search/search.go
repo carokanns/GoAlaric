@@ -8,7 +8,6 @@ import (
 	"GoAlaric/gen2"
 	"GoAlaric/hash"
 	"GoAlaric/move"
-	"GoAlaric/score"
 	"GoAlaric/sort"
 	"GoAlaric/trans"
 	"GoAlaric/util"
@@ -20,6 +19,11 @@ import (
 var tellGUI = util.TellGUI
 
 ////// Engine paramters ///////
+// status of the engine
+const (
+	idle    = 0
+	Running = 1
+)
 
 const defaultHash = 128
 
@@ -44,17 +48,19 @@ func init() {
 
 ////// Engine paramters END //////
 
+// score types
+const (
+	noScore   = -10000
+	minScore  = -9999
+	maxScore  = +9999
+	mateScore = +10000
+)
+
 const maxDepth = 100
 const maxPly = 100
 const nodeInterval = 1024
 const maxThreads = 16
 const maxQS = 2 // Max number of qs recursions
-
-// status of the engine
-const (
-	idle    = 0
-	Running = 1
-)
 
 // Different types of handling for the go command from GUI
 const (
@@ -82,6 +88,7 @@ func (t *timerStr) time() int {
 
 	return int(diff.Nanoseconds() / 1000000) //gives milliseconds
 }
+
 func (t *timerStr) reset() {
 	t.elapsed = 0
 	t.running = false
@@ -105,28 +112,28 @@ func (t *timerStr) getElapsed() int {
 	return time
 }
 
-// Time is the struct
+// timeStr is the struct that holds search conditions
 //	Exempel för att mäta tid om time Time
 //	now := time.Now()
 //	time.Sleep(100 * time.Millisecond)
 //	now2 := time.Now()
 //	diff := now2.Sub(now)
 //	diff.Nanoseconds()
-type timeStr struct {
+type limitStr struct {
 	nodeIsLmited  bool
 	timeIsLimited bool
-	depthLimit    int
-	nodeLimit     uint64
-	timeLimit     uint64
+	depth         int
+	nodes         uint64
+	time          uint64 // time limit for this move when we have X moves in T seconds
 	hard          bool
 	ponder        bool
 	flag          bool
-	limitA        int64
-	limitB        int64
-	limitC        int64
-	lastScore     int
+	step1         int64 // compute time limit in three steps
+	stepB         int64 // compute time limit in three steps
+	stepC         int64 // compute time limit in three steps
+	lastScore     int   // last score we got
 	drop          bool
-	timer         timerStr
+	timer         timerStr // the timer
 }
 
 type currStruct struct {
@@ -204,7 +211,7 @@ func (pv *pvStruct) getMove(pos int) int { // se även s_move(
 	return pv.move[pos]
 }
 
-var timeInfo timeStr
+var limit limitStr
 var current currStruct
 var best bestStruct
 
@@ -271,8 +278,8 @@ func (sp *splitPoint) initRoot(master *searchLocal) {
 	sp.master = master
 	sp.parent = nil
 
-	sp.bestScore = score.None
-	sp.beta = score.Max
+	sp.bestScore = noScore
+	sp.beta = maxScore
 	sp.todo.Clear()
 
 	sp.workers = 1
@@ -328,9 +335,9 @@ func init() {
 }
 
 func clear() {
-	timeInfo.flag = false
-	timeInfo.timer.reset()
-	timeInfo.timer.start()
+	limit.flag = false
+	limit.timer.reset()
+	limit.timer.start()
 
 	current.depth = 0
 	current.maxPly = 0
@@ -347,20 +354,20 @@ func clear() {
 
 	best.depth = 0
 	best.move = move.None
-	best.score = score.None
-	best.flags = score.FlagsNone
+	best.score = noScore
+	best.flags = trans.FlagsNone
 	best.pv.clear()
 }
 
 func updateBest(best *bestStruct, sc, flags int, pv *pvStruct) {
 
-	//util.ASSERT(sc != score.None)
+	//util.ASSERT(sc != trans.None)
 	//util.ASSERT(pv.size() != 0)
 
-	timeInfo.drop = flags == score.FlagsUpper || (sc <= timeInfo.lastScore-30 && current.size > 1)
+	limit.drop = flags == trans.FlagsUpper || (sc <= limit.lastScore-30 && current.size > 1)
 
-	if pv.getMove(0) != best.move || timeInfo.drop {
-		timeInfo.flag = false
+	if pv.getMove(0) != best.move || limit.drop {
+		limit.flag = false
 	}
 
 	best.depth = current.depth
@@ -381,12 +388,12 @@ func undo(sl *searchLocal) {
 
 // NewSearch  initializes a new search
 func NewSearch() {
-	timeInfo.nodeIsLmited = false
-	timeInfo.timeIsLimited = false
-	timeInfo.depthLimit = maxDepth - 1
+	limit.nodeIsLmited = false
+	limit.timeIsLimited = false
+	limit.depth = maxDepth - 1
 
-	timeInfo.hard = false
-	timeInfo.ponder = false
+	limit.hard = false
+	limit.ponder = false
 }
 
 // SetHard when the GUI sends go wtime/btime/winc/binc/movetogo  command
@@ -416,32 +423,32 @@ func SetHard(bd *board.Board, wtime, btime, winc, binc, mtg int64) {
 	alloc = int64(math.Max(float64(alloc), 0.0))
 	max = math.Max(float64(max), 0.0)
 
-	timeInfo.hard = true
-	timeInfo.limitA = int64(math.Min(float64(alloc), float64(max)))
-	timeInfo.limitB = int64(math.Min(float64(alloc*4), float64(max)))
-	timeInfo.limitC = int64(max)
-	timeInfo.lastScore = score.None
-	timeInfo.drop = false
+	limit.hard = true
+	limit.step1 = int64(math.Min(float64(alloc), float64(max)))
+	limit.stepB = int64(math.Min(float64(alloc*4), float64(max)))
+	limit.stepC = int64(max)
+	limit.lastScore = noScore
+	limit.drop = false
 
-	util.ASSERT(0 <= timeInfo.limitA && timeInfo.limitA <= timeInfo.limitB && timeInfo.limitB <= timeInfo.limitC)
+	util.ASSERT(0 <= limit.step1 && limit.step1 <= limit.stepB && limit.stepB <= limit.stepC)
 }
 
 // SetMaxDepth when the GUI sends the go depth command
 func SetMaxDepth(d int) {
 	if d <= 0 {
-		timeInfo.depthLimit = maxDepth - 1
+		limit.depth = maxDepth - 1
 	} else {
-		timeInfo.depthLimit = d
+		limit.depth = d
 	}
 }
 
 // SetMaxNodes when the GUI sends the go nodes command
 func SetMaxNodes(n uint64) {
 	if n > 0 {
-		timeInfo.nodeIsLmited = true
-		timeInfo.nodeLimit = n
+		limit.nodeIsLmited = true
+		limit.nodes = n
 	} else {
-		timeInfo.nodeIsLmited = false
+		limit.nodeIsLmited = false
 
 	}
 }
@@ -449,16 +456,16 @@ func SetMaxNodes(n uint64) {
 // SetMaxTime when the GUI sends the go movetime command
 func SetMaxTime(t uint64) {
 	if t > 0 {
-		timeInfo.timeIsLimited = true
-		timeInfo.timeLimit = t
+		limit.timeIsLimited = true
+		limit.time = t
 	} else {
-		timeInfo.timeIsLimited = false
+		limit.timeIsLimited = false
 	}
 }
 
 // SetPonder (true) when the GUI send the go ponder command
 func SetPonder(p bool) {
-	timeInfo.ponder = p
+	limit.ponder = p
 }
 
 // StartSearch determines what kind of search that
@@ -573,41 +580,41 @@ func searchID(bd *board.Board) {
 	easy := (ml.Size() == 1 || (ml.Size() > 1 && ml.Score(0)-ml.Score(1) >= 50/4)) // HACK: uses gen_sort() internals
 	easyMove := ml.Move(0)
 
-	timeInfo.lastScore = score.None
+	limit.lastScore = noScore
 
 	///// iterative deepening /////
-	for depth := 1; depth <= timeInfo.depthLimit; depth++ {
+	for depth := 1; depth <= limit.depth; depth++ {
 		depthStart(depth)
 		searchAsp(&ml, depth)
 		if bStop {
 			return
 		}
 		//p_time.drop = (best.score <= p_time.last_score-50) // moved to update_best()
-		timeInfo.lastScore = best.score
+		limit.lastScore = best.score
 
-		if best.move != easyMove || timeInfo.drop {
+		if best.move != easyMove || limit.drop {
 			easy = false
 		}
 
-		if timeInfo.hard && !timeInfo.drop {
+		if limit.hard && !limit.drop {
 			abort := false
 			updateCurrent()
 
-			if ml.Size() == 1 && int64(current.time) >= timeInfo.limitA/16 {
+			if ml.Size() == 1 && int64(current.time) >= limit.step1/16 {
 				abort = true
 			}
 
-			if easy && int64(current.time) >= timeInfo.limitA/4 {
+			if easy && int64(current.time) >= limit.step1/4 {
 				abort = true
 			}
 
-			if int64(current.time) >= timeInfo.limitA/2 {
+			if int64(current.time) >= limit.step1/2 {
 				abort = true
 			}
 
 			if abort {
-				if timeInfo.ponder {
-					timeInfo.flag = true
+				if limit.ponder {
+					limit.flag = true
 				} else {
 					bStop = true
 					break
@@ -633,13 +640,13 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 
 	//util.ASSERT(depth <= 1 || p_time.last_score == best.score)
 
-	if depth >= 6 && !score.IsMateScore(timeInfo.lastScore) {
+	if depth >= 6 && !trans.IsMateScore(limit.lastScore) {
 
 		for margin := 10; margin < 500; margin *= 2 {
 
-			a := timeInfo.lastScore - margin
-			b := timeInfo.lastScore + margin
-			//util.ASSERT(score.EVAL_MIN <= a && a < b && b <= score.EVAL_MAX)
+			a := limit.lastScore - margin
+			b := limit.lastScore + margin
+			//util.ASSERT(trans.EVAL_MIN <= a && a < b && b <= trans.EVAL_MAX)
 
 			searchRoot(sl, ml, depth, a, b)
 			if bStop {
@@ -648,13 +655,13 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 
 			if best.score > a && best.score < b {
 				return
-			} else if score.IsMateScore(best.score) {
+			} else if trans.IsMateScore(best.score) {
 				break
 			}
 		}
 	}
 
-	searchRoot(sl, ml, depth, score.Min, score.Max)
+	searchRoot(sl, ml, depth, minScore, maxScore)
 }
 
 // search_root is the search from the current position.
@@ -670,7 +677,7 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 
 	pvNode := true
 
-	bs := score.None
+	bs := noScore
 	bm := move.None
 	oldAlpha := alpha
 
@@ -727,7 +734,7 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 			var pv pvStruct
 
 			pv.catenate(mv, &npv)
-			updateBest(&best, sc, score.Flags(sc, alpha, beta), &pv)
+			updateBest(&best, sc, trans.Flags(sc, alpha, beta), &pv)
 
 			updateCurrent()
 			writePV(&best)
@@ -743,7 +750,7 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 
 				///// Search_Global här
 				if depth >= 0 {
-					SG.Trans.Store(key, depth, bd.Ply(), mv, sc, score.FlagsLower)
+					SG.Trans.Store(key, depth, bd.Ply(), mv, sc, trans.FlagsLower)
 				}
 
 				if sc >= beta {
@@ -753,11 +760,11 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 		}
 	}
 
-	//util.ASSERT(bs != score.None)
+	//util.ASSERT(bs != trans.None)
 	//util.ASSERT(bs < beta)
 
 	if depth >= 0 {
-		flags := score.Flags(bs, oldAlpha, beta)
+		flags := trans.Flags(bs, oldAlpha, beta)
 
 		///// Search_Global här
 		SG.Trans.Store(key, depth, bd.Ply(), bm, bs, flags)
@@ -784,7 +791,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	// mate-distance pruning
 
-	mateSc := score.HashScore(score.Mate-1, bd.Ply())
+	mateSc := trans.HashScore(mateScore-1, bd.Ply())
 
 	if mateSc < beta {
 
@@ -826,13 +833,13 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		var flags int
 
 		if SG.Trans.Retrieve(key, transDepth, bd.Ply(), &transMove, &transSc, &flags) && !pvNode { // assigns trans_move #
-			if flags == score.FlagsLower && transSc >= beta {
+			if flags == trans.FlagsLower && transSc >= beta {
 				return transSc
 			}
-			if flags == score.FlagsUpper && transSc <= alpha {
+			if flags == trans.FlagsUpper && transSc <= alpha {
 				return transSc
 			}
-			if flags == score.FlagsExact {
+			if flags == trans.FlagsExact {
 				return transSc
 			}
 		}
@@ -846,7 +853,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	ev := evalu8(stm, sl)
 	// beta pruning
-	if !pvNode && depth > 0 && depth <= 3 && !score.IsMateScore(beta) && !inCheck {
+	if !pvNode && depth > 0 && depth <= 3 && !trans.IsMateScore(beta) && !inCheck {
 
 		sc := ev - depth*50
 
@@ -857,11 +864,11 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	// null-move pruning
 
-	if !pvNode && depth > 0 && !score.IsMateScore(beta) && !inCheck && !board.LoneKing(stm, bd) && ev >= beta {
+	if !pvNode && depth > 0 && !trans.IsMateScore(beta) && !inCheck && !board.LoneKing(stm, bd) && ev >= beta {
 
 		bd.MoveNull() // TODO: use sl?
 
-		sc := score.Min
+		sc := minScore
 
 		if depth <= 3 { // static
 			sc = -qs(sl, -beta+1, 100)
@@ -877,17 +884,17 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		if sc >= beta {
 
 			if useTrans {
-				SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, score.FlagsLower)
+				SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, trans.FlagsLower)
 			}
 			return sc
 		}
 	}
 	// stand pat
 
-	bs := score.None
+	bs := noScore
 	bm := move.None
 	oldAlpha := alpha
-	val := score.None // for delta pruning
+	val := noScore // for delta pruning
 
 	if depth <= 0 && !inCheck {
 
@@ -908,7 +915,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	useFP := false
 
-	if depth > 0 && depth <= 8 && !score.IsMateScore(alpha) && !inCheck {
+	if depth > 0 && depth <= 8 && !trans.IsMateScore(alpha) && !inCheck {
 
 		sc := ev + depth*40
 		val = sc + 50 // FP-DP margin, extra 50 for captures
@@ -954,7 +961,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 			continue
 		}
 
-		if !pvNode && depth > 0 && depth <= 3 && !score.IsMateScore(bs) && searched.Size() >= depth*4 && !dangerous { // late-move pruning
+		if !pvNode && depth > 0 && depth <= 3 && !trans.IsMateScore(bs) && searched.Size() >= depth*4 && !dangerous { // late-move pruning
 			continue
 		}
 
@@ -1000,7 +1007,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 				alpha = sc
 
 				if useTrans {
-					SG.Trans.Store(key, transDepth, bd.Ply(), mv, sc, score.FlagsLower)
+					SG.Trans.Store(key, transDepth, bd.Ply(), mv, sc, trans.FlagsLower)
 				}
 
 				if sc >= beta {
@@ -1020,10 +1027,10 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		*/
 	} // end move loop
 
-	if bs == score.None {
+	if bs == noScore {
 		//util.ASSERT(depth > 0 || in_check)
 		if inCheck {
-			return -score.Mate + bd.Ply()
+			return -mateScore + bd.Ply()
 		}
 		return 0
 
@@ -1032,7 +1039,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 	//util.ASSERT(bs < beta)
 
 	if useTrans {
-		flags := score.Flags(bs, oldAlpha, beta)
+		flags := trans.Flags(bs, oldAlpha, beta)
 		SG.Trans.Store(key, transDepth, bd.Ply(), bm, bs, flags)
 	}
 
@@ -1054,7 +1061,7 @@ func failHighFalse() {
 }
 func failHighTrue() {
 	current.failHigh = true
-	timeInfo.flag = false
+	limit.flag = false
 }
 
 // evalu8 evaluates a position and gives a value from side to move viewpoint.
@@ -1107,7 +1114,7 @@ func qs(sl *searchLocal, beta, gain int) int { // for static NMP
 
 		bit.Set(&done, move.To(mv))
 
-		see, cnt := se.See(mv, 0, score.EvalMAX, bd) // TODO: beta - val?
+		see, cnt := se.See(mv, 0, trans.EvalMAX, bd) // TODO: beta - val?
 		if cnt > 0 {
 			incNode(sl, cnt-1)
 		}
@@ -1182,7 +1189,7 @@ func updateCurrent() {
 	current.node = node
 	current.maxPly = maxPly
 
-	current.time = timeInfo.timer.getElapsed()
+	current.time = limit.timer.getElapsed()
 	if current.time < 10 {
 		current.speed = 0
 	} else {
@@ -1197,7 +1204,7 @@ func SetStop(s bool) {
 	bStop = s
 }
 func searchEnd() {
-	timeInfo.timer.stop()
+	limit.timer.stop()
 	updateCurrent()
 	infoToGUI()
 }
@@ -1219,19 +1226,19 @@ func incNode(sl *searchLocal, cnt int) {
 			abort = true
 		}
 
-		if timeInfo.nodeIsLmited && uint64(current.node) >= timeInfo.nodeLimit {
+		if limit.nodeIsLmited && uint64(current.node) >= limit.nodes {
 			abort = true
 		}
 
-		if timeInfo.timeIsLimited && uint64(current.time+3) >= timeInfo.timeLimit {
+		if limit.timeIsLimited && uint64(current.time+3) >= limit.time {
 			abort = true
 		}
 
-		if timeInfo.hard && current.depth > 1 && int64(current.time) >= timeInfo.limitA {
-			if current.pos == 0 || int64(current.time) >= timeInfo.limitB {
-				if !(timeInfo.drop || current.failHigh) || int64(current.time) >= timeInfo.limitC {
-					if timeInfo.ponder {
-						timeInfo.flag = true
+		if limit.hard && current.depth > 1 && int64(current.time) >= limit.step1 {
+			if current.pos == 0 || int64(current.time) >= limit.stepB {
+				if !(limit.drop || current.failHigh) || int64(current.time) >= limit.stepC {
+					if limit.ponder {
+						limit.flag = true
 					} else {
 						abort = true
 					}
@@ -1239,9 +1246,9 @@ func incNode(sl *searchLocal, cnt int) {
 			}
 		}
 
-		if timeInfo.hard && current.depth > 1 && current.size == 1 && int64(current.time) >= timeInfo.limitA/8 {
-			if timeInfo.ponder {
-				timeInfo.flag = true
+		if limit.hard && current.depth > 1 && current.size == 1 && int64(current.time) >= limit.step1/8 {
+			if limit.ponder {
+				limit.flag = true
 			} else {
 				abort = true
 			}
@@ -1272,8 +1279,8 @@ func poll() bool {
 		return true
 	} else if bPonderHit {
 		//Infinite = false
-		timeInfo.ponder = false
-		return timeInfo.flag
+		limit.ponder = false
+		return limit.flag
 	}
 
 	return false
@@ -1306,7 +1313,7 @@ func genAndSortLegals(sl *searchLocal, ml *gen.ScMvList) {
 
 		mv := ml.Move(pos)
 		slMove(sl, mv)
-		sc := -qs(sl, score.Max, 0)
+		sc := -qs(sl, maxScore, 0)
 
 		undo(sl)
 
@@ -1346,6 +1353,17 @@ func infoToGUI() {
 	tellGUI(line)
 }
 
+// MateWithSign put +/- to a mate score
+func mateWithSign(sc int) int {
+	if sc < trans.EvalMin { // -MATE
+		return -(mateScore + sc) / 2
+	} else if sc > trans.EvalMAX { // +MATE
+		return (mateScore - sc + 1) / 2
+	}
+	// assert(false);
+	return 0
+}
+
 func writePV(best *bestStruct) {
 
 	//	fmt.Println("sg.lock()")
@@ -1353,16 +1371,16 @@ func writePV(best *bestStruct) {
 
 	line := fmt.Sprintf("info depth %v seldepth %v ", best.depth, current.maxPly)
 	line += fmt.Sprintf("nodes %v time %v ", current.node, current.time)
-	if score.IsMateScore(best.score) {
-		line += fmt.Sprintf(" score mate %v ", score.MateWithSign(best.score))
+	if trans.IsMateScore(best.score) {
+		line += fmt.Sprintf(" score mate %v ", mateWithSign(best.score))
 	} else {
 		line += fmt.Sprintf(" score cp %v ", best.score)
 	}
 
-	if best.flags == score.FlagsLower {
+	if best.flags == trans.FlagsLower {
 		line += fmt.Sprintf("lowerbound ")
 	}
-	if best.flags == score.FlagsUpper {
+	if best.flags == trans.FlagsUpper {
 		line += fmt.Sprintf("upperbound ")
 	}
 
