@@ -12,6 +12,7 @@ import (
 	"GoAlaric/search"
 	"GoAlaric/util"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -238,7 +239,7 @@ func pickNumber(line string, cmd string) (int64, bool) {
 
 }
 
-func setOption(words []string) { // NOTE: "setoption" is already removed from words
+func setOption(words []string) { // NOTE: "setoption" is already removed from the parameter words
 	word := strings.ToLower(strings.TrimSpace(words[0]))
 	if word != "name" {
 		return
@@ -255,11 +256,17 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from wo
 	value := strings.ToLower(strings.TrimSpace(words[3]))
 	switch word {
 	case "hash":
+		fmt.Println("info string Hash before:", engine.Engine.Hash)
 		hashVal, err := strconv.ParseInt(value, 10, 32)
 		if err != nil {
 			return
 		}
 		engine.Engine.Hash = int(hashVal)
+		search.SG.Trans.InitTable()
+		search.SG.Trans.SetSize(engine.Engine.Hash)
+		search.SG.Trans.Alloc()
+
+		log.Println("info string Hash after:", engine.Engine.Hash)
 
 	case "threads":
 		threads, err := strconv.ParseInt(value, 10, 32)

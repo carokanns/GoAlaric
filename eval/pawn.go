@@ -7,7 +7,7 @@ import (
 
 	//	"GoAlaric/attack" //går ej!
 	"GoAlaric/bit"
-	"GoAlaric/board" // går ej!
+	"GoAlaric/board"
 	"GoAlaric/hash"
 	// "GoAlaric/eval" //går ej
 	"GoAlaric/material"
