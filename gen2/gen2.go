@@ -3,11 +3,10 @@ package gen2
 //namespace gen_sort {
 //   // HACK: outside of List class because of C++ "static const" limitations :(
 import (
-	//	"GoAlaric/attack"
 	"GoAlaric/bit"
 	"GoAlaric/board"
 	"GoAlaric/eval"
-	"GoAlaric/gen"
+	//	"GoAlaric/gen"
 	"GoAlaric/move"
 	"GoAlaric/piece"
 	"GoAlaric/sort"
@@ -45,9 +44,9 @@ var (
 
 // List is the gen move table
 type List struct {
-	todoList gen.ScMvList
-	doneList gen.ScMvList
-	badList  gen.ScMvList
+	todoList sort.ScMvList
+	doneList sort.ScMvList
+	badList  sort.ScMvList
 
 	transMove int
 	idx       int
@@ -103,7 +102,7 @@ func (l *List) gen() bool {
 
 	case genEvasion:
 
-		gen.AddEvasions(&l.todoList, l.board.Stm(), l.board, l.attacks)
+		sort.AddEvasions(&l.todoList, l.board.Stm(), l.board, l.attacks)
 		sort.Evasions(&l.todoList, l.transMove)
 
 	case genTrans:
@@ -118,8 +117,8 @@ func (l *List) gen() bool {
 
 	case genTactical:
 
-		gen.AddCaptures(&l.todoList, l.board.Stm(), l.board)
-		gen.AddProms(&l.todoList, l.board.Stm(), l.board.Empty(), l.board)
+		sort.AddCaptures(&l.todoList, l.board.Stm(), l.board)
+		sort.AddProms(&l.todoList, l.board.Stm(), l.board.Empty(), l.board)
 		sort.Tacticals(&l.todoList)
 
 		l.candidate = true
@@ -128,13 +127,13 @@ func (l *List) gen() bool {
 
 		k0 := l.killerMoves.Killer1(l.board.Ply())
 
-		if k0 != move.None && gen.IsQuiet(k0, l.board) {
+		if k0 != move.None && sort.IsQuiet(k0, l.board) {
 			l.todoList.Add(k0)
 		}
 
 		k1 := l.killerMoves.Killer2(l.board.Ply())
 
-		if k1 != move.None && gen.IsQuiet(k1, l.board) {
+		if k1 != move.None && sort.IsQuiet(k1, l.board) {
 			l.todoList.Add(k1)
 		}
 
@@ -142,20 +141,20 @@ func (l *List) gen() bool {
 
 	case genCheck:
 
-		gen.AddChecks(&l.todoList, l.board.Stm(), l.board)
+		sort.AddChecks(&l.todoList, l.board.Stm(), l.board)
 
 		l.candidate = true // not needed yet
 
 	case genPawn:
 
-		gen.AddCastling(&l.todoList, l.board.Stm(), l.board)
-		gen.PawnPushes(&l.todoList, l.board.Stm(), l.board)
+		sort.AddCastling(&l.todoList, l.board.Stm(), l.board)
+		sort.PawnPushes(&l.todoList, l.board.Stm(), l.board)
 
 		l.candidate = true // not needed yet
 
 	case genQuiet:
 
-		gen.AddQuietMoves(&l.todoList, l.board.Stm(), l.board)
+		sort.AddQuietMoves(&l.todoList, l.board.Stm(), l.board)
 		sort.History(&l.todoList, l.board, l.historyTab)
 
 		l.candidate = false
@@ -431,7 +430,7 @@ func isLegal(mv int, bd *board.Board, attacks *eval.Attacks) bool {
 	to := move.To(mv)
 
 	if eval.IsEnPassant(mv, bd) {
-		return gen.IsLegalMv(mv, bd)
+		return sort.IsLegalMv(mv, bd)
 	}
 
 	if move.Piece(mv) == piece.King {

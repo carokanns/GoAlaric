@@ -4,7 +4,7 @@ import (
 	"GoAlaric/bit"
 	"GoAlaric/board"
 	"GoAlaric/eval"
-	"GoAlaric/gen"
+	//	"GoAlaric/gen"
 	"GoAlaric/gen2"
 	"GoAlaric/hash"
 	"GoAlaric/move"
@@ -70,7 +70,7 @@ const (
 )
 
 var genList [maxThreads][maxPly]gen2.List
-var genSearched [maxThreads][maxPly]gen.ScMvList
+var genSearched [maxThreads][maxPly]sort.ScMvList
 var genQS [maxThreads][maxQS]gen2.SEE
 
 type timerStr struct {
@@ -258,8 +258,8 @@ type splitPoint struct { ////////: public util::Lockable
 	alpha    int // vill vara volatile - kan ge smp problem utan
 	beta     int
 
-	todo gen.ScMvList
-	done gen.ScMvList
+	todo sort.ScMvList
+	done sort.ScMvList
 
 	workers  int // vill vara volatile - kan ge smp problem utan
 	sent     int
@@ -568,7 +568,7 @@ func searchID(bd *board.Board) {
 
 	///// move generation /////
 
-	var ml gen.ScMvList
+	var ml sort.ScMvList
 	genAndSortLegals(sl, &ml) // generate legal and sort
 	//util.ASSERT(ml.Size() != 0)
 	best.move = ml.Move(0)
@@ -630,7 +630,7 @@ func searchID(bd *board.Board) {
 // a very narrow alpha-beta window and if the search returns a value outside the window
 // it search again with a wider window. This goes on until the search
 // returns a value that is inside the window
-func searchAsp(ml *gen.ScMvList, depth int) {
+func searchAsp(ml *sort.ScMvList, depth int) {
 	//	fmt.Println("search_asp depth", depth)
 	//	defer fmt.Println("exit search_asp depth", depth)
 	sl := &slEntries[0]
@@ -664,7 +664,7 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 // search_root is the search from the current position.
 // Here we can generate all the moves and sort them.
 // Something that is not done deeper in the tree
-func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
+func searchRoot(sl *searchLocal, ml *sort.ScMvList, depth, alpha, beta int) {
 	//	fmt.Println("search_root d=", depth)
 	//	defer fmt.Println("exit search_root")
 	//util.ASSERT(depth > 0 && depth < MAX_DEPTH)
@@ -991,7 +991,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 			return alpha
 		}
 		//	fmt.Println("move loop end m", mv, bd.Ply(), i)
-		//util.ASSERT(searched.Size() < gen.SIZE, "size är ", searched.Size())
+		//util.ASSERT(searched.Size() < sort.SIZE, "size är ", searched.Size())
 		searched.Add(mv)
 		if sc > bs {
 
@@ -1299,11 +1299,11 @@ func slMove(sl *searchLocal, mv int) {
 	}
 }
 
-func genAndSortLegals(sl *searchLocal, ml *gen.ScMvList) {
+func genAndSortLegals(sl *searchLocal, ml *sort.ScMvList) {
 
 	var bd = &sl.board
 
-	gen.LegalMoves(ml, bd)
+	sort.LegalMoves(ml, bd)
 
 	v := evalu8(bd.Stm(), sl)
 	for pos := 0; pos < ml.Size(); pos++ {
@@ -1444,9 +1444,9 @@ func StartPerft(depth int, bd *board.Board) uint64 {
 		return 0
 	}
 
-	var ml gen.ScMvList
+	var ml sort.ScMvList
 
-	gen.LegalMoves(&ml, bd)
+	sort.LegalMoves(&ml, bd)
 	totCount := uint64(0)
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
@@ -1468,8 +1468,8 @@ func perft(depth int, bd *board.Board) uint64 {
 	if depth == 0 {
 		return 1
 	}
-	var ml gen.ScMvList
-	gen.LegalMoves(&ml, bd)
+	var ml sort.ScMvList
+	sort.LegalMoves(&ml, bd)
 	count := uint64(0)
 
 	for pos := 0; pos < ml.Size(); pos++ {

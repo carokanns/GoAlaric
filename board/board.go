@@ -9,7 +9,6 @@ import (
 	"GoAlaric/hash"
 	"GoAlaric/material"
 	"GoAlaric/move"
-	//"GoAlaric/pawn"
 	"GoAlaric/piece"
 	"GoAlaric/square"
 	"GoAlaric/util"
@@ -33,8 +32,8 @@ const (
 
 // The two wings of the board
 const (
-	WingKING int = iota
-	WingQUEEN
+	WingKING  int = iota // Kungsflygeln
+	WingQUEEN            // Damflygeln
 )
 const scoreNONE int = -10000 // HACK because "score.None" is defined later
 
@@ -242,7 +241,7 @@ func (bd *Board) castleOk(index int) bool {
 
 	sd := castling.Side(index)
 
-	return bd.SquareIs(castling.Info[index].Kf, piece.King, sd) && bd.SquareIs(castling.Info[index].Rf, piece.Rook, sd)
+	return bd.SquareIs(castling.Info[index].KingFr, piece.King, sd) && bd.SquareIs(castling.Info[index].RookFr, piece.Rook, sd)
 }
 func (bd *Board) setSquare(pc int, sd int, sq int, updateCopy bool) {
 
@@ -532,9 +531,9 @@ func (bd *Board) MakeFenMve(mv int) {
 
 		undo.castling = true
 
-		wg := WingKING
+		wg := WingKING //Kungsflygeln
 		if to < fr {
-			wg = WingQUEEN
+			wg = WingQUEEN // Damflyfeln
 		}
 		index := castling.Index(sd, wg)
 
@@ -543,7 +542,7 @@ func (bd *Board) MakeFenMve(mv int) {
 		// util.ASSERT(fr == castling.Info[index].kf);
 		// util.ASSERT(to == castling.Info[index].kt);
 
-		bd.moveSquare(piece.Rook, sd, castling.Info[index].Rf, castling.Info[index].Rt, true)
+		bd.moveSquare(piece.Rook, sd, castling.Info[index].RookFr, castling.Info[index].RokTo, true)
 	}
 
 	// turn
@@ -723,7 +722,7 @@ func (bd *Board) Move(mv int) {
 		// util.ASSERT(fr == castling.info[index].kf);
 		// util.ASSERT(to == castling.info[index].kt);
 
-		bd.moveSquare(piece.Rook, sd, castling.Info[index].Rf, castling.Info[index].Rt, true)
+		bd.moveSquare(piece.Rook, sd, castling.Info[index].RookFr, castling.Info[index].RokTo, true)
 	}
 
 	// turn
@@ -799,7 +798,7 @@ func (bd *Board) Undo() {
 		// util.ASSERT(fr == castling.Info[index].kf);
 		// util.ASSERT(to == castling.info[index].kt);
 
-		bd.moveSquare(piece.Rook, sd, castling.Info[index].Rt, castling.Info[index].Rf, false)
+		bd.moveSquare(piece.Rook, sd, castling.Info[index].RokTo, castling.Info[index].RookFr, false)
 	}
 
 	// promotion

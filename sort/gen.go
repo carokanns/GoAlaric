@@ -1,7 +1,6 @@
-package gen
+package sort
 
 import (
-	//"GoAlaric/attack"
 	"GoAlaric/bit"
 	"GoAlaric/board"
 	"GoAlaric/castling"
@@ -140,10 +139,10 @@ func canCastle(sd int, wg int, bd *board.Board) bool {
 
 	if castling.Flag(bd.Flags(), uint(index)) {
 
-		kf := castling.Info[index].Kf
+		kf := castling.Info[index].KingFr
 		// int kt = castling.info[index].kt;
-		rf := castling.Info[index].Rf
-		rt := castling.Info[index].Rt
+		rf := castling.Info[index].RookFr
+		rt := castling.Info[index].RokTo
 
 		// assert(bd.square_is(kf, piece.King, sd))
 		// assert(bd.square_is(rf, piece.Rook, sd))
@@ -375,7 +374,7 @@ func AddCastling(ml *ScMvList, sd int, bd *board.Board) {
 	for wg := 0; wg < 2; wg++ {
 		if canCastle(sd, wg, bd) {
 			index := castling.Index(sd, wg)
-			addPieceMv(ml, castling.Info[index].Kf, castling.Info[index].Kt, bd)
+			addPieceMv(ml, castling.Info[index].KingFr, castling.Info[index].KingTo, bd)
 		}
 	}
 }

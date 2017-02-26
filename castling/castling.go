@@ -7,10 +7,10 @@ import (
 )
 
 type info struct {
-	Kf,
-	Kt,
-	Rf,
-	Rt int
+	KingFr,
+	KingTo,
+	RookFr,
+	RokTo int
 }
 
 // Info is the castling Info
@@ -27,6 +27,7 @@ var (
 )
 
 // Index of the castling
+// sd: side to move, wg: castle side - short or long (that is king side or queen side)
 func Index(sd, wg int) int {
 	return sd*2 + wg
 }

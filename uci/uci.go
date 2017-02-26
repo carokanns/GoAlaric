@@ -6,9 +6,10 @@ package uci
 import (
 	"GoAlaric/board"
 	"GoAlaric/eval"
-	"GoAlaric/gen"
+	//"GoAlaric/gen"
 	"GoAlaric/move"
 	"GoAlaric/search"
+	"GoAlaric/sort"
 	"GoAlaric/util"
 	"fmt"
 	"strconv"
@@ -302,7 +303,7 @@ func SetPosition(str string) {
 
 		moves := strings.Split(str[mpos+5:], " ")
 
-		var ml gen.ScMvList
+		var ml sort.ScMvList
 		strUse := ""
 
 		// check if the moves are legal. Need to actually update the board
@@ -312,7 +313,7 @@ func SetPosition(str string) {
 			}
 
 			ml.Clear()
-			gen.LegalMoves(&ml, &Bd)
+			sort.LegalMoves(&ml, &Bd)
 			if isLegal(strMve, &ml) {
 				strUse += strMve + " "
 				mve := board.FromString(strMve, &Bd)
@@ -328,7 +329,7 @@ func SetPosition(str string) {
 	}
 }
 
-func isLegal(strMve string, ml *gen.ScMvList) bool {
+func isLegal(strMve string, ml *sort.ScMvList) bool {
 	strMve = strings.ToLower(strings.TrimSpace(strMve))
 
 	for ix := 0; ix < ml.Size(); ix++ {
@@ -351,7 +352,7 @@ func initGame() {
 
 // PrintMoves is for testing. It prints all the move in the current position
 func PrintMoves() {
-	var ml gen.ScMvList
-	gen.LegalMoves(&ml, &Bd)
-	gen.PrintAllMoves(&ml)
+	var ml sort.ScMvList
+	sort.LegalMoves(&ml, &Bd)
+	sort.PrintAllMoves(&ml)
 }

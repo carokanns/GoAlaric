@@ -2,7 +2,7 @@ package sort
 
 import (
 	"GoAlaric/board"
-	"GoAlaric/gen"
+	//"GoAlaric/gen"
 	"GoAlaric/move"
 	"GoAlaric/piece"
 	"GoAlaric/square"
@@ -106,7 +106,7 @@ func (h *HistoryTab) Clear() {
 }
 
 // Add score into history table
-func (h *HistoryTab) Add(bm int, searched *gen.ScMvList, bd *board.Board) {
+func (h *HistoryTab) Add(bm int, searched *ScMvList, bd *board.Board) {
 
 	//util.ASSERT(bm != move.None)
 
@@ -123,7 +123,7 @@ func (h *HistoryTab) Add(bm int, searched *gen.ScMvList, bd *board.Board) {
 // ******* utanför class - ej methods ****************
 
 // Evasions is sorting evasion moves
-func Evasions(ml *gen.ScMvList, transMv int) {
+func Evasions(ml *ScMvList, transMv int) {
 
 	for pos := 0; pos < ml.Size(); pos++ {
 		ml.SetScore(pos, evasionScore(ml.Move(pos), transMv))
@@ -181,7 +181,7 @@ func promotionScore(pp int) int {
 //}
 
 // Tacticals is sorting tactical moves
-func Tacticals(ml *gen.ScMvList) {
+func Tacticals(ml *ScMvList) {
 
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
@@ -193,7 +193,7 @@ func Tacticals(ml *gen.ScMvList) {
 }
 
 // History is sorting history moves
-func History(ml *gen.ScMvList, bd *board.Board, history *HistoryTab) {
+func History(ml *ScMvList, bd *board.Board, history *HistoryTab) {
 
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)

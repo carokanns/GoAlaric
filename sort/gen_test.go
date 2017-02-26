@@ -1,16 +1,8 @@
 // gen_test.go
-package gen
+package sort
 
 import (
-	//	"GoAlaric/attack"
-
 	"GoAlaric/board"
-	//	"GoAlaric/move"
-	//	"GoAlaric/pawn"
-	//	"GoAlaric/pst"
-	//	"GoAlaric/square"
-	//"GoAlaric/uci"
-
 	"testing"
 )
 
