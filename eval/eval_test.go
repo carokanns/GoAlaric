@@ -132,7 +132,7 @@ func TestCompAttacks(t *testing.T) {
 
 			for pc := piece.Pawn; pc <= piece.King; pc++ {
 				fmt.Printf("attacks from lower than %v %v", text, piece.ToString(pc))
-				board.PrintBB(ai.ltAtks[sd][pc])
+				//				board.PrintBB(ai.ltAtks[sd][pc])
 			}
 			text = "Black"
 		}

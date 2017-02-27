@@ -4,10 +4,10 @@ import (
 	"GoAlaric/bit"
 	"GoAlaric/board"
 	"GoAlaric/eval"
-	"GoAlaric/fastgen"
+	"GoAlaric/gen"
 	"GoAlaric/hash"
 	"GoAlaric/move"
-	"GoAlaric/sort"
+	//	"GoAlaric/sort"
 	"GoAlaric/util"
 	"fmt"
 	"math"
@@ -68,9 +68,9 @@ const (
 	Profiling
 )
 
-var genList [maxThreads][maxPly]fastgen.List
-var genSearched [maxThreads][maxPly]sort.ScMvList
-var genQS [maxThreads][maxQS]fastgen.SEE
+var genList [maxThreads][maxPly]gen.List
+var genSearched [maxThreads][maxPly]gen.ScMvList
+var genQS [maxThreads][maxQS]gen.SEE
 
 type timerStr struct {
 	timeT   time.Time
@@ -229,7 +229,7 @@ var (
 type searchGlobal struct { ////////: public util::Lockable {
 
 	Trans   transTable
-	History fastgen.HistoryTab
+	History gen.HistoryTab
 }
 
 // SG includes the global data Hash table and Killer table that is not local (sl)
@@ -257,8 +257,8 @@ type splitPoint struct { ////////: public util::Lockable
 	alpha    int // vill vara volatile - kan ge smp problem utan
 	beta     int
 
-	todo sort.ScMvList
-	done sort.ScMvList
+	todo gen.ScMvList
+	done gen.ScMvList
 
 	workers  int // vill vara volatile - kan ge smp problem utan
 	sent     int
@@ -300,7 +300,7 @@ type searchLocal struct { ///////////: public util::Waitable
 	todoSP *splitPoint
 
 	board    board.Board
-	killer   fastgen.Killer
+	killer   gen.Killer
 	pawnHash eval.PawnHash
 	evalHash eval.Hash
 	node     int64 // vill vara volatile - kan ge smp problem utan
@@ -567,7 +567,7 @@ func searchID(bd *board.Board) {
 
 	///// move generation /////
 
-	var ml sort.ScMvList
+	var ml gen.ScMvList
 	genAndSortLegals(sl, &ml) // generate legal and sort
 	//util.ASSERT(ml.Size() != 0)
 	best.move = ml.Move(0)
@@ -629,7 +629,7 @@ func searchID(bd *board.Board) {
 // a very narrow alpha-beta window and if the search returns a value outside the window
 // it search again with a wider window. This goes on until the search
 // returns a value that is inside the window
-func searchAsp(ml *sort.ScMvList, depth int) {
+func searchAsp(ml *gen.ScMvList, depth int) {
 	//	fmt.Println("search_asp depth", depth)
 	//	defer fmt.Println("exit search_asp depth", depth)
 	sl := &slEntries[0]
@@ -663,7 +663,7 @@ func searchAsp(ml *sort.ScMvList, depth int) {
 // search_root is the search from the current position.
 // Here we can generate all the moves and sort them.
 // Something that is not done deeper in the tree
-func searchRoot(sl *searchLocal, ml *sort.ScMvList, depth, alpha, beta int) {
+func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 	//	fmt.Println("search_root d=", depth)
 	//	defer fmt.Println("exit search_root")
 	//util.ASSERT(depth > 0 && depth < MAX_DEPTH)
@@ -940,7 +940,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	//////// The move loop ///////////
 
-	//var ml fastgen.List
+	//var ml gen.List
 	gl := &(genList[sl.ID][bd.Ply()])
 	gl.Init(depth, bd, &attacks, transMove, &sl.killer, &SG.History, useFP)
 
@@ -953,7 +953,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 			continue
 		}
 
-		if useFP && !fastgen.IsSafe(mv, bd) { // SEE pruning
+		if useFP && !gen.IsSafe(mv, bd) { // SEE pruning
 			continue
 		}
 
@@ -1074,7 +1074,7 @@ func evalu8(stm int, sl *searchLocal) int {
 // This function makes sure that possible captures, promotions and checks are tries out first
 // before the evaluation is done.
 func qs(sl *searchLocal, beta, gain int) int { // for static NMP
-	//var se fastgen.SEE
+	//var se gen.SEE
 	se := &(genQS[sl.ID][0]) // noll tills vi har en (=1) rekursion av qs
 	//gl.Init(depth, bd, &attacks, trans_move, &sl.killer, &Sg.History, use_fp)
 	bd := &sl.board
@@ -1096,7 +1096,7 @@ func qs(sl *searchLocal, beta, gain int) int { // for static NMP
 	eval.InitAttacks(&attacks, bd.Stm(), bd)
 
 	///// Search_Global här
-	//var ml fastgen.List
+	//var ml gen.List
 	gl := &(genList[sl.ID][bd.Ply()])
 	gl.Init(-1, bd, &attacks, move.None, &sl.killer, &SG.History, false) // QS move generator
 
@@ -1138,9 +1138,9 @@ func extension(sl *searchLocal, mv int, depth int, pvNode bool) int {
 	bd := &sl.board
 
 	if (depth <= 4 && eval.IsCheck(mv, bd)) ||
-		(depth <= 4 && fastgen.IsRecapture(mv, bd)) ||
+		(depth <= 4 && gen.IsRecapture(mv, bd)) ||
 		(pvNode && eval.IsCheck(mv, bd)) ||
-		(pvNode && move.IsTactical(mv) && fastgen.IsWin(mv, bd)) ||
+		(pvNode && move.IsTactical(mv) && gen.IsWin(mv, bd)) ||
 		(pvNode && eval.IsPawnPush(mv, bd)) {
 		return 1
 	}
@@ -1298,11 +1298,11 @@ func slMove(sl *searchLocal, mv int) {
 	}
 }
 
-func genAndSortLegals(sl *searchLocal, ml *sort.ScMvList) {
+func genAndSortLegals(sl *searchLocal, ml *gen.ScMvList) {
 
 	var bd = &sl.board
 
-	fastgen.LegalMoves(ml, bd)
+	gen.LegalMoves(ml, bd)
 
 	v := evalu8(bd.Stm(), sl)
 	for pos := 0; pos < ml.Size(); pos++ {
@@ -1443,9 +1443,9 @@ func StartPerft(depth int, bd *board.Board) uint64 {
 		return 0
 	}
 
-	var ml sort.ScMvList
+	var ml gen.ScMvList
 
-	fastgen.LegalMoves(&ml, bd)
+	gen.LegalMoves(&ml, bd)
 	totCount := uint64(0)
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
@@ -1467,8 +1467,8 @@ func perft(depth int, bd *board.Board) uint64 {
 	if depth == 0 {
 		return 1
 	}
-	var ml sort.ScMvList
-	fastgen.LegalMoves(&ml, bd)
+	var ml gen.ScMvList
+	gen.LegalMoves(&ml, bd)
 	count := uint64(0)
 
 	for pos := 0; pos < ml.Size(); pos++ {

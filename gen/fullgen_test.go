@@ -1,5 +1,4 @@
-// gen_test.go
-package sort
+package gen
 
 import (
 	"GoAlaric/board"
@@ -8,21 +7,9 @@ import (
 
 func TestGen_legals(t *testing.T) {
 
-	//material.Init()
-	//eval.PstInit()
-	//eval.PawnInit()
-	//eval.Init()
-
-	//bit.InitBits()
-
-	//castling.Init()
-	//eval.AtkInit()
-
 	var bd board.Board
 	var ml ScMvList
 	board.SetFen(board.StartFen, &bd)
-
-	//uci.SetPosition("position startpos")
 
 	LegalMoves(&ml, &bd)
 	if ml.Size() != 20 {
@@ -56,5 +43,26 @@ func TestGen_legals(t *testing.T) {
 		t.Errorf("Test 5: Borde vara 31 drag men är %v", ml.Size())
 		PrintAllMoves(&ml)
 	}
-
 }
+
+//////////////////// HACK //////////////////////////
+// LegalMoves is generating psudomoves and selecting the legal ones
+//func LegalMoves(ml *ScMvList, bd *board.Board) {
+//	var pseudos ScMvList
+//	GenPseudos(&pseudos, bd)
+//	selectLegals(ml, &pseudos, bd)
+//}
+
+//func selectLegals(legals, src *ScMvList, bd *board.Board) {
+
+//	legals.Clear()
+
+//	for pos := 0; pos < src.Size(); pos++ {
+
+//		mv := src.Move(pos)
+
+//		if IsLegalMv(mv, bd) {
+//			legals.Add(mv)
+//		}
+//	}
+//}

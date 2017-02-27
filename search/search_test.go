@@ -4,12 +4,10 @@ package search
 import (
 	"GoAlaric/board"
 	"GoAlaric/eval"
-	"GoAlaric/fastgen"
-	//	"GoAlaric/fullgen"
+	"GoAlaric/gen"
 	_ "GoAlaric/material"
 	"GoAlaric/move"
 	"GoAlaric/piece"
-	"GoAlaric/sort"
 	"fmt"
 	"strings"
 	"testing"
@@ -22,9 +20,9 @@ var sl searchLocal
 func Test_Next(t *testing.T) {
 	board.SetFen("8/6kp/5p2/3n2pq/3N1n1R/1P3P2/P6P/4QK2 w - - 2 2", &bd)
 	var attacks eval.Attacks
-	var killer sort.Killer
-	var history sort.HistoryTab
-	var ml fastgen.List
+	var killer gen.Killer
+	var history gen.HistoryTab
+	var ml gen.List
 
 	killer.Clear()
 	history.Clear()
@@ -54,9 +52,9 @@ func Test_Next(t *testing.T) {
 func Test_promGen(t *testing.T) {
 	board.SetFen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPbbPPP/R3K2R w KQkq -", &bd)
 	board.FenMoves([]string{"d5e6", "h3g2", "h1g1"}, &bd)
-	var ml sort.ScMvList
+	var ml gen.ScMvList
 
-	sort.LegalMoves(&ml, &bd)
+	gen.LegalMoves(&ml, &bd)
 	bFound := false
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
@@ -75,7 +73,7 @@ func Test_promGen(t *testing.T) {
 
 	board.SetFen("k7/8/8/8/8/8/6p1/K5N1 b - - 0 1", &bd)
 	ml.Clear()
-	sort.LegalMoves(&ml, &bd)
+	gen.LegalMoves(&ml, &bd)
 	bFound = false
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)

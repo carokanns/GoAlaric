@@ -1,4 +1,4 @@
-package fastgen
+package gen
 
 import (
 	"GoAlaric/move"

@@ -1,10 +1,10 @@
-package fastgen
+package gen
 
 import (
 	"GoAlaric/board"
 	"GoAlaric/move"
 	"GoAlaric/piece"
-	"GoAlaric/sort"
+	//	"GoAlaric/sort"
 	"GoAlaric/square"
 )
 
@@ -61,7 +61,7 @@ func (h *HistoryTab) Clear() {
 }
 
 // Add score into history table
-func (h *HistoryTab) Add(bm int, searched *sort.ScMvList, bd *board.Board) {
+func (h *HistoryTab) Add(bm int, searched *ScMvList, bd *board.Board) {
 
 	//util.ASSERT(bm != move.None)
 
@@ -76,7 +76,7 @@ func (h *HistoryTab) Add(bm int, searched *sort.ScMvList, bd *board.Board) {
 }
 
 // History is sorting history moves
-func History(ml *sort.ScMvList, bd *board.Board, history *HistoryTab) {
+func History(ml *ScMvList, bd *board.Board, history *HistoryTab) {
 
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
