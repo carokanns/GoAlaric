@@ -6,7 +6,7 @@ package uci
 import (
 	"GoAlaric/board"
 	"GoAlaric/eval"
-	//"GoAlaric/gen"
+	"GoAlaric/fastgen"
 	"GoAlaric/move"
 	"GoAlaric/search"
 	"GoAlaric/sort"
@@ -313,7 +313,7 @@ func SetPosition(str string) {
 			}
 
 			ml.Clear()
-			sort.LegalMoves(&ml, &Bd)
+			fastgen.LegalMoves(&ml, &Bd)
 			if isLegal(strMve, &ml) {
 				strUse += strMve + " "
 				mve := board.FromString(strMve, &Bd)
@@ -353,6 +353,6 @@ func initGame() {
 // PrintMoves is for testing. It prints all the move in the current position
 func PrintMoves() {
 	var ml sort.ScMvList
-	sort.LegalMoves(&ml, &Bd)
+	fastgen.LegalMoves(&ml, &Bd)
 	sort.PrintAllMoves(&ml)
 }

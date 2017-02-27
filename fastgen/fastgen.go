@@ -1,4 +1,4 @@
-package gen2
+package fastgen
 
 //namespace gen_sort {
 //   // HACK: outside of List class because of C++ "static const" limitations :(
@@ -6,7 +6,6 @@ import (
 	"GoAlaric/bit"
 	"GoAlaric/board"
 	"GoAlaric/eval"
-	//	"GoAlaric/gen"
 	"GoAlaric/move"
 	"GoAlaric/piece"
 	"GoAlaric/sort"
@@ -57,13 +56,13 @@ type List struct {
 
 	board       *board.Board
 	attacks     *eval.Attacks
-	killerMoves *sort.Killer
-	historyTab  *sort.HistoryTab
+	killerMoves *Killer
+	historyTab  *HistoryTab
 	progPointer *genSV
 }
 
 // Init the list before generating moves
-func (l *List) Init(depth int, bd *board.Board, attacks *eval.Attacks, transMove int, killer *sort.Killer, history *sort.HistoryTab, useFP bool /* = false */) {
+func (l *List) Init(depth int, bd *board.Board, attacks *eval.Attacks, transMove int, killer *Killer, history *HistoryTab, useFP bool /* = false */) {
 	l.board = bd
 	l.attacks = attacks
 	l.killerMoves = killer
@@ -103,7 +102,7 @@ func (l *List) gen() bool {
 	case genEvasion:
 
 		sort.AddEvasions(&l.todoList, l.board.Stm(), l.board, l.attacks)
-		sort.Evasions(&l.todoList, l.transMove)
+		Evasions(&l.todoList, l.transMove)
 
 	case genTrans:
 
@@ -119,7 +118,7 @@ func (l *List) gen() bool {
 
 		sort.AddCaptures(&l.todoList, l.board.Stm(), l.board)
 		sort.AddProms(&l.todoList, l.board.Stm(), l.board.Empty(), l.board)
-		sort.Tacticals(&l.todoList)
+		Tacticals(&l.todoList)
 
 		l.candidate = true
 
@@ -127,13 +126,13 @@ func (l *List) gen() bool {
 
 		k0 := l.killerMoves.Killer1(l.board.Ply())
 
-		if k0 != move.None && sort.IsQuiet(k0, l.board) {
+		if k0 != move.None && IsQuiet(k0, l.board) {
 			l.todoList.Add(k0)
 		}
 
 		k1 := l.killerMoves.Killer2(l.board.Ply())
 
-		if k1 != move.None && sort.IsQuiet(k1, l.board) {
+		if k1 != move.None && IsQuiet(k1, l.board) {
 			l.todoList.Add(k1)
 		}
 
@@ -155,7 +154,7 @@ func (l *List) gen() bool {
 	case genQuiet:
 
 		sort.AddQuietMoves(&l.todoList, l.board.Stm(), l.board)
-		sort.History(&l.todoList, l.board, l.historyTab)
+		History(&l.todoList, l.board, l.historyTab)
 
 		l.candidate = false
 	case genBad:
@@ -474,4 +473,124 @@ func IsWin(mv int, bd *board.Board) bool {
 // IsRecapture checks if a move is a recapture
 func IsRecapture(mv int, bd *board.Board) bool {
 	return move.To(mv) == bd.Recap() && IsWin(mv, bd)
+}
+
+// Evasions is sorting evasion moves
+func Evasions(ml *sort.ScMvList, transMv int) {
+
+	for pos := 0; pos < ml.Size(); pos++ {
+		ml.SetScore(pos, EvasionScore(ml.Move(pos), transMv))
+	}
+
+	ml.Sort()
+}
+
+func EvasionScore(mv, transMv int) int {
+
+	if mv == transMv {
+		return move.ScoreMask
+	} else if move.IsTactical(mv) {
+		return tacticalScore(move.Piece(mv), move.Capt(mv), move.Prom(mv)) + 1
+		// assert(sc >= 1 && sc < 41)
+	}
+	return 0
+}
+
+func tacticalScore(pc, cp, pp int) int {
+
+	if cp != piece.None {
+		return captScore(pc, cp) + 4
+	}
+	return promotionScore(pp)
+
+}
+
+func captScore(pc, cp int) int {
+	sc := cp*6 + (5 - pc)
+	// assert(sc >= 0 && sc < 36);
+	return sc
+}
+
+func promotionScore(pp int) int {
+	switch pp {
+	case piece.Queen:
+		return 3
+	case piece.Knight:
+		return 2
+	case piece.Rook:
+		return 1
+	case piece.Bishop:
+		return 0
+	default:
+		// assert(false)
+		return 0
+	}
+}
+
+// Tacticals is sorting tactical moves
+func Tacticals(ml *sort.ScMvList) {
+
+	for pos := 0; pos < ml.Size(); pos++ {
+		mv := ml.Move(pos)
+		sc := tacticalScore(move.Piece(mv), move.Capt(mv), move.Prom(mv))
+		ml.SetScore(pos, sc)
+	}
+
+	ml.Sort()
+}
+
+// IsQuiet returns true if the given move
+func IsQuiet(mv int, bd *board.Board) bool {
+
+	sd := bd.Stm()
+
+	fr := move.From(mv)
+	to := move.To(mv)
+
+	pc := move.Piece(mv)
+	// assert(move.cap(mv) == piece.None);
+	// assert(move.prom(mv) == piece.None);
+
+	if !(bd.Square(fr) == pc && bd.SquareSide(fr) == sd) {
+		return false
+	}
+
+	if bd.Square(to) != piece.None {
+		return false
+	}
+
+	if pc == piece.Pawn {
+
+		inc := square.PawnInc(sd)
+
+		if to-fr == inc && !square.IsPromotion(to) {
+			return true
+		} else if to-fr == inc*2 && square.RankSd(fr, sd) == square.Rank2 {
+			return bd.Square(fr+inc) == piece.None
+		}
+		return false
+	}
+
+	return eval.PieceAttack(pc, fr, to, bd)
+}
+
+// LegalMoves is generating psudomoves and selecting the legal ones
+func LegalMoves(ml *sort.ScMvList, bd *board.Board) {
+	var pseudos sort.ScMvList
+	sort.GenPseudos(&pseudos, bd)
+	selectLegals(ml, &pseudos, bd)
+}
+
+func selectLegals(legals, src *sort.ScMvList, bd *board.Board) {
+
+	legals.Clear()
+
+	for pos := 0; pos < src.Size(); pos++ {
+
+		mv := src.Move(pos)
+
+		if sort.IsLegalMv(mv, bd) {
+			legals.Add(mv)
+		}
+	}
 }

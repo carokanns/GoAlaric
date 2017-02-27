@@ -1,5 +1,5 @@
 // gen2_test.go
-package gen2
+package fastgen
 
 import (
 	//	"GoAlaric/attack"

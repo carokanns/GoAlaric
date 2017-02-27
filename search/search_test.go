@@ -4,8 +4,8 @@ package search
 import (
 	"GoAlaric/board"
 	"GoAlaric/eval"
-	"GoAlaric/gen"
-	"GoAlaric/gen2"
+	"GoAlaric/fastgen"
+	//	"GoAlaric/fullgen"
 	_ "GoAlaric/material"
 	"GoAlaric/move"
 	"GoAlaric/piece"
@@ -24,7 +24,7 @@ func Test_Next(t *testing.T) {
 	var attacks eval.Attacks
 	var killer sort.Killer
 	var history sort.HistoryTab
-	var ml gen2.List
+	var ml fastgen.List
 
 	killer.Clear()
 	history.Clear()
@@ -54,9 +54,9 @@ func Test_Next(t *testing.T) {
 func Test_promGen(t *testing.T) {
 	board.SetFen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPbbPPP/R3K2R w KQkq -", &bd)
 	board.FenMoves([]string{"d5e6", "h3g2", "h1g1"}, &bd)
-	var ml gen.ScMvList
+	var ml sort.ScMvList
 
-	gen.LegalMoves(&ml, &bd)
+	sort.LegalMoves(&ml, &bd)
 	bFound := false
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
@@ -75,7 +75,7 @@ func Test_promGen(t *testing.T) {
 
 	board.SetFen("k7/8/8/8/8/8/6p1/K5N1 b - - 0 1", &bd)
 	ml.Clear()
-	gen.LegalMoves(&ml, &bd)
+	sort.LegalMoves(&ml, &bd)
 	bFound = false
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)

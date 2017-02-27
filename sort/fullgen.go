@@ -1,3 +1,7 @@
+// package sort handles the sorting of the moves during fast generation of moves
+// it actually picking moves in order without sorting
+// fullgen.go is for generating all moves and sort them
+// this is only used when performance is not an issue
 package sort
 
 import (
@@ -12,11 +16,9 @@ import (
 	"fmt"
 )
 
-//
-
 const maxSize = 256
 
-// ScMvList holds a list of moves with score
+// ScMvList holds a list of moves with score integrated
 type ScMvList struct {
 	size int
 	scMv [maxSize]uint32 // 21 bits score + 11 bits mv
@@ -127,12 +129,6 @@ func PawnPushes(ml *ScMvList, sd int, bd *board.Board) {
 	addPawnQuiets(ml, sd, ts&bd.Empty(), bd)
 }
 
-// LegalMoves is generating psudomoves and selecting the legal ones
-func LegalMoves(ml *ScMvList, bd *board.Board) {
-	var pseudos ScMvList
-	genPseudos(&pseudos, bd)
-	selectLegals(ml, &pseudos, bd)
-}
 func canCastle(sd int, wg int, bd *board.Board) bool {
 
 	index := castling.Index(sd, wg)
@@ -152,7 +148,7 @@ func canCastle(sd int, wg int, bd *board.Board) bool {
 
 	return false
 }
-func genPseudos(ml *ScMvList, bd *board.Board) {
+func GenPseudos(ml *ScMvList, bd *board.Board) {
 
 	ml.Clear()
 
@@ -242,20 +238,6 @@ func AddChecks(ml *ScMvList, sd int, bd *board.Board) {
 					addPieceMv(ml, fr, to, bd)
 				}
 			}
-		}
-	}
-}
-
-func selectLegals(legals, src *ScMvList, bd *board.Board) {
-
-	legals.Clear()
-
-	for pos := 0; pos < src.Size(); pos++ {
-
-		mv := src.Move(pos)
-
-		if IsLegalMv(mv, bd) {
-			legals.Add(mv)
 		}
 	}
 }
@@ -532,45 +514,6 @@ func IsLegalMv(mv int, bd *board.Board) bool {
 	bd.Undo()
 
 	return answer
-}
-
-// IsQuiet returns true if the given move
-func IsQuiet(mv int, bd *board.Board) bool {
-
-	sd := bd.Stm()
-
-	fr := move.From(mv)
-	to := move.To(mv)
-
-	pc := move.Piece(mv)
-	// assert(move.cap(mv) == piece.None);
-	// assert(move.prom(mv) == piece.None);
-
-	if !(bd.Square(fr) == pc && bd.SquareSide(fr) == sd) {
-		return false
-	}
-
-	if bd.Square(to) != piece.None {
-		return false
-	}
-
-	if pc == piece.Pawn {
-
-		inc := square.PawnInc(sd)
-
-		if to-fr == inc && !square.IsPromotion(to) {
-			return true
-		} else if to-fr == inc*2 && square.RankSd(fr, sd) == square.Rank2 {
-			return bd.Square(fr+inc) == piece.None
-		}
-		return false
-	}
-
-	return eval.PieceAttack(pc, fr, to, bd)
-
-	// assert(false);
-	//panic("shouldn'to happen")
-	//return false
 }
 
 /////////////// för tester ////////////////////////////////////
