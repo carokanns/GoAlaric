@@ -1,20 +1,15 @@
 package eval
 
 import (
-	"GoAlaric/material"
-	"fmt"
-	"math"
-	//"GoAlaric/attack"
 	"GoAlaric/bit"
 	"GoAlaric/board"
-	"GoAlaric/hash"
-	//"GoAlaric/pawn"
-	//"GoAlaric/move"
 	"GoAlaric/castling"
-	"GoAlaric/piece"
-	//	"GoAlaric/score"
+	"GoAlaric/hash"
+	"GoAlaric/material"
+	"GoAlaric/move"
 	"GoAlaric/square"
-	"GoAlaric/util"
+	"fmt"
+	"math"
 )
 
 //
@@ -45,8 +40,8 @@ var smallCentre, mediumCentre, largeCentre bit.BB
 var centre0, centre1 bit.BB
 var sideArea [2]bit.BB
 var kingArea [2][square.BoardSize]bit.BB
-var attackWeight = [piece.Size]int{0, 4, 4, 2, 1, 4, 0}
-var attackedWeight = [piece.Size]int{0, 1, 1, 2, 4, 8, 0}
+var attackWeight = [material.Size]int{0, 4, 4, 2, 1, 4, 0}
+var attackedWeight = [material.Size]int{0, 1, 1, 2, 4, 8, 0}
 
 var mobWeight [32]int
 var distWeight [8]int // for king-passer distance
@@ -106,11 +101,11 @@ func init() {
 			df := square.File(as) - square.File(ks)
 			dr := square.Rank(as) - square.Rank(ks)
 
-			if util.Iabs(df) <= 1 && dr >= -1 && dr <= +2 {
+			if move.Iabs(df) <= 1 && dr >= -1 && dr <= +2 {
 				bit.Set(&kingArea[WHITE][ks], as)
 			}
 
-			if util.Iabs(df) <= 1 && dr >= -2 && dr <= +1 {
+			if move.Iabs(df) <= 1 && dr >= -2 && dr <= +1 {
 				bit.Set(&kingArea[BLACK][ks], as)
 			}
 		}
@@ -136,10 +131,10 @@ type attackInfo struct {
 	allAtks      [2]bit.BB
 	multipleAtks [2]bit.BB
 
-	gePieces [2][piece.Size]bit.BB
+	gePieces [2][material.Size]bit.BB
 
-	ltAtks [2][piece.Size]bit.BB
-	leAtks [2][piece.Size]bit.BB
+	ltAtks [2][material.Size]bit.BB
+	leAtks [2][material.Size]bit.BB
 
 	kingEvasions [2]bit.BB
 
@@ -222,14 +217,14 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 		myKing := bd.King(sd)
 		opKing := bd.King(xd)
 
-		target := ^(bd.PieceSd(piece.Pawn, sd) | PawnAttacksFrom(xd, bd))
+		target := ^(bd.PieceSd(material.Pawn, sd) | PawnAttacksFrom(xd, bd))
 
 		kingN := 0
 		kingPower := 0
 
 		// pawns
 
-		myPawns := bd.PieceSd(piece.Pawn, sd)
+		myPawns := bd.PieceSd(material.Pawn, sd)
 		front := bit.Front(square.Rank3)
 		if sd == BLACK {
 			front = bit.Rear(square.Rank6)
@@ -242,10 +237,10 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 			if passerUnstoppable(sq, sd, bd) {
 
-				weight := util.Imax(rk-square.Rank3, 0.0)
+				weight := Imax(rk-square.Rank3, 0.0)
 				//util.ASSERT(weight >= 0 && weight < 5)
 
-				eg += (piece.QueenValue - piece.PawnValue) * weight / 5
+				eg += (material.QueenValue - material.PawnValue) * weight / 5
 				//fmt.Println("col:", sd, "unstop sq:", sq, "eg:", eg)
 
 			} else {
@@ -266,7 +261,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 		}
 		//fmt.Println("col:", sd, "P eval1:  ", eval, "mg:", mg, "eg:", eg)
 
-		eval += bit.Count(pawnMovesFrom(sd, bd)&bd.Empty())*4 - bd.Count(piece.Pawn, sd)*2
+		eval += bit.Count(pawnMovesFrom(sd, bd)&bd.Empty())*4 - bd.Count(material.Pawn, sd)*2
 		//fmt.Println("col:", sd, "P evalCnt:", eval, "mg:", mg, "eg:", eg)
 
 		eval += evalPawnCap(sd, bd, &ai)
@@ -275,9 +270,9 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 		// pieces
 
-		for pc := piece.Knight; pc <= piece.King; pc++ {
+		for pc := material.Knight; pc <= material.King; pc++ {
 
-			p12 := piece.MakeP12(pc, sd) // for PST
+			p12 := material.MakeP12(pc, sd) // for PST
 
 			n := bd.Count(pc, sd)
 			mg += n * material.Score(pc, MG)
@@ -298,13 +293,13 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 				safe := ^ai.allAtks[xd] | ai.multipleAtks[sd]
 
-				if pc >= piece.Bishop && pc <= piece.Queen { // battery (slider) support
+				if pc >= material.Bishop && pc <= material.Queen { // battery (slider) support
 
-					bishops := bd.PieceSd(piece.Bishop, sd) | bd.PieceSd(piece.Queen, sd)
-					rooks := bd.PieceSd(piece.Rook, sd) | bd.PieceSd(piece.Queen, sd)
+					bishops := bd.PieceSd(material.Bishop, sd) | bd.PieceSd(material.Queen, sd)
+					rooks := bd.PieceSd(material.Rook, sd) | bd.PieceSd(material.Queen, sd)
 
-					support := bishops & PseudoAttacksTo(piece.Bishop, sd, sq)
-					support |= rooks & PseudoAttacksTo(piece.Rook, sd, sq)
+					support := bishops & PseudoAttacksTo(material.Bishop, sd, sq)
+					support |= rooks & PseudoAttacksTo(material.Rook, sd, sq)
 					for b := tsAll & support; b != 0; b = bit.Rest(b) {
 						f := bit.First(b)
 						//util.ASSERT(Line_is_empty(f, sq, bd))
@@ -317,13 +312,13 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 				mg += Score(p12, sq, MG)
 				eg += Score(p12, sq, EG)
 
-				if pc == piece.King {
+				if pc == material.King {
 					eg += mobilityScore(tsSafe)
 				} else {
 					eval += mobilityScore(tsSafe)
 				}
 
-				if pc != piece.King {
+				if pc != material.King {
 					mg += attackMgScore(pc, sd, tsPawnSafe)
 				}
 
@@ -331,40 +326,40 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 				eval += captureScore(pc, sd, tsAll&(ai.gePieces[xd][pc]|target), bd, &ai)
 
-				if pc != piece.King {
+				if pc != material.King {
 					eval += checkNumber(pc, sd, tsSafe, opKing, bd) * material.Power(pc) * 6
 				}
 
-				if pc != piece.King && (tsSafe&kingArea[xd][opKing]) != 0 { // king attack
+				if pc != material.King && (tsSafe&kingArea[xd][opKing]) != 0 { // king attack
 					kingN++
 					kingPower += material.Power(pc)
 				}
 
-				if (pc == piece.Knight || pc == piece.Bishop) && rk >= square.Rank5 && rk <= square.Rank6 && fl >= square.FileC && fl <= square.FileF { // outpost
+				if (pc == material.Knight || pc == material.Bishop) && rk >= square.Rank5 && rk <= square.Rank6 && fl >= square.FileC && fl <= square.FileF { // outpost
 					eval += evalOutpost(sq, sd, bd, pEntry) * 5
 				}
 
-				if (pc == piece.Knight || pc == piece.Bishop) && rk >= square.Rank5 && !bit.IsOne(ai.allAtks[sd], sq) { // loose minor
+				if (pc == material.Knight || pc == material.Bishop) && rk >= square.Rank5 && !bit.IsOne(ai.allAtks[sd], sq) { // loose minor
 					mg -= 10
 				}
 
-				if (pc == piece.Knight || pc == piece.Bishop) && rk >= square.Rank3 && rk <= square.Rank4 && bd.SquareIs(square.Stop(sq, sd), piece.Pawn, sd) { // shielded minor
+				if (pc == material.Knight || pc == material.Bishop) && rk >= square.Rank3 && rk <= square.Rank4 && bd.SquareIs(square.Stop(sq, sd), material.Pawn, sd) { // shielded minor
 					mg += 10
 				}
 
 				// Rook on open file and/or 7th rank
-				if pc == piece.Rook {
+				if pc == material.Rook {
 
 					sc := pEntry.Open[fl][sd]
 
-					minors := bd.PieceSd(piece.Knight, xd) | bd.PieceSd(piece.Bishop, xd)
+					minors := bd.PieceSd(material.Knight, xd) | bd.PieceSd(material.Bishop, xd)
 					if sc >= 10 && (minors&bit.File(fl) & ^target) != 0 { // blocked by minor
 						sc = 5
 					}
 
 					eval += int(sc - 10)
 
-					if sc >= 10 && util.Iabs(square.File(opKing)-fl) <= 1 { // open file on king
+					if sc >= 10 && move.Iabs(square.File(opKing)-fl) <= 1 { // open file on king
 						weight := 1
 						if square.File(opKing) == fl {
 							weight = 2
@@ -375,7 +370,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 					if rk == square.Rank7 { // 7th rank
 
-						pawns := bd.PieceSd(piece.Pawn, xd) & bit.Rank(square.Rank(sq))
+						pawns := bd.PieceSd(material.Pawn, xd) & bit.Rank(square.Rank(sq))
 
 						if square.RankSd(opKing, sd) >= square.Rank7 || pawns != 0 {
 							mg += 10
@@ -384,7 +379,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 					}
 				}
 
-				if pc == piece.King { // king out
+				if pc == material.King { // king out
 
 					dl := (pEntry.leftFile - 1) - int8(fl)
 					if dl > 0 {
@@ -401,19 +396,19 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 		//fmt.Println("col:", sd, "Pi eval:", eval, "mg:", mg, "eg:", eg)
 		// ---- end pieces ---
 
-		if bd.Count(piece.Bishop, sd) >= 2 {
+		if bd.Count(material.Bishop, sd) >= 2 {
 			mg += 30
 			eg += 50
 		}
 
 		if evalKBNK(bd, sd) {
-			sqB := bit.First(bd.Piece(piece.Bishop))
+			sqB := bit.First(bd.Piece(material.Bishop))
 
 			//min distance till A1 och H8
-			d := util.Imin(square.Distance(opKing, square.A1), square.Distance(opKing, square.H8))
+			d := Imin(square.Distance(opKing, square.A1), square.Distance(opKing, square.H8))
 			if square.SameColor(square.H1, sqB) { // if bishop_sq_color is the other
 				//min distance till H1 och A8
-				d = util.Imin(square.Distance(opKing, square.H1), square.Distance(opKing, square.A8))
+				d = Imin(square.Distance(opKing, square.H1), square.Distance(opKing, square.A8))
 			}
 			kd := square.Distance(myKing, opKing)
 			mkc := square.Distance(myKing, square.E4) // dist center
@@ -459,8 +454,8 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 func evalKBNK(bd *board.Board, sd int) bool {
 	if bit.Count(bd.All()) == 4 &&
-		bd.Count(piece.Bishop, sd) == 1 &&
-		bd.Count(piece.Knight, sd) == 1 {
+		bd.Count(material.Bishop, sd) == 1 &&
+		bd.Count(material.Knight, sd) == 1 {
 		return true
 	}
 	return false
@@ -478,7 +473,7 @@ func mobilityScore(ts bit.BB) int {
 }
 func attackMgScore(pc, sd int, ts bit.BB) int {
 
-	//util.ASSERT(pc < piece.SIZE)
+	//util.ASSERT(pc < material.SIZE)
 
 	c0 := bit.Count(ts & centre0)
 	c1 := bit.Count(ts & centre1)
@@ -489,7 +484,7 @@ func attackMgScore(pc, sd int, ts bit.BB) int {
 	return (sc - 4) * attackWeight[pc] / 2
 }
 func attackEgScore(pc, sd int, ts bit.BB, pi *pawnEntry) int {
-	//util.ASSERT(pc < piece.SIZE)
+	//util.ASSERT(pc < material.SIZE)
 	return bit.Count(ts&pi.target[sd]) * attackWeight[pc] * 4
 }
 func drawMul(sd int, bd *board.Board, pi *pawnEntry) int {
@@ -497,8 +492,8 @@ func drawMul(sd int, bd *board.Board, pi *pawnEntry) int {
 	xd := board.Opposit(sd)
 
 	var pawn [2]int
-	pawn[WHITE] = bd.Count(piece.Pawn, WHITE)
-	pawn[BLACK] = bd.Count(piece.Pawn, BLACK)
+	pawn[WHITE] = bd.Count(material.Pawn, WHITE)
+	pawn[BLACK] = bd.Count(material.Pawn, BLACK)
 
 	force := force(sd, bd) - force(xd, bd)
 
@@ -506,10 +501,10 @@ func drawMul(sd int, bd *board.Board, pi *pawnEntry) int {
 
 	if board.LoneKingOrBishop(sd, bd) && pawn[sd] != 0 {
 
-		b := bd.PieceSd(piece.Bishop, sd)
+		b := bd.PieceSd(material.Bishop, sd)
 
-		if (bd.PieceSd(piece.Pawn, sd) & ^bit.File(square.FileA)) == 0 &&
-			(bd.PieceSd(piece.Pawn, xd)&bit.File(square.FileB)) == 0 {
+		if (bd.PieceSd(material.Pawn, sd) & ^bit.File(square.FileA)) == 0 &&
+			(bd.PieceSd(material.Pawn, xd)&bit.File(square.FileB)) == 0 {
 
 			prom := square.A1
 			if sd == WHITE {
@@ -523,8 +518,8 @@ func drawMul(sd int, bd *board.Board, pi *pawnEntry) int {
 			}
 		}
 
-		if (bd.PieceSd(piece.Pawn, sd) & ^bit.File(square.FileH)) == 0 &&
-			(bd.PieceSd(piece.Pawn, xd)&bit.File(square.FileG)) == 0 {
+		if (bd.PieceSd(material.Pawn, sd) & ^bit.File(square.FileH)) == 0 &&
+			(bd.PieceSd(material.Pawn, xd)&bit.File(square.FileG)) == 0 {
 
 			prom := square.H1
 			if sd == WHITE {
@@ -558,7 +553,7 @@ func drawMul(sd int, bd *board.Board, pi *pawnEntry) int {
 	if pawn[sd] == 1 && force == 0 {
 
 		king := bd.King(xd)
-		pawn := bit.First(bd.PieceSd(piece.Pawn, sd))
+		pawn := bit.First(bd.PieceSd(material.Pawn, sd))
 		stop := square.Stop(pawn, sd)
 
 		if king == stop || (square.RankSd(pawn, sd) <= square.Rank6 && king == square.Stop(stop, sd)) {
@@ -566,14 +561,14 @@ func drawMul(sd int, bd *board.Board, pi *pawnEntry) int {
 		}
 	}
 
-	if pawn[sd] == 2 && pawn[xd] >= 1 && force == 0 && hasMinor(xd, bd) && (bd.PieceSd(piece.Pawn, sd)&pi.Passed) == 0 {
+	if pawn[sd] == 2 && pawn[xd] >= 1 && force == 0 && hasMinor(xd, bd) && (bd.PieceSd(material.Pawn, sd)&pi.Passed) == 0 {
 		return 8
 	}
 
-	if board.LoneBishop(WHITE, bd) && board.LoneBishop(BLACK, bd) && util.Iabs(pawn[WHITE]-pawn[BLACK]) <= 2 { // opposit-colour bishops
+	if board.LoneBishop(WHITE, bd) && board.LoneBishop(BLACK, bd) && move.Iabs(pawn[WHITE]-pawn[BLACK]) <= 2 { // opposit-colour bishops
 
-		wb := bit.First(bd.PieceSd(piece.Bishop, WHITE))
-		bb := bit.First(bd.PieceSd(piece.Bishop, BLACK))
+		wb := bit.First(bd.PieceSd(material.Bishop, WHITE))
+		bb := bit.First(bd.PieceSd(material.Bishop, BLACK))
 
 		if !square.SameColor(wb, bb) {
 			return 8
@@ -585,7 +580,7 @@ func drawMul(sd int, bd *board.Board, pi *pawnEntry) int {
 
 func captureScore(pc, sd int, ts bit.BB, bd *board.Board, ai *attackInfo) int {
 
-	//util.ASSERT(pc < piece.SIZE)
+	//util.ASSERT(pc < material.SIZE)
 
 	sc := 0
 
@@ -604,18 +599,18 @@ func captureScore(pc, sd int, ts bit.BB, bd *board.Board, ai *attackInfo) int {
 }
 func checkNumber(pc, sd int, ts bit.BB, king int, bd *board.Board) int {
 
-	//util.ASSERT(pc != piece.King)
+	//util.ASSERT(pc != material.King)
 
 	xd := board.Opposit(sd)
 	checks := ts & ^bd.Side(sd) & PseudoAttacksTo(pc, sd, king)
 
-	if !(pc >= piece.Bishop && pc <= piece.Queen) { // not slider
+	if !(pc >= material.Bishop && pc <= material.Queen) { // not slider
 		return bit.CountLoop(checks)
 	}
 
 	n := 0
 
-	b := checks & PseudoAttacksTo(piece.King, xd, king) // contact checks
+	b := checks & PseudoAttacksTo(material.King, xd, king) // contact checks
 	n += bit.CountLoop(b) * 2
 	checks &= ^b
 
@@ -635,21 +630,21 @@ func force(sd int, bd *board.Board) int { // for draw eval
 
 	force := 0
 
-	for pc := piece.Knight; pc <= piece.Queen; pc++ {
+	for pc := material.Knight; pc <= material.Queen; pc++ {
 		force += bd.Count(pc, sd) * material.Power(pc)
 	}
 
 	return force
 }
 func hasMinor(sd int, bd *board.Board) bool {
-	return bd.Count(piece.Knight, sd)+bd.Count(piece.Bishop, sd) != 0
+	return bd.Count(material.Knight, sd)+bd.Count(material.Bishop, sd) != 0
 }
 
 // Interpolation is using the stage (Phase) of the game to find out
 // the weight for endgame and middlegame and compute the score
 func Interpolation(mg, eg int, bd *board.Board) int {
 
-	phase := util.Imin(bd.Phase(), material.TotalPhase)
+	phase := Imin(bd.Phase(), material.TotalPhase)
 	//util.ASSERT(phase >= 0 && phase <= material.TOTAL_PHASE)
 
 	weight := material.PhaseWeight[phase]
@@ -661,27 +656,27 @@ func evalFiancetto(bd *board.Board) int {
 
 	// fianchetto
 
-	if bd.SquareIs(square.B2, piece.Bishop, WHITE) &&
-		bd.SquareIs(square.B3, piece.Pawn, WHITE) &&
-		bd.SquareIs(square.C2, piece.Pawn, WHITE) {
+	if bd.SquareIs(square.B2, material.Bishop, WHITE) &&
+		bd.SquareIs(square.B3, material.Pawn, WHITE) &&
+		bd.SquareIs(square.C2, material.Pawn, WHITE) {
 		eval += 20
 	}
 
-	if bd.SquareIs(square.G2, piece.Bishop, WHITE) &&
-		bd.SquareIs(square.G3, piece.Pawn, WHITE) &&
-		bd.SquareIs(square.F2, piece.Pawn, WHITE) {
+	if bd.SquareIs(square.G2, material.Bishop, WHITE) &&
+		bd.SquareIs(square.G3, material.Pawn, WHITE) &&
+		bd.SquareIs(square.F2, material.Pawn, WHITE) {
 		eval += 20
 	}
 
-	if bd.SquareIs(square.B7, piece.Bishop, BLACK) &&
-		bd.SquareIs(square.B6, piece.Pawn, BLACK) &&
-		bd.SquareIs(square.C7, piece.Pawn, BLACK) {
+	if bd.SquareIs(square.B7, material.Bishop, BLACK) &&
+		bd.SquareIs(square.B6, material.Pawn, BLACK) &&
+		bd.SquareIs(square.C7, material.Pawn, BLACK) {
 		eval -= 20
 	}
 
-	if bd.SquareIs(square.G7, piece.Bishop, BLACK) &&
-		bd.SquareIs(square.G6, piece.Pawn, BLACK) &&
-		bd.SquareIs(square.F7, piece.Pawn, BLACK) {
+	if bd.SquareIs(square.G7, material.Bishop, BLACK) &&
+		bd.SquareIs(square.G6, material.Pawn, BLACK) &&
+		bd.SquareIs(square.F7, material.Pawn, BLACK) {
 		eval -= 20
 	}
 
@@ -699,7 +694,7 @@ func evalOutpost(sq, sd int, bd *board.Board, pi *pawnEntry) int {
 		weight += 2
 	}
 
-	if bd.SquareIs(square.Stop(sq, sd), piece.Pawn, xd) { // shielded
+	if bd.SquareIs(square.Stop(sq, sd), material.Pawn, xd) { // shielded
 		weight++
 	}
 
@@ -720,13 +715,13 @@ func evalPawnCap(sd int, bd *board.Board, ai *attackInfo) int {
 		t := bit.First(b)
 
 		cp := bd.Square(t)
-		if cp == piece.King {
+		if cp == material.King {
 			continue
 		}
 
-		sc += piece.Value[cp] - 50
+		sc += material.Value[cp] - 50
 		if bit.IsOne(ai.pinned, t) {
-			sc += (piece.Value[cp] - 50) * 2
+			sc += (material.Value[cp] - 50) * 2
 		}
 	}
 
@@ -741,7 +736,7 @@ func evalPassed(sq, sd int, bd *board.Board, ai *attackInfo) int {
 
 	// blocker
 	//util.ASSERT(sq < 63 && sq > 0)
-	if bd.Square(square.Stop(sq, sd)) != piece.None {
+	if bd.Square(square.Stop(sq, sd)) != material.None {
 		weight--
 	}
 
@@ -753,7 +748,7 @@ func evalPassed(sq, sd int, bd *board.Board, ai *attackInfo) int {
 	if (bd.All() & front) == 0 {
 
 		majorBehind := false
-		majors := bd.PieceSd(piece.Rook, xd) | bd.PieceSd(piece.Queen, xd)
+		majors := bd.PieceSd(material.Rook, xd) | bd.PieceSd(material.Queen, xd)
 
 		for b := majors & rear; b != 0; b = bit.Rest(b) {
 
@@ -781,17 +776,17 @@ func compAttacks(ai *attackInfo, bd *board.Board) {
 
 		b := bit.BB(0)
 
-		for pc = piece.King; pc >= piece.Bishop; pc-- {
+		for pc = material.King; pc >= material.Bishop; pc-- {
 			b |= bd.PieceSd(pc, sd)
 			ai.gePieces[sd][pc] = b
 		}
 
-		ai.gePieces[sd][piece.Knight] = ai.gePieces[sd][piece.Bishop] // minors are equal
+		ai.gePieces[sd][material.Knight] = ai.gePieces[sd][material.Bishop] // minors are equal
 	}
 
 	// pawn attacks
 
-	pc = piece.Pawn
+	pc = material.Pawn
 
 	for sd = 0; sd < 2; sd++ {
 
@@ -807,9 +802,9 @@ func compAttacks(ai *attackInfo, bd *board.Board) {
 	ai.multipleAtks[WHITE] = 0
 	ai.multipleAtks[BLACK] = 0
 
-	for pc = piece.Knight; pc <= piece.King; pc++ {
-		lowerPiece := piece.Pawn
-		if pc > piece.Bishop {
+	for pc = material.Knight; pc <= material.King; pc++ {
+		lowerPiece := material.Pawn
+		if pc > material.Bishop {
 			lowerPiece = pc - 1 // HACK: direct access to piece number
 		}
 
@@ -830,15 +825,15 @@ func compAttacks(ai *attackInfo, bd *board.Board) {
 			ai.leAtks[sd][pc] = ai.allAtks[sd]
 			//util.ASSERT((ai.le_attacks[sd][pc] & ai.lt_attacks[sd][pc]) == ai.lt_attacks[sd][pc])
 
-			if pc == piece.Bishop { // minors are equal
-				ai.leAtks[sd][piece.Knight] = ai.leAtks[sd][piece.Bishop]
+			if pc == material.Bishop { // minors are equal
+				ai.leAtks[sd][material.Knight] = ai.leAtks[sd][material.Bishop]
 			}
 		}
 	}
 
 	for sd = 0; sd < 2; sd++ {
 		king := bd.King(sd)
-		ts := PseudoAttacksFrom(piece.King, sd, king)
+		ts := PseudoAttacksFrom(material.King, sd, king)
 		ai.kingEvasions[sd] = ts & ^bd.Side(sd) & ^ai.allAtks[board.Opposit(sd)]
 	}
 
@@ -868,7 +863,7 @@ func shelterScore(sq int, sd int, bd *board.Board, pi *pawnEntry) int {
 
 		if castling.Flag(bd.Flags(), uint(index)) {
 			fl := shelterFile[wg]
-			s1 = util.Imax(s1, int(pi.Shelter[fl][sd]))
+			s1 = Imax(s1, int(pi.Shelter[fl][sd]))
 		}
 	}
 
@@ -892,265 +887,18 @@ func passedScore(sc, rk int) int {
 	return mulShift(sc, passedWeight[rk], 4)
 }
 
-/*
-
-
-    struct Entry {
- var lock; uint32
- var eval; int
-    };
-
-   // class Table {
-
-       static const int BITS = 16;
-       static const int SIZE = 1 << BITS;
-       static const int MASK = SIZE - 1;
-
-       Entry pc_table[SIZE];
-
-
-
-
- func  clear( )  void{
-          for  index := 0; index < SIZE; index++ ) {
-             pc_table[index].lock = 0;
-             pc_table[index].eval = 0;
-          }
-       }
-
-
-
-
- var mob_weight[32]; int
- var dist_weight[8]; int // for king-passer distance
-
-
-
- var side_area[2]; bit.Bit_t
- var king_area[2][square.SIZE]; bit.Bit_t
-
-
-
-
-
-
- func  comp_eval( &pawn_table pawn.Table,)  int{
-
-       Attack_Info ai;
-       comp_attacks(ai, bd);
-
- var pawn.Info const & pi = pawn_table.info(bd);
-
- var eval int = 0;
- var mg int = 0;
- var eg int = 0;
-
- var shelter[2]; int
-
-       for  sd := 0; sd < 2; sd++ ) {
-          shelter[sd] = shelter_score(bd.king(sd), sd, bd, pi);
-       }
-
-       for  sd := 0; sd < 2; sd++ ) {
-
- var xd int = opposit(sd);
-
- var my_king int = bd.king(sd);
- var op_king int = bd.king(xd);
-
- var target bit.Bit_t = ~(bd.piece(piece.PAWN, sd) | attack.pawn_attacks_from(xd, bd));
-
- var king_n int = 0;
- var king_power int = 0;
-
-          // pawns
-
-          {
- var fs bit.Bit_t = bd.piece(piece.PAWN, sd);
-
- var front bit.Bit_t = (sd == WHITE) ? bit.front(square.Rank3) : bit.rear(square.RANK_6);
-
-             for  b := fs &pi.passed &front; b != 0; b = bit.rest(b )) {
-
- var sq int = bit.first(b);
-
- var rk int = square.Rank(sq, sd);
-
-                if (passer_is_unstoppable(sq, sd, bd)) {
-
- var weight int = std.max(rk - square.Rank3, 0);
-                   //util.ASSERT(weight >= 0 and weight < 5);
-
-                   eg += (piece.Queen_VALUE - piece.PAWN_VALUE) * weight / 5;
-
-                } else {
-
- var sc int = eval_passed(sq, sd, bd, ai);
-
- var sc_mg int = sc * 20;
- var sc_eg int = sc * 25;
-
- var stop int = square.stop(sq, sd);
-                   sc_eg -= my_distance(my_king, stop, 10);
-                   sc_eg += my_distance(op_king, stop, 20);
-
-                   mg += passed_score(sc_mg, rk);
-                   eg += passed_score(sc_eg, rk);
-                }
-             }
-
-             eval += bit.count(attack.pawn_moves_from(sd, bd) & bd.empty()) * 4 - bd.count(piece.PAWN, sd) * 2;
-
-             eval += eval_pawn_cap(sd, bd, ai);
-          }
-
-          // pieces
-
-          for  pc := piece.Knight; pc <= piece.King; pc++ ) {
-
- var p12 int = piece.make(pc, sd); // for PST
-
-             {
- var n int = bd.count(pc, sd);
-                mg += n * material.score(pc, stage.MG);
-                eg += n * material.score(pc, stage.EG);
-             }
-
-             for   sd); b != 0; b = bit.rest(b)) {
-
- var sq int = bit.first(b);
-
- var fl int = square.File(sq);
- var rk int = square.Rank(sq, sd);
-
-                // compute safe attacks
-
- var ts_all bit.Bit_t = ai.piece_attacks[sq];
- var ts_pawn_safe bit.Bit_t = ts_all & target;
-
- var safe bit.Bit_t = ~ai.all_attacks[xd] | ai.multiple_attacks[sd];
-
-                if (true && piece.is_slider(pc)) { // battery support
-
- var bishops bit.Bit_t = bd.piece(piece.Bishop, sd) | bd.piece(piece.Queen, sd);
- var rooks bit.Bit_t = bd.piece(piece.Rook, sd) | bd.piece(piece.Queen, sd);
-
- var support bit.Bit_t = 0;
-                   support |= bishops & attack.pseudo_attacks_to(piece.Bishop, sd, sq);
-                   support |= rooks   & attack.pseudo_attacks_to(piece.Rook,   sd, sq);
-
-                   for  b := ts_all &support; b != 0; b = bit.rest(b )) {
- var f int = bit.first(b);
-                      assert(attack.line_is_empty(f, sq, bd));
-                      safe |= attack.Behind[f][sq];
-                   }
-                }
-
- var ts_safe bit.Bit_t = ts_pawn_safe & ~ai.lt_attacks[xd][pc] & safe;
-
-                mg += pst.score(p12, sq, stage.MG);
-                eg += pst.score(p12, sq, stage.EG);
-
-                if (pc == piece.King) {
-                   eg += mobility_score(pc, ts_safe);
-                } else {
-                   eval += mobility_score(pc, ts_safe);
-                }
-
-                if (pc != piece.King) {
-                   mg += attack_mg_score(pc, sd, ts_pawn_safe);
-                }
-
-                eg += attack_eg_score(pc, sd, ts_pawn_safe, pi);
-
-                eval += capture_score(pc, sd, ts_all & (ai.ge_pieces[xd][pc] | target), bd, ai);
-
-                if (pc != piece.King) {
-                   eval += check_number(pc, sd, ts_safe, op_king, bd) * material.power(pc) * 6;
-                }
-
-                if (pc != piece.King && (ts_safe & king_area[xd][op_king]) != 0) { // king attack
-                   king_n++;
-                   king_power += material.power(pc);
-                }
-
-                if (piece.is_minor(pc) && rk >= square.Rank5 && rk <= square.RANK_6 && fl >= square.FileC && fl <= square.FileF) { // outpost
-                   eval += eval_outpost(sq, sd, bd, pi) * 5;
-                }
-
-                if (piece.is_minor(pc) && rk >= square.Rank5 && !bit.is_set(ai.all_attacks[sd], sq)) { // loose minor
-                   mg -= 10;
-                }
-
-                if (piece.is_minor(pc) && rk >= square.Rank3 && rk <= square.Rank4 && bd.square_is(square.stop(sq, sd), piece.PAWN, sd)) { // shielded minor
-                   mg += 10;
-                }
-
-                if (pc == piece.Rook) { // open file
-
- var sc int = pi.open[fl][sd];
-
- var minors bit.Bit_t = bd.piece(piece.Knight, xd) | bd.piece(piece.Bishop, xd);
-                   if (true && sc >= 10 && (minors & bit.file(fl) & ~target) != 0) { // blocked by minor
-                      sc = 5;
-                   }
-
-                   eval += sc - 10;
-
-                   if (sc >= 10 && std.abs(square.File(op_king) - fl) <= 1) { // open file on king
- var weight int = (square.File(op_king) == fl) ? 2 : 1;
-                      mg += sc * weight / 2;
-                   }
-                }
-
-                if (pc == piece.Rook && rk == square.Rank7) { // 7th rank
-
- var pawns bit.Bit_t = bd.piece(piece.PAWN, xd) & bit.rank(square.Rank(sq));
-
-                   if (square.Rank(op_king, sd) >= square.Rank7 || pawns != 0) {
-                      mg += 10;
-                      eg += 20;
-                   }
-                }
-
-                if (pc == piece.King) { // king out
-
- var dl int = (pi.left_file - 1) - fl;
-                   if (dl > 0) eg -= dl * 20;
-
- var dr int = fl - (pi.right_file + 1);
-                   if (dr > 0) eg -= dr * 20;
-                }
-             }
-          }
-
-          if (bd.count(piece.Bishop, sd) >= 2) {
-             mg += 30;
-             eg += 50;
-          }
-
-          mg += shelter[sd];
-          mg += mul_shift(king_score(king_power * 30, king_n), 32 - shelter[xd], 5);
-
-          eval = -eval;
-          mg = -mg;
-          eg = -eg;
-       }
-
-       mg += pi.mg;
-       eg += pi.eg;
-
-       eval += eval_pattern(bd);
-
-       eval += material.interpolation(mg, eg, bd);
-
-       if (eval != 0) { // draw multiplier
- var winner int = (eval > 0) ? WHITE : BLACK;
-          eval = mul_shift(eval, draw_mul(winner, bd, pi), 4);
-       }
-
-       assert(eval >= score.EVAL_MIN && eval <= score.EVAL_MAX);
-       return eval;
-    }
-
-*/
+// Imax returns maximum value of two ints
+func Imax(a, b int) int {
+	if a >= b {
+		return a
+	}
+	return b
+}
+
+// Imin returns minimum value of two ints
+func Imin(a, b int) int {
+	if a <= b {
+		return a
+	}
+	return b
+}

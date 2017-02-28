@@ -1,14 +1,10 @@
 package gen
 
 import (
-	//	"GoAlaric/attack"
-
 	"GoAlaric/board"
+	"GoAlaric/material"
 	"GoAlaric/move"
-	"GoAlaric/piece"
 	"GoAlaric/square"
-	//	"GoAlaric/trans"
-
 	"testing"
 )
 
@@ -41,55 +37,55 @@ func Test_SEE(t *testing.T) {
 
 	var seeTest = [...]seeStruct{
 		// Pawn
-		{"rnbqkbnr/ppp1pppp/8/3p4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, piece.Pawn, piece.Pawn, piece.None, 0, "Pawn captures guarded pawn"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, piece.Pawn, piece.Knight, piece.None, piece.KnightValue - piece.PawnValue, "Pawn captures guarded knight"},
-		{"rnbqkbnr/ppp1pppp/8/3b4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, piece.Pawn, piece.Bishop, piece.None, piece.BishopValue - piece.PawnValue, "Pawn captures unguarded bishop"},
-		{"rnbqkbnr/ppp1pppp/8/3r4/4P3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, piece.Pawn, piece.Rook, piece.None, piece.RookValue - piece.PawnValue, "Pawn captures unguarded Rook"},
-		{"rnbqkbnr/ppp1pppp/8/3q4/4P3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, piece.Pawn, piece.Queen, piece.None, piece.QueenValue - piece.PawnValue, "Pawn captures unguarded queen"},
-		{"rnbqkbnr/ppp1pppp/8/3p4/2P5/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.C4, piece.Pawn, piece.Pawn, piece.None, piece.PawnValue, "Bl Pawn captures unguarded W pawn"},
+		{"rnbqkbnr/ppp1pppp/8/3p4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, material.Pawn, material.Pawn, material.None, 0, "Pawn captures guarded pawn"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, material.Pawn, material.Knight, material.None, material.KnightValue - material.PawnValue, "Pawn captures guarded knight"},
+		{"rnbqkbnr/ppp1pppp/8/3b4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, material.Pawn, material.Bishop, material.None, material.BishopValue - material.PawnValue, "Pawn captures unguarded bishop"},
+		{"rnbqkbnr/ppp1pppp/8/3r4/4P3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, material.Pawn, material.Rook, material.None, material.RookValue - material.PawnValue, "Pawn captures unguarded Rook"},
+		{"rnbqkbnr/ppp1pppp/8/3q4/4P3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, material.Pawn, material.Queen, material.None, material.QueenValue - material.PawnValue, "Pawn captures unguarded queen"},
+		{"rnbqkbnr/ppp1pppp/8/3p4/2P5/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.C4, material.Pawn, material.Pawn, material.None, material.PawnValue, "Bl Pawn captures unguarded W pawn"},
 
 		// Knight
-		{"8/1k6/8/8/8/1n6/6K1/N7 w - - 0 1", square.A1, square.B3, piece.Knight, piece.Knight, piece.None, piece.KnightValue, "Knight captures unguarded knight"},
-		{"8/1k6/8/8/8/1n6/6K1/N7 b - - 0 1", square.B3, square.A1, piece.Knight, piece.Knight, piece.None, piece.KnightValue, "Bl Knight captures unguarded w knight"},
-		{"8/8/8/8/1k6/1p6/6K1/N7 w - - 0 1", square.A1, square.B3, piece.Knight, piece.Pawn, piece.None, piece.PawnValue - piece.KnightValue, "Knight captures guarded pawn"},
-		{"rnb1kbnr/ppp1pppp/8/3p4/1N6/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.B4, square.D5, piece.Knight, piece.Pawn, piece.None, piece.PawnValue, "Knigh captures unguarded pawn"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.F4, square.D5, piece.Knight, piece.Knight, piece.None, 0, "Knigh captures guarded knight"},
-		{"rnbqkbnr/ppp1pppp/8/3b4/5N2/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.F4, square.D5, piece.Knight, piece.Bishop, piece.None, 0, "Knigh captures guarded bishop"},
-		{"rnbqkbnr/ppp1pppp/8/3r4/1N6/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.B4, square.D5, piece.Knight, piece.Rook, piece.None, piece.RookValue - piece.KnightValue, "Knigh captures guarded Rook"},
-		{"rnbqkbnr/ppp1pppp/8/3q4/1N6/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.B4, square.D5, piece.Knight, piece.Queen, piece.None, piece.QueenValue - piece.KnightValue, "Knigh captures guarded queen"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.F4, piece.Knight, piece.Knight, piece.None, piece.KnightValue, "Bl Knigh captures unguarded W queen"},
+		{"8/1k6/8/8/8/1n6/6K1/N7 w - - 0 1", square.A1, square.B3, material.Knight, material.Knight, material.None, material.KnightValue, "Knight captures unguarded knight"},
+		{"8/1k6/8/8/8/1n6/6K1/N7 b - - 0 1", square.B3, square.A1, material.Knight, material.Knight, material.None, material.KnightValue, "Bl Knight captures unguarded w knight"},
+		{"8/8/8/8/1k6/1p6/6K1/N7 w - - 0 1", square.A1, square.B3, material.Knight, material.Pawn, material.None, material.PawnValue - material.KnightValue, "Knight captures guarded pawn"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/1N6/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.B4, square.D5, material.Knight, material.Pawn, material.None, material.PawnValue, "Knigh captures unguarded pawn"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.F4, square.D5, material.Knight, material.Knight, material.None, 0, "Knigh captures guarded knight"},
+		{"rnbqkbnr/ppp1pppp/8/3b4/5N2/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.F4, square.D5, material.Knight, material.Bishop, material.None, 0, "Knigh captures guarded bishop"},
+		{"rnbqkbnr/ppp1pppp/8/3r4/1N6/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.B4, square.D5, material.Knight, material.Rook, material.None, material.RookValue - material.KnightValue, "Knigh captures guarded Rook"},
+		{"rnbqkbnr/ppp1pppp/8/3q4/1N6/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.B4, square.D5, material.Knight, material.Queen, material.None, material.QueenValue - material.KnightValue, "Knigh captures guarded queen"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.F4, material.Knight, material.Knight, material.None, material.KnightValue, "Bl Knigh captures unguarded W queen"},
 
 		// Bishop
-		{"rnb1kbnr/ppp1pppp/8/3p4/2B5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, piece.Bishop, piece.Pawn, piece.None, piece.PawnValue, "Bishop captures unguarded pawn"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/4B3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, piece.Bishop, piece.Knight, piece.None, 0, "Bishop captures guarded knight"},
-		{"rnb1kbnr/ppp1pppp/8/3b4/2B5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, piece.Bishop, piece.Bishop, piece.None, piece.BishopValue, "Bishop captures unguarded bishop"},
-		{"rnbqkbnr/ppp1pppp/8/3r4/4B3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, piece.Bishop, piece.Rook, piece.None, piece.RookValue - piece.BishopValue, "Bishop captures guarded Rook"},
-		{"rnbqkbnr/ppp1pppp/8/3q4/4B3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, piece.Bishop, piece.Queen, piece.None, piece.QueenValue - piece.BishopValue, "Bishop captures guarded queen"},
-		{"rnbqkbnr/ppp1pppp/8/3b4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.E4, piece.Bishop, piece.Queen, piece.None, piece.QueenValue, "Bl Bishop captures unguarded W queen"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/2B5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, material.Bishop, material.Pawn, material.None, material.PawnValue, "Bishop captures unguarded pawn"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/4B3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, material.Bishop, material.Knight, material.None, 0, "Bishop captures guarded knight"},
+		{"rnb1kbnr/ppp1pppp/8/3b4/2B5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, material.Bishop, material.Bishop, material.None, material.BishopValue, "Bishop captures unguarded bishop"},
+		{"rnbqkbnr/ppp1pppp/8/3r4/4B3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, material.Bishop, material.Rook, material.None, material.RookValue - material.BishopValue, "Bishop captures guarded Rook"},
+		{"rnbqkbnr/ppp1pppp/8/3q4/4B3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, material.Bishop, material.Queen, material.None, material.QueenValue - material.BishopValue, "Bishop captures guarded queen"},
+		{"rnbqkbnr/ppp1pppp/8/3b4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.E4, material.Bishop, material.Queen, material.None, material.QueenValue, "Bl Bishop captures unguarded W queen"},
 
 		// Rook
-		{"rnbqkbnr/ppp1pppp/8/3p4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D4, square.D5, piece.Rook, piece.Pawn, piece.None, piece.PawnValue - piece.RookValue, "Rook captures guarded pawn"},
-		{"rnb1kbnr/ppp1pppp/8/3n4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D4, square.D5, piece.Rook, piece.Knight, piece.None, piece.KnightValue, "Rook captures unguarded knight"},
-		{"rnbqkbnr/ppp1pppp/8/3b4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D4, square.D5, piece.Rook, piece.Bishop, piece.None, piece.BishopValue - piece.RookValue, "Rook captures guarded bishop"},
-		{"rnbqkbnr/ppp1pppp/8/3r4/8/3R4/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D3, square.D5, piece.Rook, piece.Rook, piece.None, 0, "Rook captures guarded Rook"},
-		{"rnbqkbnr/ppp1pppp/8/3q1R2/8/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.F5, square.D5, piece.Rook, piece.Queen, piece.None, piece.QueenValue - piece.RookValue, "Rook captures guarded queen"},
-		{"rnbqkbnr/ppp1pppp/8/3r1B2/8/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.F5, piece.Rook, piece.Bishop, piece.None, piece.BishopValue, "Bl Rook captures unguarded W bishop"},
+		{"rnbqkbnr/ppp1pppp/8/3p4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D4, square.D5, material.Rook, material.Pawn, material.None, material.PawnValue - material.RookValue, "Rook captures guarded pawn"},
+		{"rnb1kbnr/ppp1pppp/8/3n4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D4, square.D5, material.Rook, material.Knight, material.None, material.KnightValue, "Rook captures unguarded knight"},
+		{"rnbqkbnr/ppp1pppp/8/3b4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D4, square.D5, material.Rook, material.Bishop, material.None, material.BishopValue - material.RookValue, "Rook captures guarded bishop"},
+		{"rnbqkbnr/ppp1pppp/8/3r4/8/3R4/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D3, square.D5, material.Rook, material.Rook, material.None, 0, "Rook captures guarded Rook"},
+		{"rnbqkbnr/ppp1pppp/8/3q1R2/8/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.F5, square.D5, material.Rook, material.Queen, material.None, material.QueenValue - material.RookValue, "Rook captures guarded queen"},
+		{"rnbqkbnr/ppp1pppp/8/3r1B2/8/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.F5, material.Rook, material.Bishop, material.None, material.BishopValue, "Bl Rook captures unguarded W bishop"},
 
 		// Queen
-		{"rnb1kbnr/ppp1pppp/8/3p4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, piece.Queen, piece.Pawn, piece.None, piece.PawnValue, "Queen captures unguarded pawn"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/2Q5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, piece.Queen, piece.Knight, piece.None, piece.KnightValue - piece.QueenValue, "Queen captures guarded knight"},
-		{"rnb1kbnr/ppp1pppp/8/3b4/3Q4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D4, square.D5, piece.Queen, piece.Bishop, piece.None, piece.BishopValue, "Queen captures unguarded bishop"},
-		{"rnbqkbnr/ppp1pppp/8/3r4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, piece.Queen, piece.Rook, piece.None, piece.RookValue - piece.QueenValue, "Queen captures guarded Rook"},
-		{"rnb1kbnr/ppp1pppp/8/3q4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, piece.Queen, piece.Queen, piece.None, piece.QueenValue, "Queen captures unguarded queen"},
-		{"rnbqkbnr/ppp1pppp/8/3q4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.E4, piece.Queen, piece.Queen, piece.None, piece.QueenValue, "Bl Queen captures unguarded W queen"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, material.Queen, material.Pawn, material.None, material.PawnValue, "Queen captures unguarded pawn"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/2Q5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.C4, square.D5, material.Queen, material.Knight, material.None, material.KnightValue - material.QueenValue, "Queen captures guarded knight"},
+		{"rnb1kbnr/ppp1pppp/8/3b4/3Q4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.D4, square.D5, material.Queen, material.Bishop, material.None, material.BishopValue, "Queen captures unguarded bishop"},
+		{"rnbqkbnr/ppp1pppp/8/3r4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, material.Queen, material.Rook, material.None, material.RookValue - material.QueenValue, "Queen captures guarded Rook"},
+		{"rnb1kbnr/ppp1pppp/8/3q4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", square.E4, square.D5, material.Queen, material.Queen, material.None, material.QueenValue, "Queen captures unguarded queen"},
+		{"rnbqkbnr/ppp1pppp/8/3q4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.E4, material.Queen, material.Queen, material.None, material.QueenValue, "Bl Queen captures unguarded W queen"},
 
 		// King
-		{"rnb1kbnr/ppp1pppp/8/3p4/2K5/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.C4, square.D5, piece.King, piece.Pawn, piece.None, piece.PawnValue, "King captures unguarded pawn"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/3K4/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.D4, square.D5, piece.King, piece.Knight, piece.None, piece.KnightValue - kingValue, "King captures guarded knight"},
-		{"rnb1kbnr/ppp1pppp/8/3b4/2K5/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.C4, square.D5, piece.King, piece.Bishop, piece.None, piece.BishopValue, "King captures unguarded bishop"},
-		{"rnbqkbnr/ppp1pppp/8/3r4/3K4/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.D4, square.D5, piece.King, piece.Rook, piece.None, piece.RookValue - kingValue, "King captures guarded Rook"},
-		{"rnbqkbnr/ppp1pppp/8/3q4/4K3/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.E4, square.D5, piece.King, piece.Queen, piece.None, piece.QueenValue - kingValue, "King captures guarded queen"},
-		{"rnbq1bnr/ppp1pppp/8/3k4/4N3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.E4, piece.King, piece.Knight, piece.None, piece.KnightValue, "Bl King captures unguarded W queen"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/2K5/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.C4, square.D5, material.King, material.Pawn, material.None, material.PawnValue, "King captures unguarded pawn"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/3K4/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.D4, square.D5, material.King, material.Knight, material.None, material.KnightValue - kingValue, "King captures guarded knight"},
+		{"rnb1kbnr/ppp1pppp/8/3b4/2K5/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.C4, square.D5, material.King, material.Bishop, material.None, material.BishopValue, "King captures unguarded bishop"},
+		{"rnbqkbnr/ppp1pppp/8/3r4/3K4/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.D4, square.D5, material.King, material.Rook, material.None, material.RookValue - kingValue, "King captures guarded Rook"},
+		{"rnbqkbnr/ppp1pppp/8/3q4/4K3/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", square.E4, square.D5, material.King, material.Queen, material.None, material.QueenValue - kingValue, "King captures guarded queen"},
+		{"rnbq1bnr/ppp1pppp/8/3k4/4N3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", square.D5, square.E4, material.King, material.Knight, material.None, material.KnightValue, "Bl King captures unguarded W queen"},
 	}
 
 	var bd board.Board
@@ -108,8 +104,8 @@ func Test_SEE(t *testing.T) {
 		beta := EvalMAX
 		mv := move.Build(fr, to, pc, cp, pr)
 		rightVal := ss.val
-		if fr >= square.BoardSize || to >= square.BoardSize || pc >= piece.Size || pr >= piece.Size ||
-			pc == piece.None || (pr != piece.None && pr != piece.Pawn) {
+		if fr >= square.BoardSize || to >= square.BoardSize || pc >= material.Size || pr >= material.Size ||
+			pc == material.None || (pr != material.None && pr != material.Pawn) {
 			t.Fatalf("Felaktig input till testcase %v. fr:%v to:%v pc:%v cp:%v prom:%v", ix+1, fr, to, pc, cp, pr)
 		}
 

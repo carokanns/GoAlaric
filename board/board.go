@@ -1,17 +1,12 @@
 package board
 
 import (
-
-	// "GoAlaric/attack"    // går ej!!
 	"GoAlaric/bit"
 	"GoAlaric/castling"
-	// "GoAlaric/gen2"	  // går ej!!
 	"GoAlaric/hash"
 	"GoAlaric/material"
 	"GoAlaric/move"
-	"GoAlaric/piece"
 	"GoAlaric/square"
-	"GoAlaric/util"
 	"fmt"
 
 	"strconv"
@@ -57,12 +52,12 @@ type Undo struct {
 
 // Board struct is holding a position and all its varables
 type Board struct {
-	piece [piece.Size]bit.BB // bb per piece
-	side  [2]bit.BB          // bb per side
-	all   bit.BB             // bb alla pieces
+	piece [material.Size]bit.BB // bb per piece
+	side  [2]bit.BB             // bb per side
+	all   bit.BB                // bb alla pieces
 
-	king  [2]int              // kungpos per side
-	count [piece.SideSize]int // counter per piece - varannan vit/svart
+	king  [2]int                 // kungpos per side
+	count [material.SideSize]int // counter per piece - varannan vit/svart
 
 	square  [square.BoardSize]int // bräde vridet 90 grader höger
 	stm     int                   // vem är vid draget
@@ -100,9 +95,9 @@ func SetFen(fen string, bd *Board) {
 				sq += i
 			} else {
 				// assume piece
-				p12 := piece.FromFen(c) //en int från "pPnN..."
-				pc := piece.Piece(p12)  // shift >> 1
-				sd := piece.Color(p12)  //  & 1
+				p12 := material.FromFen(c) //en int från "pPnN..."
+				pc := material.Piece(p12)  // shift >> 1
+				sd := material.Color(p12)  //  & 1
 				bd.setSquare(pc, sd, square.FromFen(sq), true)
 				sq++
 			}
@@ -203,9 +198,9 @@ const StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"
 func FromString(strmve string, bd *Board) int {
 	fr := square.FromString(strmve[:2])
 	to := square.FromString(strmve[2:4])
-	prom := piece.None
+	prom := material.None
 	if len(strmve) > 4 {
-		prom = piece.FromChar(strings.ToUpper(strmve[4:5]))
+		prom = material.FromChar(strings.ToUpper(strmve[4:5]))
 	}
 	return make(fr, to, prom, bd)
 }
@@ -214,12 +209,12 @@ func make(fr int, to int, pp int, bd *Board) int {
 	pc := bd.Square(fr)
 	cp := bd.Square(to)
 
-	if pc == piece.Pawn && to == bd.EpSq() /*bd.epSq()*/ {
-		cp = piece.Pawn
+	if pc == material.Pawn && to == bd.EpSq() /*bd.epSq()*/ {
+		cp = material.Pawn
 	}
 
-	if pc == piece.Pawn && square.IsPromotion(to) && pp == piece.None { // not needed
-		pp = piece.Queen
+	if pc == material.Pawn && square.IsPromotion(to) && pp == material.None { // not needed
+		pp = material.Queen
 	}
 
 	return move.Build(fr, to, pc, cp, pp)
@@ -241,12 +236,12 @@ func (bd *Board) castleOk(index int) bool {
 
 	sd := castling.Side(index)
 
-	return bd.SquareIs(castling.Info[index].KingFr, piece.King, sd) && bd.SquareIs(castling.Info[index].RookFr, piece.Rook, sd)
+	return bd.SquareIs(castling.Info[index].KingFr, material.King, sd) && bd.SquareIs(castling.Info[index].RookFr, material.Rook, sd)
 }
 func (bd *Board) setSquare(pc int, sd int, sq int, updateCopy bool) {
 
-	//util.ASSERT(pc < piece.SIZE);
-	//util.ASSERT(pc != piece.None);
+	//util.ASSERT(pc < material.SIZE);
+	//util.ASSERT(pc != material.None);
 	//util.ASSERT(sq >= 0 && sq < square.SIZE);
 
 	//util.ASSERT(!bit.is_set(p_piece[pc], sq));
@@ -255,14 +250,14 @@ func (bd *Board) setSquare(pc int, sd int, sq int, updateCopy bool) {
 	//util.ASSERT(!bit.is_set(p_side[sd], sq));
 	bit.Set(&bd.side[sd], sq)
 
-	//util.ASSERT(p_square[sq] == piece.None);
+	//util.ASSERT(p_square[sq] == material.None);
 	bd.square[sq] = pc
 
-	if pc == piece.King {
+	if pc == material.King {
 		bd.king[sd] = sq
 	}
 
-	p12 := piece.MakeP12(pc, sd)
+	p12 := material.MakeP12(pc, sd)
 
 	bd.count[p12]++
 
@@ -270,7 +265,7 @@ func (bd *Board) setSquare(pc int, sd int, sq int, updateCopy bool) {
 
 		HashKey := hash.PieceKey(p12, sq)
 		bd.copyStr.key ^= HashKey
-		if pc == piece.Pawn {
+		if pc == material.Pawn {
 			bd.copyStr.pawnKey ^= HashKey
 		}
 
@@ -283,7 +278,7 @@ func (bd *Board) Count(pc, sd int) int {
 	// util.ASSERT(pc < piece::SIZE);
 	// util.ASSERT(pc != piece::None);
 	// return bit::count(piece(pc, sd));
-	return bd.count[piece.MakeP12(pc, sd)]
+	return bd.count[material.MakeP12(pc, sd)]
 }
 
 // MoveNull makes a NULL move
@@ -320,7 +315,7 @@ func (bd *Board) UndoNull() {
 }
 
 func (bd *Board) clear() {
-	for pc := 0; pc < piece.Size; pc++ {
+	for pc := 0; pc < material.Size; pc++ {
 		bd.piece[pc] = 0
 	}
 
@@ -329,14 +324,14 @@ func (bd *Board) clear() {
 	}
 
 	for sq := 0; sq < square.BoardSize; sq++ {
-		bd.square[sq] = piece.None
+		bd.square[sq] = material.None
 	}
 
 	for sd := 0; sd < 2; sd++ {
 		bd.king[sd] = square.None
 	}
 
-	for p12 := 0; p12 < piece.SideSize; p12++ {
+	for p12 := 0; p12 < material.SideSize; p12++ {
 		bd.count[p12] = 0
 	}
 
@@ -356,7 +351,7 @@ func (bd *Board) clear() {
 
 // SquareIs returns true if the square is the given piece with the givien color
 func (bd *Board) SquareIs(sq, pc, sd int) bool {
-	//util.ASSERT(pc != piece.None)
+	//util.ASSERT(pc != material.None)
 	return bd.square[sq] == pc && bd.SquareSide(sq) == sd
 }
 func (bd *Board) pawnIsAttacked(sq, sd int) bool {
@@ -364,13 +359,13 @@ func (bd *Board) pawnIsAttacked(sq, sd int) bool {
 	fl := square.File(sq)
 	sq -= square.PawnInc(sd)
 
-	return (fl != square.FileA && bd.SquareIs(sq+square.IncLeft, piece.Pawn, sd)) ||
-		(fl != square.FileH && bd.SquareIs(sq+square.IncRight, piece.Pawn, sd))
+	return (fl != square.FileA && bd.SquareIs(sq+square.IncLeft, material.Pawn, sd)) ||
+		(fl != square.FileH && bd.SquareIs(sq+square.IncRight, material.Pawn, sd))
 }
 
 // SquareSide returns the color of the piece on given square
 func (bd *Board) SquareSide(sq int) int {
-	//util.ASSERT(p_square[sq] != piece.None);
+	//util.ASSERT(p_square[sq] != material.None);
 	return int((bd.side[BLACK] >> uint(sq)) & 1) // HACK: uses Side internals
 }
 
@@ -405,8 +400,8 @@ func (bd *Board) EvalKey() hash.Key {
 
 // Piece returns the bitboard for the piece type pc
 func (bd *Board) Piece(pc int) bit.BB { // se även PieceSd - pga namnkonflikt
-	////util.ASSERT(pc < piece.SIZE);
-	////util.ASSERT(pc != piece.None);
+	////util.ASSERT(pc < material.SIZE);
+	////util.ASSERT(pc != material.None);
 	return bd.piece[pc]
 }
 
@@ -417,15 +412,15 @@ func (bd *Board) Phase() int {
 
 // PieceSd returns a bitbord for a piece filtered by side (white/black)
 func (bd *Board) PieceSd(pc, sd int) bit.BB {
-	////util.ASSERT(pc < piece.SIZE)
-	// util.ASSERT(pc != piece.None)
+	////util.ASSERT(pc < material.SIZE)
+	// util.ASSERT(pc != material.None)
 	return bd.piece[pc] & bd.side[sd]
 }
 
 // King returns the King position for side = sd
 func (bd *Board) King(sd int) int {
 
-	// util.ASSERT(bd.king[sd] == bit.first(piece(piece.King, sd)));
+	// util.ASSERT(bd.king[sd] == bit.first(piece(material.King, sd)));
 	return bd.king[sd]
 }
 
@@ -451,7 +446,7 @@ func (bd *Board) Empty() bit.BB {
 
 // Pieces returns a bitboard with all the piece types except pawn
 func (bd *Board) Pieces(sd int) bit.BB {
-	return bd.side[sd] & ^bd.PieceSd(piece.Pawn, sd)
+	return bd.side[sd] & ^bd.PieceSd(material.Pawn, sd)
 }
 
 // Side returns a birboard with all the pieces for side=sd
@@ -489,19 +484,19 @@ func (bd *Board) MakeFenMve(mv int) {
 
 	// capture
 
-	// util.ASSERT(cp != piece.King);
+	// util.ASSERT(cp != material.King);
 
-	if pc == piece.Pawn && to == bd.copyStr.epSq {
+	if pc == material.Pawn && to == bd.copyStr.epSq {
 
 		capSq := to - square.PawnInc(sd)
 		// util.ASSERT(p_square[cap_sq] == cp);
-		// util.ASSERT(cp == piece.PAWN);
+		// util.ASSERT(cp == material.PAWN);
 
 		undo.capSq = capSq
 
 		bd.clearSquare(cp, xd, capSq, true)
 
-	} else if cp != piece.None {
+	} else if cp != material.None {
 
 		// util.ASSERT(p_square[to] == cp);
 		// util.ASSERT(square_side(to) == xd);
@@ -517,9 +512,9 @@ func (bd *Board) MakeFenMve(mv int) {
 
 	// promotion
 
-	if pp != piece.None {
-		// util.ASSERT(pc == piece.PAWN);
-		bd.clearSquare(piece.Pawn, sd, fr, true)
+	if pp != material.None {
+		// util.ASSERT(pc == material.PAWN);
+		bd.clearSquare(material.Pawn, sd, fr, true)
 		bd.setSquare(pp, sd, to, true)
 	} else {
 		bd.moveSquare(pc, sd, fr, to, true)
@@ -527,7 +522,7 @@ func (bd *Board) MakeFenMve(mv int) {
 
 	// castling Rook
 
-	if pc == piece.King && util.Iabs(to-fr) == square.CastlingDelta {
+	if pc == material.King && move.Iabs(to-fr) == square.CastlingDelta {
 
 		undo.castling = true
 
@@ -542,7 +537,7 @@ func (bd *Board) MakeFenMve(mv int) {
 		// util.ASSERT(fr == castling.Info[index].kf);
 		// util.ASSERT(to == castling.Info[index].kt);
 
-		bd.moveSquare(piece.Rook, sd, castling.Info[index].RookFr, castling.Info[index].RokTo, true)
+		bd.moveSquare(material.Rook, sd, castling.Info[index].RookFr, castling.Info[index].RokTo, true)
 	}
 
 	// turn
@@ -558,7 +553,7 @@ func (bd *Board) MakeFenMve(mv int) {
 
 	bd.copyStr.epSq = square.None
 
-	if pc == piece.Pawn && util.Iabs(to-fr) == square.DoublePawnDelta {
+	if pc == material.Pawn && move.Iabs(to-fr) == square.DoublePawnDelta {
 		sq := (fr + to) / 2
 		if bd.pawnIsAttacked(sq, xd) {
 			bd.copyStr.epSq = sq
@@ -567,13 +562,13 @@ func (bd *Board) MakeFenMve(mv int) {
 
 	// move counter
 
-	if cp != piece.None || pc == piece.Pawn {
+	if cp != material.None || pc == material.Pawn {
 		bd.copyStr.moves = 0 // conversion;
 	}
 
 	// recapture
 
-	if cp != piece.None || pp != piece.None {
+	if cp != material.None || pp != material.None {
 		bd.copyStr.recap = to
 	}
 
@@ -581,8 +576,8 @@ func (bd *Board) MakeFenMve(mv int) {
 }
 func (bd *Board) clearSquare(pc int, sd int, sq int, updateCopy bool) {
 
-	//util.ASSERT(pc < piece.SIZE)
-	//util.ASSERT(pc != piece.None)
+	//util.ASSERT(pc < material.SIZE)
+	//util.ASSERT(pc != material.None)
 	//util.ASSERT(sq >= 0 && sq < square.SIZE)
 
 	//util.ASSERT(pc == bd.p_square[sq])
@@ -594,10 +589,10 @@ func (bd *Board) clearSquare(pc int, sd int, sq int, updateCopy bool) {
 	//util.ASSERT(bit.Is_set(bd.p_side[sd], sq))
 	bit.Clear(&bd.side[sd], sq)
 
-	//util.ASSERT(bd.p_square[sq] != piece.None)
-	bd.square[sq] = piece.None
+	//util.ASSERT(bd.p_square[sq] != material.None)
+	bd.square[sq] = material.None
 
-	p12 := piece.MakeP12(pc, sd)
+	p12 := material.MakeP12(pc, sd)
 	//util.ASSERT(p12 < 12 && p12 >= 0, "p12=", p12)
 	//util.ASSERT(len(bd.p_count) == 12)
 	//util.ASSERT(bd.p_count[p12] >= 0)
@@ -608,7 +603,7 @@ func (bd *Board) clearSquare(pc int, sd int, sq int, updateCopy bool) {
 
 		key := hash.PieceKey(p12, sq)
 		bd.copyStr.key ^= key
-		if pc == piece.Pawn {
+		if pc == material.Pawn {
 			bd.copyStr.pawnKey ^= key
 		}
 		bd.copyStr.phase -= material.Phase(pc)
@@ -669,19 +664,19 @@ func (bd *Board) Move(mv int) {
 
 	// capture
 
-	// util.ASSERT(cp != piece.King);
+	// util.ASSERT(cp != material.King);
 
-	if pc == piece.Pawn && to == bd.copyStr.epSq {
+	if pc == material.Pawn && to == bd.copyStr.epSq {
 
 		capSq := to - square.PawnInc(sd)
 		// util.ASSERT(p_square[cap_sq] == cp);
-		// util.ASSERT(cp == piece.PAWN);
+		// util.ASSERT(cp == material.PAWN);
 
 		undo.capSq = capSq
 
 		bd.clearSquare(cp, xd, capSq, true)
 
-	} else if cp != piece.None {
+	} else if cp != material.None {
 
 		// util.ASSERT(p_square[to] == cp);
 		// util.ASSERT(square_side(to) == xd);
@@ -697,9 +692,9 @@ func (bd *Board) Move(mv int) {
 
 	// promotion
 
-	if pp != piece.None {
-		//util.ASSERT(pc == piece.PAWN)
-		bd.clearSquare(piece.Pawn, sd, fr, true)
+	if pp != material.None {
+		//util.ASSERT(pc == material.PAWN)
+		bd.clearSquare(material.Pawn, sd, fr, true)
 		bd.setSquare(pp, sd, to, true)
 	} else {
 		bd.moveSquare(pc, sd, fr, to, true)
@@ -707,7 +702,7 @@ func (bd *Board) Move(mv int) {
 
 	// castling Rook
 
-	if pc == piece.King && util.Iabs(to-fr) == square.CastlingDelta {
+	if pc == material.King && move.Iabs(to-fr) == square.CastlingDelta {
 
 		undo.castling = true
 
@@ -722,7 +717,7 @@ func (bd *Board) Move(mv int) {
 		// util.ASSERT(fr == castling.info[index].kf);
 		// util.ASSERT(to == castling.info[index].kt);
 
-		bd.moveSquare(piece.Rook, sd, castling.Info[index].RookFr, castling.Info[index].RokTo, true)
+		bd.moveSquare(material.Rook, sd, castling.Info[index].RookFr, castling.Info[index].RokTo, true)
 	}
 
 	// turn
@@ -738,7 +733,7 @@ func (bd *Board) Move(mv int) {
 
 	bd.copyStr.epSq = square.None
 
-	if pc == piece.Pawn && util.Iabs(to-fr) == square.DoublePawnDelta {
+	if pc == material.Pawn && move.Iabs(to-fr) == square.DoublePawnDelta {
 		sq := (fr + to) / 2
 		if bd.pawnIsAttacked(sq, xd) {
 			bd.copyStr.epSq = sq
@@ -747,13 +742,13 @@ func (bd *Board) Move(mv int) {
 
 	// 50-move rule
 
-	if cp != piece.None || pc == piece.Pawn {
+	if cp != material.None || pc == material.Pawn {
 		bd.copyStr.moves = 0 // conversion;
 	}
 
 	// recapture
 
-	if cp != piece.None || pp != piece.None {
+	if cp != material.None || pp != material.None {
 		bd.copyStr.recap = to
 	}
 
@@ -798,22 +793,22 @@ func (bd *Board) Undo() {
 		// util.ASSERT(fr == castling.Info[index].kf);
 		// util.ASSERT(to == castling.info[index].kt);
 
-		bd.moveSquare(piece.Rook, sd, castling.Info[index].RokTo, castling.Info[index].RookFr, false)
+		bd.moveSquare(material.Rook, sd, castling.Info[index].RokTo, castling.Info[index].RookFr, false)
 	}
 
 	// promotion
 
-	if pp != piece.None {
-		// util.ASSERT(pc == piece.PAWN);
+	if pp != material.None {
+		// util.ASSERT(pc == material.PAWN);
 		bd.clearSquare(pp, sd, to, false)
-		bd.setSquare(piece.Pawn, sd, fr, false)
+		bd.setSquare(material.Pawn, sd, fr, false)
 	} else {
 		bd.moveSquare(pc, sd, to, fr, false)
 	}
 
 	// capture
 
-	if cp != piece.None {
+	if cp != material.None {
 		bd.setSquare(cp, xd, undo.capSq, false)
 	}
 
@@ -864,24 +859,24 @@ func IsMove(mv int, bd *Board) bool {
 		return false
 	}
 
-	if bd.Square(to) != piece.None && bd.SquareSide(to) == sd {
+	if bd.Square(to) != material.None && bd.SquareSide(to) == sd {
 		return false
 	}
 
-	if pc == piece.Pawn && to == bd.EpSq() {
-		if cp != piece.Pawn {
+	if pc == material.Pawn && to == bd.EpSq() {
+		if cp != material.Pawn {
 			return false
 		}
 	} else if bd.Square(to) != cp {
 		return false
 	}
 
-	if cp == piece.King {
+	if cp == material.King {
 		return false
 	}
 
 	return true
-	//	if pc == piece.PAWN {
+	//	if pc == material.PAWN {
 	//		return true
 	//	} else {
 	//		// TODO: castling
@@ -896,45 +891,45 @@ func IsMove(mv int, bd *Board) bool {
 
 // LoneKing returns true if the side=sd has only King left
 func LoneKing(sd int, bd *Board) bool {
-	return bd.Count(piece.Knight, sd) == 0 &&
-		bd.Count(piece.Bishop, sd) == 0 &&
-		bd.Count(piece.Rook, sd) == 0 &&
-		bd.Count(piece.Queen, sd) == 0
+	return bd.Count(material.Knight, sd) == 0 &&
+		bd.Count(material.Bishop, sd) == 0 &&
+		bd.Count(material.Rook, sd) == 0 &&
+		bd.Count(material.Queen, sd) == 0
 }
 
 // LoneKingOrBishop returns true if the side=sd has King and Bishop or only King
 func LoneKingOrBishop(sd int, bd *Board) bool {
 
-	return bd.Count(piece.Knight, sd) == 0 &&
-		bd.Count(piece.Bishop, sd) <= 1 &&
-		bd.Count(piece.Rook, sd) == 0 &&
-		bd.Count(piece.Queen, sd) == 0
+	return bd.Count(material.Knight, sd) == 0 &&
+		bd.Count(material.Bishop, sd) <= 1 &&
+		bd.Count(material.Rook, sd) == 0 &&
+		bd.Count(material.Queen, sd) == 0
 }
 
 // LoneBishop returns true if the side=sd has King and Bishop left
 func LoneBishop(sd int, bd *Board) bool {
 
-	return bd.Count(piece.Knight, sd) == 0 &&
-		bd.Count(piece.Bishop, sd) == 1 &&
-		bd.Count(piece.Rook, sd) == 0 &&
-		bd.Count(piece.Queen, sd) == 0
+	return bd.Count(material.Knight, sd) == 0 &&
+		bd.Count(material.Bishop, sd) == 1 &&
+		bd.Count(material.Rook, sd) == 0 &&
+		bd.Count(material.Queen, sd) == 0
 }
 
 // LoneKingOrMinor returns true if the side=sd has King and Minor or only King left
 func LoneKingOrMinor(sd int, bd *Board) bool {
 
-	return bd.Count(piece.Knight, sd)+bd.Count(piece.Bishop, sd) <= 1 &&
-		bd.Count(piece.Rook, sd) == 0 &&
-		bd.Count(piece.Queen, sd) == 0
+	return bd.Count(material.Knight, sd)+bd.Count(material.Bishop, sd) <= 1 &&
+		bd.Count(material.Rook, sd) == 0 &&
+		bd.Count(material.Queen, sd) == 0
 }
 
 // TwoKnights returns true if sd has exactly two knghts and King
 func TwoKnights(sd int, bd *Board) bool {
 
-	return bd.Count(piece.Knight, sd) == 2 &&
-		bd.Count(piece.Bishop, sd) == 0 &&
-		bd.Count(piece.Rook, sd) == 0 &&
-		bd.Count(piece.Queen, sd) == 0
+	return bd.Count(material.Knight, sd) == 2 &&
+		bd.Count(material.Bishop, sd) == 0 &&
+		bd.Count(material.Rook, sd) == 0 &&
+		bd.Count(material.Queen, sd) == 0
 }
 
 /////////////////////////////////////////////
@@ -947,10 +942,10 @@ func (bd *Board) PrintBoard() {
 		fmt.Println(" ")
 		for file := 0; file < square.FileSize; file++ {
 			sq := square.Make(file, rank)
-			if bd.Square(sq) == piece.None {
+			if bd.Square(sq) == material.None {
 				fmt.Print(". ")
 			} else {
-				fenPc := piece.ToFen(bd.getP12(sq))
+				fenPc := material.ToFen(bd.getP12(sq))
 				fmt.Printf("%v ", fenPc)
 			}
 		}
@@ -983,13 +978,13 @@ func (bd *Board) PrintBBInfo() {
 	PrintBB(bd.all)
 
 	// per pjäs
-	for p12 := 0; p12 < piece.SideSize; p12++ {
+	for p12 := 0; p12 < material.SideSize; p12++ {
 		// pjäs och antal
-		fmt.Printf("pjäs=%v antal: %v", piece.ToFen(p12), bd.count[p12]) //pjäs
+		fmt.Printf("pjäs=%v antal: %v", material.ToFen(p12), bd.count[p12]) //pjäs
 
 		// bb
-		pc := piece.Piece(p12)
-		PrintBB(bd.piece[pc] & bd.side[piece.Color(p12)])
+		pc := material.Piece(p12)
+		PrintBB(bd.piece[pc] & bd.side[material.Color(p12)])
 	}
 }
 
@@ -1031,7 +1026,7 @@ func Turn_key(turn int) hash.Hash_to {
 
       void operator=(const Board & bd) {
 
-         for (int pc = 0; pc < piece.SIZE; pc++) {
+         for (int pc = 0; pc < material.SIZE; pc++) {
             p_piece[pc] = bd.p_piece[pc];
          }
 
@@ -1042,7 +1037,7 @@ func Turn_key(turn int) hash.Hash_to {
 
          p_all = bd.p_all;
 
-         for (int p12 = 0; p12 < piece.SIDE_SIZE; p12++) {
+         for (int p12 = 0; p12 < material.SIDE_SIZE; p12++) {
             p_count[p12] = bd.p_count[p12];
          }
 
@@ -1067,10 +1062,10 @@ func Turn_key(turn int) hash.Hash_to {
 
 
       int count(int pc, int sd) const {
-         // util.ASSERT(pc < piece.SIZE);
-         // util.ASSERT(pc != piece.None);
+         // util.ASSERT(pc < material.SIZE);
+         // util.ASSERT(pc != material.None);
          // return bit.count(piece(pc, sd));
-         return p_count[piece.make(pc, sd)];
+         return p_count[material.make(pc, sd)];
       }
 
       bit.Bit_to side(int sd) const {
@@ -1112,8 +1107,8 @@ func Turn_key(turn int) hash.Hash_to {
 
       void clear_square(int pc, int sd, int sq, bool update_copy) {
 
-         // util.ASSERT(pc < piece.SIZE);
-         // util.ASSERT(pc != piece.None);
+         // util.ASSERT(pc < material.SIZE);
+         // util.ASSERT(pc != material.None);
          // util.ASSERT(sq >= 0 && sq < square.SIZE);
 
          // util.ASSERT(pc == p_square[sq]);
@@ -1124,10 +1119,10 @@ func Turn_key(turn int) hash.Hash_to {
          // util.ASSERT(bit.is_set(p_side[sd], sq));
          bit.clear(p_side[sd], sq);
 
-         // util.ASSERT(p_square[sq] != piece.None);
-         p_square[sq] = piece.None;
+         // util.ASSERT(p_square[sq] != material.None);
+         p_square[sq] = material.None;
 
-         int p12 = piece.make(pc, sd);
+         int p12 = material.make(pc, sd);
 
          // util.ASSERT(p_count[p12] != 0);
          p_count[p12]--;
@@ -1136,7 +1131,7 @@ func Turn_key(turn int) hash.Hash_to {
 
             hash_to key = hash.piece_key(p12, sq);
             p_copy.key ^= key;
-            if (pc == piece.PAWN) p_copy.pawn_key ^= key;
+            if (pc == material.PAWN) p_copy.pawn_key ^= key;
 
             p_copy.phase -= material.phase(pc);
          }
@@ -1185,19 +1180,19 @@ func Turn_key(turn int) hash.Hash_to {
 
          // capture
 
-         // util.ASSERT(cp != piece.King);
+         // util.ASSERT(cp != material.King);
 
-         if (pc == piece.PAWN && to == p_copy.ep_sq) {
+         if (pc == material.PAWN && to == p_copy.ep_sq) {
 
             int cap_sq = to - square.pawn_inc(sd);
             // util.ASSERT(p_square[cap_sq] == cp);
-            // util.ASSERT(cp == piece.PAWN);
+            // util.ASSERT(cp == material.PAWN);
 
             undo.cap_sq = cap_sq;
 
             clear_square(cp, xd, cap_sq, true);
 
-         } else if (cp != piece.None) {
+         } else if (cp != material.None) {
 
             // util.ASSERT(p_square[to] == cp);
             // util.ASSERT(square_side(to) == xd);
@@ -1213,9 +1208,9 @@ func Turn_key(turn int) hash.Hash_to {
 
          // promotion
 
-         if (pp != piece.None) {
-            // util.ASSERT(pc == piece.PAWN);
-            clear_square(piece.PAWN, sd, fr, true);
+         if (pp != material.None) {
+            // util.ASSERT(pc == material.PAWN);
+            clear_square(material.PAWN, sd, fr, true);
             set_square(pp, sd, to, true);
          } else {
             move_square(pc, sd, fr, to, true);
@@ -1223,7 +1218,7 @@ func Turn_key(turn int) hash.Hash_to {
 
          // castling Rook
 
-         if (pc == piece.King && std.abs(to - fr) == square.CASTLING_DELTA) {
+         if (pc == material.King && std.abs(to - fr) == square.CASTLING_DELTA) {
 
             undo.castling = true;
 
@@ -1235,7 +1230,7 @@ func Turn_key(turn int) hash.Hash_to {
             // util.ASSERT(fr == castling.info[index].kf);
             // util.ASSERT(to == castling.info[index].kt);
 
-            move_square(piece.ROOK, sd, castling.info[index].rf, castling.info[index].rt, true);
+            move_square(material.ROOK, sd, castling.info[index].rf, castling.info[index].rt, true);
          }
 
          // turn
@@ -1251,7 +1246,7 @@ func Turn_key(turn int) hash.Hash_to {
 
          p_copy.ep_sq = square.None;
 
-         if (pc == piece.PAWN && std.abs(to - fr) == square.DOUBLE_PAWN_DELTA) {
+         if (pc == material.PAWN && std.abs(to - fr) == square.DOUBLE_PAWN_DELTA) {
             int sq = (fr + to) / 2;
             if (pawn_is_attacked(sq, xd)) {
                p_copy.ep_sq = sq;
@@ -1260,13 +1255,13 @@ func Turn_key(turn int) hash.Hash_to {
 
          // move counter
 
-         if (cp != piece.None || pc == piece.PAWN) {
+         if (cp != material.None || pc == material.PAWN) {
             p_copy.moves = 0; // conversion;
          }
 
          // recapture
 
-         if (cp != piece.None || pp != piece.None) {
+         if (cp != material.None || pp != material.None) {
             p_copy.recap = to;
          }
 
@@ -1303,22 +1298,22 @@ func Turn_key(turn int) hash.Hash_to {
             // util.ASSERT(fr == castling.info[index].kf);
             // util.ASSERT(to == castling.info[index].kt);
 
-            move_square(piece.ROOK, sd, castling.info[index].rt, castling.info[index].rf, false);
+            move_square(material.ROOK, sd, castling.info[index].rt, castling.info[index].rf, false);
          }
 
          // promotion
 
-         if (pp != piece.None) {
-            // util.ASSERT(pc == piece.PAWN);
+         if (pp != material.None) {
+            // util.ASSERT(pc == material.PAWN);
             clear_square(pp, sd, to, false);
-            set_square(piece.PAWN, sd, fr, false);
+            set_square(material.PAWN, sd, fr, false);
          } else {
             move_square(pc, sd, to, fr, false);
          }
 
          // capture
 
-         if (cp != piece.None) {
+         if (cp != material.None) {
             set_square(cp, xd, undo.cap_sq, false);
          }
 

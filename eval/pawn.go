@@ -3,19 +3,13 @@ package eval
 //namespace pawn { // HACK: early declaration for pawn-pushes move type
 
 import (
-	"fmt"
-
-	//	"GoAlaric/attack" //går ej!
 	"GoAlaric/bit"
 	"GoAlaric/board"
 	"GoAlaric/hash"
-	// "GoAlaric/eval" //går ej
 	"GoAlaric/material"
 	"GoAlaric/move"
-	"GoAlaric/piece"
-	//"GoAlaric/pst"
-	// "GoAlaric/pst"  // går ej
 	"GoAlaric/square"
+	"fmt"
 )
 
 //
@@ -40,10 +34,10 @@ func ShelterFile(fl, sd int, bd *board.Board) int {
 
 	//util.ASSERT(fl >= 0 && fl < 8)
 
-	if bd.SquareIs(square.MakeSd(fl, square.Rank2, sd), piece.Pawn, sd) {
+	if bd.SquareIs(square.MakeSd(fl, square.Rank2, sd), material.Pawn, sd) {
 		return 2
 	}
-	if bd.SquareIs(square.MakeSd(fl, square.Rank3, sd), piece.Pawn, sd) {
+	if bd.SquareIs(square.MakeSd(fl, square.Rank3, sd), material.Pawn, sd) {
 		return 1
 	}
 
@@ -67,12 +61,12 @@ func shelterFiles(fl, sd int, bd *board.Board) int {
 	return sc
 }
 func isEmpty(sq int, bd *board.Board) bool {
-	return bd.Square(sq) != piece.Pawn
+	return bd.Square(sq) != material.Pawn
 }
 func isControlled(sq, sd int, bd *board.Board) bool {
 
-	attackers := bd.PieceSd(piece.Pawn, sd) & pawnAttacksTo(sd, sq)
-	defenders := bd.PieceSd(piece.Pawn, board.Opposit(sd)) & pawnAttacksTo(board.Opposit(sd), sq)
+	attackers := bd.PieceSd(material.Pawn, sd) & pawnAttacksTo(sd, sq)
+	defenders := bd.PieceSd(material.Pawn, board.Opposit(sd)) & pawnAttacksTo(board.Opposit(sd), sq)
 
 	return bit.CountLoop(attackers) > bit.CountLoop(defenders)
 }
@@ -133,8 +127,8 @@ func (pawnHash *PawnHash) getEntry(bd *board.Board) *pawnEntry {
 
 ////// flyttat från  pawn ///////////
 func isPassed(sq, sd int, bd *board.Board) bool {
-	return (bd.PieceSd(piece.Pawn, board.Opposit(sd))&passedOpp[sq][sd]) == 0 &&
-		(bd.PieceSd(piece.Pawn, sd)&passedMe[sq][sd]) == 0
+	return (bd.PieceSd(material.Pawn, board.Opposit(sd))&passedOpp[sq][sd]) == 0 &&
+		(bd.PieceSd(material.Pawn, sd)&passedMe[sq][sd]) == 0
 }
 
 func passerUnstoppable(sq, sd int, bd *board.Board) bool {
@@ -154,7 +148,7 @@ func passerUnstoppable(sq, sd int, bd *board.Board) bool {
 		return true
 	}
 
-	if (front & ^PseudoAttacksFrom(piece.King, sd, bd.King(sd))) == 0 { // king controls promotion path
+	if (front & ^PseudoAttacksFrom(material.King, sd, bd.King(sd))) == 0 { // king controls promotion path
 		return true
 	}
 
@@ -167,7 +161,7 @@ func squareDistance(ks, ps, sd int) int {
 
 // IsEnPassant returns true if mv is en passant
 func IsEnPassant(mv int, bd *board.Board) bool {
-	return move.Piece(mv) == piece.Pawn && move.To(mv) == bd.EpSq()
+	return move.Piece(mv) == material.Pawn && move.To(mv) == bd.EpSq()
 }
 
 // IsPawnPush return true if it is a pawn push
@@ -183,7 +177,7 @@ func IsPawnPush(mv int, bd *board.Board) bool {
 	pc := bd.Square(fr)
 	sd := bd.SquareSide(fr)
 
-	return pc == piece.Pawn && square.RankSd(to, sd) >= square.Rank6 && isPassed(to, sd, bd) && !move.IsCapture(mv)
+	return pc == material.Pawn && square.RankSd(to, sd) >= square.Rank6 && isPassed(to, sd, bd) && !move.IsCapture(mv)
 }
 func possibleAttacks(sq, sd int, bd *board.Board) bit.BB {
 
@@ -240,17 +234,17 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 
 	for sd := 0; sd < 2; sd++ {
 
-		p12 := piece.MakeP12(piece.Pawn, sd)
+		p12 := material.MakeP12(material.Pawn, sd)
 
-		strong |= bd.PieceSd(piece.Pawn, sd) & PawnAttacksFrom(sd, bd) // defended pawns
+		strong |= bd.PieceSd(material.Pawn, sd) & PawnAttacksFrom(sd, bd) // defended pawns
 
 		{
-			n := bd.Count(piece.Pawn, sd)
-			entry.mg += int16(n * material.Score(piece.Pawn, MG))
-			entry.eg += int16(n * material.Score(piece.Pawn, EG))
+			n := bd.Count(material.Pawn, sd)
+			entry.mg += int16(n * material.Score(material.Pawn, MG))
+			entry.eg += int16(n * material.Score(material.Pawn, EG))
 		}
 
-		for b := bd.PieceSd(piece.Pawn, sd); b != 0; b = bit.Rest(b) {
+		for b := bd.PieceSd(material.Pawn, sd); b != 0; b = bit.Rest(b) {
 
 			sq := bit.First(b)
 
@@ -317,8 +311,8 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 	weak &= ^strong // defended doubled pawns are not weak
 	//util.ASSERT((weak & strong) == 0)
 
-	entry.target[WHITE] |= bd.PieceSd(piece.Pawn, BLACK) & weak
-	entry.target[BLACK] |= bd.PieceSd(piece.Pawn, WHITE) & weak
+	entry.target[WHITE] |= bd.PieceSd(material.Pawn, BLACK) & weak
+	entry.target[BLACK] |= bd.PieceSd(material.Pawn, WHITE) & weak
 
 	entry.safe = (safe[WHITE] & bit.Front(square.Rank4)) |
 		(safe[BLACK] & bit.Rear(square.Rank5))
@@ -343,7 +337,7 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 			// if false {
 			//} else if ((bd.piece(piece::PAWN, sd) & file) != 0) {
 			//   open = 0;
-			if (bd.PieceSd(piece.Pawn, board.Opposit(sd)) & file) == 0 {
+			if (bd.PieceSd(material.Pawn, board.Opposit(sd)) & file) == 0 {
 				open = 4
 			} else if (strong & file) != 0 {
 				open = 1
@@ -380,11 +374,11 @@ func isIsolated(sq, sd int, bd *board.Board) bool {
 	fl := square.File(sq)
 	files := bit.AdjFiles(fl) & ^bit.File(fl)
 
-	return (bd.PieceSd(piece.Pawn, sd) & files) == 0
+	return (bd.PieceSd(material.Pawn, sd) & files) == 0
 }
 
 func isPawnPair(sq, sd int, bd *board.Board) bool {
-	return (bd.PieceSd(piece.Pawn, sd) & pair[sq]) != 0
+	return (bd.PieceSd(material.Pawn, sd) & pair[sq]) != 0
 }
 
 func isSafe(sq, sd int, bd *board.Board) bool {
@@ -396,7 +390,7 @@ func isWeak(sq, sd int, bd *board.Board) bool {
 	fl := square.File(sq)
 	rk := square.RankSd(sq, sd)
 
-	pawns := bd.PieceSd(piece.Pawn, sd)
+	pawns := bd.PieceSd(material.Pawn, sd)
 	inc := square.PawnInc(sd)
 
 	// already fine?
@@ -434,7 +428,7 @@ func isWeak(sq, sd int, bd *board.Board) bool {
 		//util.ASSERT(sq >= square.A2 && sq < 64)
 		//util.ASSERT(sd == 0 || sd == 1)
 
-		if rk == square.Rank5 && bd.SquareIs(s3, piece.Pawn, sd) && isSafe(s2, sd, bd) && isSafe(s1, sd, bd) {
+		if rk == square.Rank5 && bd.SquareIs(s3, material.Pawn, sd) && isSafe(s2, sd, bd) && isSafe(s1, sd, bd) {
 			return false
 		}
 	}
@@ -446,11 +440,11 @@ func isWeak(sq, sd int, bd *board.Board) bool {
 		s2 := s1 - inc
 		s3 := s2 - inc
 
-		if rk >= square.Rank4 && bd.SquareIs(s2, piece.Pawn, sd) && isSafe(s1, sd, bd) {
+		if rk >= square.Rank4 && bd.SquareIs(s2, material.Pawn, sd) && isSafe(s1, sd, bd) {
 			return false
 		}
 
-		if rk == square.Rank5 && bd.SquareIs(s3, piece.Pawn, sd) && isSafe(s2, sd, bd) && isSafe(s1, sd, bd) {
+		if rk == square.Rank5 && bd.SquareIs(s3, material.Pawn, sd) && isSafe(s2, sd, bd) && isSafe(s1, sd, bd) {
 			return false
 		}
 	}
@@ -460,5 +454,5 @@ func isWeak(sq, sd int, bd *board.Board) bool {
 
 func isDoubled(sq, sd int, bd *board.Board) bool {
 	fl := square.File(sq)
-	return (bd.PieceSd(piece.Pawn, sd) & bit.File(fl) & bit.RearSd(sq, sd)) != 0
+	return (bd.PieceSd(material.Pawn, sd) & bit.File(fl) & bit.RearSd(sq, sd)) != 0
 }

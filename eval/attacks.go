@@ -3,8 +3,8 @@ package eval
 import (
 	"GoAlaric/bit"
 	"GoAlaric/board"
+	"GoAlaric/material"
 	"GoAlaric/move"
-	"GoAlaric/piece"
 	"GoAlaric/square"
 	"fmt"
 )
@@ -12,7 +12,7 @@ import (
 // bitboards with various attack patterns
 var (
 	pawnAttack  = [2][2]int{{-15, +17}, {-17, +15}}
-	Blockers    [piece.Size][square.BoardSize]bit.BB
+	Blockers    [material.Size][square.BoardSize]bit.BB
 	Between     [square.BoardSize][square.BoardSize]bit.BB
 	Behind      [square.BoardSize][square.BoardSize]bit.BB
 	PawnAttacks [2][square.BoardSize]bit.BB
@@ -20,14 +20,14 @@ var (
 
 var pawnMove = [2]int{+1, -1}
 var pawnMoves [2][square.BoardSize]bit.BB
-var pieceAttacks [piece.Size][square.BoardSize]bit.BB
+var pieceAttacks [material.Size][square.BoardSize]bit.BB
 
 var knightInc = []int{-33, -31, -18, -14, +14, +18, +31, +33, 0}
 var bishopInc = []int{-17, -15, +15, +17, 0}
 var rookInc = []int{-16, -1, +1, +16, 0}
 var queenInc = []int{-17, -16, -15, -1, +1, +15, +16, +17, 0}
 var null = []int{0} //HACK
-var pieceInc = [piece.Size][]int{null, knightInc, bishopInc, rookInc, queenInc, queenInc, null}
+var pieceInc = [material.Size][]int{null, knightInc, bishopInc, rookInc, queenInc, queenInc, null}
 
 // AtkInit is run when the program starts. It sets up various tables for moves and attacks etc
 func AtkInit() {
@@ -40,7 +40,7 @@ func AtkInit() {
 		}
 	}
 
-	for pc := piece.Knight; pc <= piece.King; pc++ {
+	for pc := material.Knight; pc <= material.King; pc++ {
 		for sq = 0; sq < square.BoardSize; sq++ {
 			pieceAttacks[pc][sq] = computePieceAttacks(pc, sq)
 			Blockers[pc][sq] = getBlockers(pc, sq)
@@ -74,7 +74,7 @@ func pawnMovesFrom(sd int, bd *board.Board) bit.BB { // for pawn mobility
 
 	//util.ASSERT(sd < 2)
 
-	bbFr := bd.PieceSd(piece.Pawn, sd)
+	bbFr := bd.PieceSd(material.Pawn, sd)
 
 	if sd == WHITE {
 		return bbFr << 1
@@ -130,7 +130,7 @@ func computePawnAttacks(sd, sq int) bit.BB {
 // computePieceAttacks not pawns
 func computePieceAttacks(pc int, sq int) bit.BB {
 
-	// assert(pc != piece.PAWN)
+	// assert(pc != material.PAWN)
 
 	var b bit.BB
 
@@ -143,7 +143,7 @@ func computePieceAttacks(pc int, sq int) bit.BB {
 			break
 		}
 
-		if pc >= piece.Bishop && pc <= piece.Queen { // slider
+		if pc >= material.Bishop && pc <= material.Queen { // slider
 
 			for to := fr + inc; square.IsValid88(to); to += inc {
 				bit.Set(&b, square.From88(to))
@@ -164,7 +164,7 @@ func computePieceAttacks(pc int, sq int) bit.BB {
 
 func attackBehind(fr, to, sd int, bd *board.Board) bool {
 
-	// assert(bd.square(to) != piece.None);
+	// assert(bd.square(to) != material.None);
 
 	behind := Behind[fr][to]
 	if behind == 0 {
@@ -184,7 +184,7 @@ func attackBehind(fr, to, sd int, bd *board.Board) bool {
 }
 func getBlockers(pc, fr int) bit.BB {
 
-	//assert(pc != piece.PAWN)
+	//assert(pc != material.PAWN)
 
 	var b bit.BB
 
@@ -215,7 +215,7 @@ func PawnAttacksFrom(sd int, bd *board.Board) bit.BB {
 
 	// assert(sd < 2);
 
-	fs := bd.PieceSd(piece.Pawn, sd)
+	fs := bd.PieceSd(material.Pawn, sd)
 
 	if sd == WHITE {
 		return (fs >> 7) | (fs << 9)
@@ -337,7 +337,7 @@ func PieceAttacksFrom(pc int, fr int, bd *board.Board) bit.BB {
 	return ts
 }
 func attacksFrom(pc, sd, fr int, bd *board.Board) bit.BB {
-	if pc == piece.Pawn {
+	if pc == material.Pawn {
 		return PawnAttacks[sd][fr]
 	}
 	return PieceAttacksFrom(pc, fr, bd)
@@ -346,7 +346,7 @@ func attacksFrom(pc, sd, fr int, bd *board.Board) bit.BB {
 
 // PseudoAttacksFrom square fr
 func PseudoAttacksFrom(pc, sd, fr int) bit.BB {
-	if pc == piece.Pawn {
+	if pc == material.Pawn {
 		return PawnAttacks[sd][fr]
 	}
 	return pieceAttacks[pc][fr]
@@ -354,7 +354,7 @@ func PseudoAttacksFrom(pc, sd, fr int) bit.BB {
 
 func attack(pc, sd, fr, to int, bd *board.Board) bool {
 	// assert(sd < 2);
-	if pc == piece.Pawn {
+	if pc == material.Pawn {
 		return isPawnAtk(sd, fr, to)
 	}
 	return PieceAttack(pc, fr, to, bd)
@@ -364,9 +364,9 @@ func sliderPseudoAttacksTo(sd, to int, bd *board.Board) bit.BB {
 	// assert(sd < side::SIZE);
 
 	b := bit.BB(0)
-	b |= bd.PieceSd(piece.Bishop, sd) & pieceAttacks[piece.Bishop][to]
-	b |= bd.PieceSd(piece.Rook, sd) & pieceAttacks[piece.Rook][to]
-	b |= bd.PieceSd(piece.Queen, sd) & pieceAttacks[piece.Queen][to]
+	b |= bd.PieceSd(material.Bishop, sd) & pieceAttacks[material.Bishop][to]
+	b |= bd.PieceSd(material.Rook, sd) & pieceAttacks[material.Rook][to]
+	b |= bd.PieceSd(material.Queen, sd) & pieceAttacks[material.Queen][to]
 
 	return b
 }
@@ -376,15 +376,15 @@ func IsAttacked(to, sd int, bd *board.Board) bool {
 
 	// non-sliders
 
-	if (bd.PieceSd(piece.Pawn, sd) & PawnAttacks[board.Opposit(sd)][to]) != 0 { // HACK
+	if (bd.PieceSd(material.Pawn, sd) & PawnAttacks[board.Opposit(sd)][to]) != 0 { // HACK
 		return true
 	}
 
-	if (bd.PieceSd(piece.Knight, sd) & pieceAttacks[piece.Knight][to]) != 0 {
+	if (bd.PieceSd(material.Knight, sd) & pieceAttacks[material.Knight][to]) != 0 {
 		return true
 	}
 
-	if (bd.PieceSd(piece.King, sd) & pieceAttacks[piece.King][to]) != 0 {
+	if (bd.PieceSd(material.King, sd) & pieceAttacks[material.King][to]) != 0 {
 		return true
 	}
 
@@ -417,7 +417,7 @@ func IsCheck(mv int, bd *board.Board) bool { //////flyttad från move
 	fr := move.From(mv)
 	to := move.To(mv)
 	pc := move.Piece(mv)
-	if move.Prom(mv) != piece.None {
+	if move.Prom(mv) != material.None {
 		pc = move.Prom(mv)
 	}
 
@@ -469,8 +469,8 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
 	{
 		b := bit.BB(0)
-		b |= bd.PieceSd(piece.Pawn, atk) & PawnAttacks[def][to] // HACK
-		b |= bd.PieceSd(piece.Knight, atk) & pieceAttacks[piece.Knight][to]
+		b |= bd.PieceSd(material.Pawn, atk) & PawnAttacks[def][to] // HACK
+		b |= bd.PieceSd(material.Knight, atk) & pieceAttacks[material.Knight][to]
 
 		if b != 0 {
 			// assert(bit::single(b));
@@ -506,7 +506,7 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
    const int Rook_Inc[]   = { -16, -1, +1, +16, 0 };
    const int Queen_Inc[]  = { -17, -16, -15, -1, +1, +15, +16, +17, 0 };
 
-   const int * Piece_Inc[piece.SIZE] = { NULL, Knight_Inc, Bishop_Inc, Rook_Inc, Queen_Inc, Queen_Inc, NULL };
+   const int * Piece_Inc[material.SIZE] = { NULL, Knight_Inc, Bishop_Inc, Rook_Inc, Queen_Inc, Queen_Inc, NULL };
 
 
    bit.Bit_to Between[square.SIZE][square.SIZE];
@@ -531,7 +531,7 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
       assert(sd < 2);
       assert((bd.all() & ts) == 0);
 
-      bit.Bit_to pawns = bd.piece(piece.PAWN, sd);
+      bit.Bit_to pawns = bd.piece(material.PAWN, sd);
       bit.Bit_to empty = bd.empty();
 
       bit.Bit_to fs = 0;
@@ -567,7 +567,7 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
    bit.Bit_to piece_attacks_from(int pc, int fr, const Board & bd) {
 
-      assert(pc != piece.PAWN);
+      assert(pc != material.PAWN);
 
       bit.Bit_to ts = Piece_Attacks[pc][fr];
 
@@ -580,12 +580,12 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
    }
 
    bit.Bit_to piece_attacks_to(int pc, int to, const Board & bd) {
-      assert(pc != piece.PAWN);
+      assert(pc != material.PAWN);
       return piece_attacks_from(pc, to, bd);
    }
 
    bit.Bit_to piece_moves_from(int pc, int sd, int fr, const Board & bd) {
-      if (pc == piece.PAWN) {
+      if (pc == material.PAWN) {
          assert(false); // TODO: blockers
          return Pawn_Moves[sd][fr];
       } else {
@@ -594,7 +594,7 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
    }
 
    bit.Bit_to attacks_from(int pc, int sd, int fr, const Board & bd) {
-      if (pc == piece.PAWN) {
+      if (pc == material.PAWN) {
          return Pawn_Attacks[sd][fr];
       } else {
          return piece_attacks_from(pc, fr, bd);
@@ -606,7 +606,7 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
    }
 
    bit.Bit_to pseudo_attacks_from(int pc, int sd, int fr) {
-      if (pc == piece.PAWN) {
+      if (pc == material.PAWN) {
          return Pawn_Attacks[sd][fr];
       } else {
          return Piece_Attacks[pc][fr];
@@ -619,9 +619,9 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
       assert(sd < 2);
 
       bit.Bit_to b = 0;
-      b |= bd.piece(piece.Bishop, sd) & Piece_Attacks[piece.Bishop][to];
-      b |= bd.piece(piece.Rook,   sd) & Piece_Attacks[piece.Rook][to];
-      b |= bd.piece(piece.Queen,  sd) & Piece_Attacks[piece.Queen][to];
+      b |= bd.piece(material.Bishop, sd) & Piece_Attacks[material.Bishop][to];
+      b |= bd.piece(material.Rook,   sd) & Piece_Attacks[material.Rook][to];
+      b |= bd.piece(material.Queen,  sd) & Piece_Attacks[material.Queen][to];
 
       return b;
    }
@@ -640,7 +640,7 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
    bit.Bit_to piece_attacks_debug(int pc, int sq) {
 
-      assert(pc != piece.PAWN);
+      assert(pc != material.PAWN);
 
       bit.Bit_to b = 0;
 
@@ -651,7 +651,7 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
          int inc = Piece_Inc[pc][dir];
          if (inc == 0) break;
 
-         if (piece.is_slider(pc)) {
+         if (material.is_slider(pc)) {
 
             for (int to = fr + inc; square.is_valid_88(to); to += inc) {
                bit.Set(b, square.from_88(to));
@@ -724,7 +724,7 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
    bit.Bit_to blockers_debug(int pc, int fr) {
 
-      assert(pc != piece.PAWN);
+      assert(pc != material.PAWN);
 
       bit.Bit_to b = 0;
 

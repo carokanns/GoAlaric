@@ -7,12 +7,11 @@ import (
 	"GoAlaric/board"
 	"GoAlaric/castling"
 	"GoAlaric/eval"
+	"GoAlaric/material"
 	"GoAlaric/move"
-	"GoAlaric/piece"
-	"fmt"
-	//	"GoAlaric/sort"
 	"GoAlaric/square"
 	"GoAlaric/util"
+	"fmt"
 	"math"
 )
 
@@ -295,7 +294,7 @@ func (se *SEE) init(to int, sd int) {
 
 	pc := se.board.Square(to)
 
-	se.value = piece.Value[pc]
+	se.value = material.Value[pc]
 	se.color = sd
 }
 
@@ -308,15 +307,15 @@ func (se *SEE) move(fr int) int {
 	// assert(pc != piece::None && p_board->square_side(fr) == p_side);
 
 	val := se.value
-	se.value = piece.Value[pc]
+	se.value = material.Value[pc]
 
-	if pc == piece.Pawn && square.IsPromotion(se.to) {
-		delta := piece.QueenValue - piece.PawnValue
+	if pc == material.Pawn && square.IsPromotion(se.to) {
+		delta := material.QueenValue - material.PawnValue
 		val += delta
 		se.value += delta
 	}
 
-	if val == piece.KingValue { // stop at king capture
+	if val == material.KingValue { // stop at king capture
 		se.bbAlll = 0 // HACK: erase all attackers
 	}
 
@@ -362,7 +361,7 @@ func (se *SEE) pickLva() int {
 
 	sd := se.color
 
-	for pc := piece.Pawn; pc <= piece.King; pc++ {
+	for pc := material.Pawn; pc <= material.King; pc++ {
 		fs := se.board.PieceSd(pc, sd) & eval.PseudoAttacksTo(pc, sd, se.to) & se.bbAlll
 
 		for b := fs; b != 0; b = bit.Rest(b) {
@@ -394,8 +393,8 @@ func (se *SEE) See(mv int, alpha int, beta int, bd *board.Board) (val, cnt int) 
 	se.init(to, sd)
 	capVal := se.move(fr) // NOTE: assumes queen promotion
 
-	if pc == piece.Pawn && square.IsPromotion(to) { // adjust for under-promotion
-		delta := piece.QueenValue - piece.Value[move.Prom(mv)]
+	if pc == material.Pawn && square.IsPromotion(to) { // adjust for under-promotion
+		delta := material.QueenValue - material.Value[move.Prom(mv)]
 		capVal -= delta
 		se.value -= delta
 	}
@@ -410,11 +409,11 @@ func IsSafe(mv int, bd *board.Board) bool {
 	cp := move.Capt(mv)
 	pp := move.Prom(mv)
 
-	if pc == piece.King {
+	if pc == material.King {
 		return true
-	} else if piece.Value[cp] >= piece.Value[pc] {
+	} else if material.Value[cp] >= material.Value[pc] {
 		return true
-	} else if pp != piece.None && pp != piece.Queen { // under-promotion
+	} else if pp != material.None && pp != material.Queen { // under-promotion
 		return false
 	}
 
@@ -434,7 +433,7 @@ func isLegal(mv int, bd *board.Board, attacks *eval.Attacks) bool {
 		return IsLegalMv(mv, bd)
 	}
 
-	if move.Piece(mv) == piece.King {
+	if move.Piece(mv) == material.King {
 		return !eval.IsAttacked(to, board.Opposit(sd), bd)
 	}
 
@@ -458,11 +457,11 @@ func IsWin(mv int, bd *board.Board) bool {
 	cp := move.Capt(mv)
 	pp := move.Prom(mv)
 
-	if pc == piece.King {
+	if pc == material.King {
 		return true
-	} else if piece.Value[cp] > piece.Value[pc] {
+	} else if material.Value[cp] > material.Value[pc] {
 		return true
-	} else if pp != piece.None && pp != piece.Queen { // when it is under-promotion
+	} else if pp != material.None && pp != material.Queen { // when it is under-promotion
 		return false
 	}
 
@@ -500,7 +499,7 @@ func EvasionScore(mv, transMv int) int {
 
 func tacticalScore(pc, cp, pp int) int {
 
-	if cp != piece.None {
+	if cp != material.None {
 		return captScore(pc, cp) + 4
 	}
 	return promotionScore(pp)
@@ -515,13 +514,13 @@ func captScore(pc, cp int) int {
 
 func promotionScore(pp int) int {
 	switch pp {
-	case piece.Queen:
+	case material.Queen:
 		return 3
-	case piece.Knight:
+	case material.Knight:
 		return 2
-	case piece.Rook:
+	case material.Rook:
 		return 1
-	case piece.Bishop:
+	case material.Bishop:
 		return 0
 	default:
 		// assert(false)
@@ -550,25 +549,25 @@ func IsQuiet(mv int, bd *board.Board) bool {
 	to := move.To(mv)
 
 	pc := move.Piece(mv)
-	// assert(move.cap(mv) == piece.None);
-	// assert(move.prom(mv) == piece.None);
+	// assert(move.cap(mv) == material.None);
+	// assert(move.prom(mv) == material.None);
 
 	if !(bd.Square(fr) == pc && bd.SquareSide(fr) == sd) {
 		return false
 	}
 
-	if bd.Square(to) != piece.None {
+	if bd.Square(to) != material.None {
 		return false
 	}
 
-	if pc == piece.Pawn {
+	if pc == material.Pawn {
 
 		inc := square.PawnInc(sd)
 
 		if to-fr == inc && !square.IsPromotion(to) {
 			return true
 		} else if to-fr == inc*2 && square.RankSd(fr, sd) == square.Rank2 {
-			return bd.Square(fr+inc) == piece.None
+			return bd.Square(fr+inc) == material.None
 		}
 		return false
 	}
@@ -744,7 +743,7 @@ func AddCaptures(ml *ScMvList, sd int, bd *board.Board) {
 
 // addEvasionCaptures add captures (not king captuers) for King evasion
 func addEvasionCaptures(ml *ScMvList, sd int, to int, bd *board.Board) {
-	for pc := piece.Pawn; pc <= piece.Queen; pc++ { // skip king
+	for pc := material.Pawn; pc <= material.Queen; pc++ { // skip king
 		for bb := bd.PieceSd(pc, sd) & eval.AttacksTo(pc, sd, to, bd); bb != 0; bb = bit.Rest(bb) {
 			fr := bit.First(bb)
 			addMove(ml, fr, to, bd)
@@ -760,12 +759,12 @@ func PawnPushes(ml *ScMvList, sd int, bd *board.Board) {
 	if sd == board.WHITE {
 
 		ts |= bit.Rank(square.Rank7)
-		ts |= bit.Rank(square.Rank6) & ^eval.PawnAttacksFrom(board.BLACK, bd) & (^bd.Piece(piece.Pawn) >> 1) // HACK: direct access
+		ts |= bit.Rank(square.Rank6) & ^eval.PawnAttacksFrom(board.BLACK, bd) & (^bd.Piece(material.Pawn) >> 1) // HACK: direct access
 
 	} else {
 
 		ts |= bit.Rank(square.Rank2)
-		ts |= bit.Rank(square.Rank3) & ^eval.PawnAttacksFrom(board.WHITE, bd) & (^bd.Piece(piece.Pawn) << 1) // HACK: direct access
+		ts |= bit.Rank(square.Rank3) & ^eval.PawnAttacksFrom(board.WHITE, bd) & (^bd.Piece(material.Pawn) << 1) // HACK: direct access
 	}
 
 	addPawnQuiets(ml, sd, ts&bd.Empty(), bd)
@@ -782,8 +781,8 @@ func canCastle(sd int, wg int, bd *board.Board) bool {
 		rf := castling.Info[index].RookFr
 		rt := castling.Info[index].RokTo
 
-		// assert(bd.square_is(kf, piece.King, sd))
-		// assert(bd.square_is(rf, piece.Rook, sd))
+		// assert(bd.square_is(kf, material.King, sd))
+		// assert(bd.square_is(rf, material.Rook, sd))
 
 		return eval.LineIsEmpty(kf, rf, bd) && !eval.IsAttacked(rt, board.Opposit(sd), bd)
 	}
@@ -807,7 +806,7 @@ func GenPseudos(ml *ScMvList, bd *board.Board) {
 	}
 }
 func addMove(ml *ScMvList, fr, to int, bd *board.Board) {
-	if bd.Square(fr) == piece.Pawn {
+	if bd.Square(fr) == material.Pawn {
 		addPawnMv(ml, fr, to, bd)
 	} else {
 		addPieceMv(ml, fr, to, bd)
@@ -835,7 +834,7 @@ func AddChecks(ml *ScMvList, sd int, bd *board.Board) {
 	// direct checks, pawns
 
 	{
-		ts := eval.PseudoAttacksTo(piece.Pawn, sd, king) & empty
+		ts := eval.PseudoAttacksTo(material.Pawn, sd, king) & empty
 
 		addPawnQuiets(ml, sd, ts, bd)
 	}
@@ -843,7 +842,7 @@ func AddChecks(ml *ScMvList, sd int, bd *board.Board) {
 	// direct checks, knights
 
 	{
-		pc := piece.Knight
+		pc := material.Knight
 
 		attacks := eval.PseudoAttacksTo(pc, sd, king) & empty
 
@@ -862,7 +861,7 @@ func AddChecks(ml *ScMvList, sd int, bd *board.Board) {
 
 	// direct checks, sliders
 
-	for pc := piece.Bishop; pc <= piece.Queen; pc++ {
+	for pc := material.Bishop; pc <= material.Queen; pc++ {
 
 		attacks := eval.PseudoAttacksTo(pc, sd, king) & empty
 
@@ -887,7 +886,7 @@ func AddChecks(ml *ScMvList, sd int, bd *board.Board) {
 func addPieceMoves(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 
 	// assert(ts != 0);
-	for pc := piece.Knight; pc <= piece.King; pc++ {
+	for pc := material.Knight; pc <= material.King; pc++ {
 
 		for b := bd.PieceSd(pc, sd); b != 0; b = bit.Rest(b) {
 
@@ -917,7 +916,7 @@ func pieceEvasionMoves(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) { // fo
 
 	// assert(ts != 0);
 
-	for pc := piece.Knight; pc <= piece.Queen; pc++ { // skip king
+	for pc := material.Knight; pc <= material.Queen; pc++ { // skip king
 		for b := bd.PieceSd(pc, sd); b != 0; b = bit.Rest(b) {
 			fr := bit.First(b)
 			pieceMovesFr(ml, fr, ts, bd)
@@ -928,7 +927,7 @@ func addPieceCaptures(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 
 	// assert(ts != 0);
 
-	for pc := piece.Knight; pc <= piece.King; pc++ {
+	for pc := material.Knight; pc <= material.King; pc++ {
 
 		for b := bd.PieceSd(pc, sd); b != 0; b = bit.Rest(b) {
 
@@ -960,12 +959,12 @@ func AddCastling(ml *ScMvList, sd int, bd *board.Board) {
 // AddProms is adding promotion moves to the Score/Mv list
 func AddProms(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 
-	pawns := bd.PieceSd(piece.Pawn, sd)
+	pawns := bd.PieceSd(material.Pawn, sd)
 	if sd == board.WHITE {
 		for b := pawns & (ts >> 1) & bit.Rank(square.Rank7); b != 0; b = bit.Rest(b) {
 			fr := bit.First(b)
 			to := fr + 1
-			//util.ASSERT(bd.Square(to) == piece.None)
+			//util.ASSERT(bd.Square(to) == material.None)
 			// //util.ASSERT(square.is_promotion(to));
 			addPawnMv(ml, fr, to, bd)
 		}
@@ -974,7 +973,7 @@ func AddProms(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 		for b := pawns & (ts << 1) & bit.Rank(square.Rank2); b != 0; b = bit.Rest(b) {
 			fr := bit.First(b)
 			to := fr - 1
-			//util.ASSERT(bd.Square(to) == piece.None)
+			//util.ASSERT(bd.Square(to) == material.None)
 			// //util.ASSERT(square.is_promotion(to));
 			addPawnMv(ml, fr, to, bd)
 		}
@@ -982,23 +981,23 @@ func AddProms(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 
 }
 func addPieceMv(ml *ScMvList, fr int, to int, bd *board.Board) {
-	// assert(bd.square(fr) != piece.PAWN);
-	ml.Add(move.Build(fr, to, bd.Square(fr), bd.Square(to), piece.None))
+	// assert(bd.square(fr) != material.PAWN);
+	ml.Add(move.Build(fr, to, bd.Square(fr), bd.Square(to), material.None))
 }
 func addPawnMv(ml *ScMvList, fr, to int, bd *board.Board) {
 
-	// assert(bd.square(fr) == piece.PAWN);
+	// assert(bd.square(fr) == material.PAWN);
 
 	pc := bd.Square(fr)
 	cp := bd.Square(to)
 
 	if square.IsPromotion(to) {
-		ml.Add(move.Build(fr, to, pc, cp, piece.Queen))
-		ml.Add(move.Build(fr, to, pc, cp, piece.Knight))
-		ml.Add(move.Build(fr, to, pc, cp, piece.Rook))
-		ml.Add(move.Build(fr, to, pc, cp, piece.Bishop))
+		ml.Add(move.Build(fr, to, pc, cp, material.Queen))
+		ml.Add(move.Build(fr, to, pc, cp, material.Knight))
+		ml.Add(move.Build(fr, to, pc, cp, material.Rook))
+		ml.Add(move.Build(fr, to, pc, cp, material.Bishop))
 	} else {
-		ml.Add(move.Build(fr, to, pc, cp, piece.None))
+		ml.Add(move.Build(fr, to, pc, cp, material.None))
 	}
 }
 func addEnPassant(ml *ScMvList, sd int, bd *board.Board) {
@@ -1007,11 +1006,11 @@ func addEnPassant(ml *ScMvList, sd int, bd *board.Board) {
 
 	if to != square.None {
 
-		fs := bd.PieceSd(piece.Pawn, sd) & eval.PawnAttacks[board.Opposit(sd)][to]
+		fs := bd.PieceSd(material.Pawn, sd) & eval.PawnAttacks[board.Opposit(sd)][to]
 
 		for b := fs; b != 0; b = bit.Rest(b) {
 			fr := bit.First(b)
-			ml.Add(move.Build(fr, to, piece.Pawn, piece.Pawn, piece.None))
+			ml.Add(move.Build(fr, to, material.Pawn, material.Pawn, material.None))
 		}
 	}
 }
@@ -1024,7 +1023,7 @@ func AddQuietMoves(ml *ScMvList, sd int, bd *board.Board) {
 }
 func addPawnQuiets(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 
-	pawns := bd.PieceSd(piece.Pawn, sd)
+	pawns := bd.PieceSd(material.Pawn, sd)
 	empty := bd.Empty()
 
 	if sd == board.WHITE {
@@ -1032,7 +1031,7 @@ func addPawnQuiets(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 		for b := pawns & (ts >> 1) & (empty >> 1) & ^bit.Rank(square.Rank7); b != 0; b = bit.Rest(b) { // don'to generate promotions
 			fr := bit.First(b)
 			to := fr + 1
-			// assert(bd.square(to) == piece.None);
+			// assert(bd.square(to) == material.None);
 			// assert(!square.is_promotion(to));
 			addPawnMv(ml, fr, to, bd)
 		}
@@ -1040,7 +1039,7 @@ func addPawnQuiets(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 		for b := pawns & (ts >> 2) & (empty >> 1) & bit.Rank(square.Rank2); b != 0; b = bit.Rest(b) {
 			fr := bit.First(b)
 			to := fr + 2
-			// assert(bd.square(to) == piece.None);
+			// assert(bd.square(to) == material.None);
 			// assert(!square.is_promotion(to));
 			addPawnMv(ml, fr, to, bd)
 		}
@@ -1049,7 +1048,7 @@ func addPawnQuiets(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 		for b := pawns & (ts << 1) & ^bit.Rank(square.Rank2); b != 0; b = bit.Rest(b) { // don'to generate promotions
 			fr := bit.First(b)
 			to := fr - 1
-			// assert(bd.square(to) == piece.None);
+			// assert(bd.square(to) == material.None);
 			// assert(!square.is_promotion(to));
 			addPawnMv(ml, fr, to, bd)
 		}
@@ -1057,7 +1056,7 @@ func addPawnQuiets(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 		for b := pawns & (ts << 2) & (empty << 1) & bit.Rank(square.Rank7); b != 0; b = bit.Rest(b) {
 			fr := bit.First(b)
 			to := fr - 2
-			// assert(bd.square(to) == piece.None);
+			// assert(bd.square(to) == material.None);
 			// assert(!square.is_promotion(to));
 			addPawnMv(ml, fr, to, bd)
 		}
@@ -1065,7 +1064,7 @@ func addPawnQuiets(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 }
 func addPawnCaptures(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 
-	pawns := bd.PieceSd(piece.Pawn, sd)
+	pawns := bd.PieceSd(material.Pawn, sd)
 	ts &= bd.Side(board.Opposit(sd)) // not needed
 
 	if sd == board.WHITE {

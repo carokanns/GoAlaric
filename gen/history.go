@@ -2,9 +2,8 @@ package gen
 
 import (
 	"GoAlaric/board"
+	"GoAlaric/material"
 	"GoAlaric/move"
-	"GoAlaric/piece"
-	//	"GoAlaric/sort"
 	"GoAlaric/square"
 )
 
@@ -18,7 +17,7 @@ const (
 
 // HistoryTab holds history tab entries
 type HistoryTab struct {
-	entry [piece.SideSize * square.BoardSize]int
+	entry [material.SideSize * square.BoardSize]int
 }
 
 func (h *HistoryTab) index(mv int, bd *board.Board) int {
@@ -26,7 +25,7 @@ func (h *HistoryTab) index(mv int, bd *board.Board) int {
 	// assert(!move::is_tactical(mv));
 
 	sd := bd.SquareSide(move.From(mv))
-	p12 := piece.MakeP12(move.Piece(mv), sd)
+	p12 := material.MakeP12(move.Piece(mv), sd)
 
 	return p12*square.BoardSize + move.To(mv)
 }
@@ -54,7 +53,7 @@ func (h *HistoryTab) Clear() {
 		h.entry[ix] = histHalf
 	}
 
-	for ix := 0; ix < piece.SideSize*square.BoardSize; ix++ {
+	for ix := 0; ix < material.SideSize*square.BoardSize; ix++ {
 		//util.ASSERT(h.entry[ix] == PROB_HALF)
 		h.entry[ix] = histHalf
 	}

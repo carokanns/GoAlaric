@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var tellGUI = util.TellGUI
+var tellGUI = func(line string) { fmt.Println(line) }
 
 ////// Engine paramters ///////
 // status of the engine

@@ -1,10 +1,10 @@
 package hash
 
 import (
-	"GoAlaric/piece"
+	"GoAlaric/material"
 	"GoAlaric/square"
-	"GoAlaric/util"
 	"fmt"
+	"math/rand"
 )
 
 // Key is the Hash type
@@ -16,7 +16,7 @@ const (
 	BLACK
 )
 
-const stm int = piece.SideSize * square.BoardSize
+const stm int = material.SideSize * square.BoardSize
 const castle int = stm + 1
 const enPassant int = castle + 4
 const size int = enPassant + 8
@@ -28,7 +28,7 @@ func rand64() Key {
 	rand := Key(0)
 
 	for i := 0; i < 4; i++ {
-		rand = Key(int(rand<<16) | util.RandInt(1<<16))
+		rand = Key(int(rand<<16) | RandInt(1<<16))
 	}
 
 	return rand
@@ -88,4 +88,12 @@ func Index(key Key) int64 {
 // Lock extracts the lock value from the hash key
 func Lock(key Key) uint32 {
 	return uint32(key >> 32)
+}
+
+// RandInt returns a random integer number
+var r1 = (*rand.Rand)(rand.New(rand.NewSource(42)))
+
+func RandInt(n int) int {
+	//assert(n > 0);
+	return r1.Intn(n)
 }

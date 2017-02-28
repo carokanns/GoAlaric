@@ -4,14 +4,18 @@ package main
 import (
 	"GoAlaric/search"
 	"GoAlaric/uci"
-	"GoAlaric/util"
 	"bufio"
 	"fmt"
 	"io"
 	"os"
 )
 
-var tellGUI = util.TellGUI
+// TellGUI prints a line to stdout (to the GUI)
+func tellGUI(line string) {
+	fmt.Println(line)
+}
+
+//var tellGUI = util.TellGUI
 
 // main är yttre loopen
 // Den avbryts av uci-kommandot "quit" (som avslutar programmet)
@@ -40,13 +44,13 @@ func main() {
 				savedBm = bm // Save Bestmove until GUI sends "stop"
 				// nothing more should come from the engine now
 			} else {
-				util.TellGUI(bm)
+				tellGUI(bm)
 			}
 		case line = <-chInput:
 			s = uci.HandleInput(line, &chSearch)
 			if search.Infinite && s == "stop" || //we are waiting for "stop" in order to send bestmove
 				s == "s" {
-				util.TellGUI(savedBm)
+				tellGUI(savedBm)
 				search.Infinite = false
 			}
 		}

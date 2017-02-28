@@ -5,7 +5,7 @@ import (
 	"GoAlaric/bit"
 	"GoAlaric/castling"
 	//"GoAlaric/engine"
-	"GoAlaric/piece"
+	"GoAlaric/material"
 	//"GoAlaric/search"
 	"GoAlaric/square"
 
@@ -68,16 +68,16 @@ func TestFenMove(t *testing.T) {
 			}
 			sq := square.FromString(tom)
 			pc := bd.Square(sq)
-			if pc != piece.None {
-				t.Errorf("Test=%v: Ruta %v borde innehålla %v (tom) men innehåller %v", ix, tom, piece.None, pc)
+			if pc != material.None {
+				t.Errorf("Test=%v: Ruta %v borde innehålla %v (tom) men innehåller %v", ix, tom, material.None, pc)
 			}
 		}
 
 		// ifylld to-ruta (sista draget)
 		if saveMove != "" {
 			sq := square.FromString(saveMove[2:4])
-			p12 := piece.MakeP12(bd.Square(sq), Opposit(bd.Stm()))
-			strPiece := piece.ToFen(p12)
+			p12 := material.MakeP12(bd.Square(sq), Opposit(bd.Stm()))
+			strPiece := material.ToFen(p12)
 			if strPiece != toTest[6] {
 				t.Errorf("Test=%v: Ruta %v borde innehålla %v men innehåller %v (kan bero på att p_turn är felaktig)", ix, sq, toTest[6], strPiece)
 			}
@@ -121,12 +121,12 @@ func KollaBoard(t *testing.T, ix int, caller string, turn string, rockader strin
 	}
 
 	// bball == bbpawn|bbKNight|bbbishop...etc
-	bbpieces := bd.piece[piece.Pawn] |
-		bd.piece[piece.Knight] |
-		bd.piece[piece.Bishop] |
-		bd.piece[piece.Rook] |
-		bd.piece[piece.Queen] |
-		bd.piece[piece.King]
+	bbpieces := bd.piece[material.Pawn] |
+		bd.piece[material.Knight] |
+		bd.piece[material.Bishop] |
+		bd.piece[material.Rook] |
+		bd.piece[material.Queen] |
+		bd.piece[material.King]
 
 	if bd.All() != bbpieces {
 		t.Errorf("Test=%v %v: bball är inte summan av alla bbpieces", caller, ix)
@@ -139,22 +139,22 @@ func KollaBoard(t *testing.T, ix int, caller string, turn string, rockader strin
 
 	// kungpos ok
 	sq := bd.king[WHITE]
-	if bd.getP12(sq) != piece.WhiteKing {
+	if bd.getP12(sq) != material.WhiteKing {
 		t.Errorf("Test=%v %v: Sparad vit Kungpos %v stämmer inte med pjäs från getP12(sq) = %v", caller, ix, sq, bd.getP12(sq))
 	}
 	sq = bd.king[BLACK]
-	if bd.getP12(sq) != piece.BlackKing {
+	if bd.getP12(sq) != material.BlackKing {
 		t.Errorf("Test=%v %v: Sparad svart Kungpos %v stämmer inte med pjäs från getP12(sq) = %v", caller, ix, sq, bd.getP12(sq))
 	}
 
 	// board och bbAll och bbPieces och count stämmer
-	var egenCount [piece.SideSize]int
+	var egenCount [material.SideSize]int
 	for rank := 7; rank >= 0; rank-- {
 		for file := 0; file < square.FileSize; file++ {
 			sq := square.Make(file, rank)
 			pc := bd.Square(sq)
 			p12 := bd.getP12(sq)
-			if pc == piece.None {
+			if pc == material.None {
 				if bit.Bit(sq)&bd.all != bit.BB(0) {
 					t.Errorf("Test=%v %v: Tom ruta på board f= %v, r=%v stämmer inte med Ball ", caller, ix, file, rank)
 				}
@@ -167,10 +167,10 @@ func KollaBoard(t *testing.T, ix int, caller string, turn string, rockader strin
 		}
 	}
 	// count
-	for p12 := piece.WhitePawn; p12 <= piece.BlackKing; p12++ {
+	for p12 := material.WhitePawn; p12 <= material.BlackKing; p12++ {
 		if bd.count[p12] != egenCount[p12] {
-			fenP12 := piece.ToFen(p12)
-			t.Errorf("Test=%v %v: piece_count=%v skall vara %v för piece=%v %v", caller, ix, bd.count[p12], egenCount[p12], p12, fenP12)
+			fenP12 := material.ToFen(p12)
+			t.Errorf("Test=%v %v: material_count=%v skall vara %v för piece=%v %v", caller, ix, bd.count[p12], egenCount[p12], p12, fenP12)
 		}
 	}
 

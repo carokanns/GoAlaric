@@ -1,4 +1,4 @@
-package piece
+package material
 
 import (
 	"GoAlaric/util"
@@ -10,6 +10,10 @@ const (
 	SideSize int = 12
 	Size     int = 7
 )
+const stageSize int = 2 // NOTE: declared elsewhere to
+
+var score = [Size][stageSize]int{{85, 95}, {325, 325}, {325, 325}, {460, 540}, {975, 975}, {0, 0}, {0, 0}}
+var powerVal = [Size]int{0, 1, 1, 2, 4, 0, 0}
 
 // Piece types (no color)
 const (
@@ -64,6 +68,19 @@ const (
 	Char    = "PNBRQK?"
 	fenChar = "PpNnBbRrQqKk"
 )
+
+// Power returns the power of a piece in capture situations
+func Power(pc int) int {
+	//util.ASSERT(pc < piece.SIZE)
+	return powerVal[pc]
+}
+
+// Score returns piece score for stage
+func Score(pc, stage int) int {
+	//util.ASSERT(pc < piece.SIZE)
+	//util.ASSERT(stage < Stage_SIZE)
+	return score[pc][stage]
+}
 
 // FromChar returns the internal form of a string piece
 func FromChar(c string) int {

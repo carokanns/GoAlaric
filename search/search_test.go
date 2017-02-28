@@ -5,9 +5,8 @@ import (
 	"GoAlaric/board"
 	"GoAlaric/eval"
 	"GoAlaric/gen"
-	_ "GoAlaric/material"
+	"GoAlaric/material"
 	"GoAlaric/move"
-	"GoAlaric/piece"
 	"fmt"
 	"strings"
 	"testing"
@@ -103,30 +102,30 @@ func Test_QS(t *testing.T) {
 		{"rnbqkbnr/ppppp2p/8/5pp1/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 3", -12, "After fxe4 and Bxg5 is it material equal"},
 		{"rnbqkbnr/ppppp2p/8/5pp1/3PP3/8/PPPK1PPP/RNBQ1BNR b kq - 1 3", 32, "fxe4 and black is pawn up"},
 		{"rnbqkbnr/ppppp2p/8/5pB1/3PP3/8/PPP2PPP/RN1QKBNR b KQkq - 0 3", -122, "equal after fxe4"},
-		{"rnbqkbnr/p1pppppp/8/1p6/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 2", piece.PawnValue - 16, "Pawn can take unguarded pawn"},
+		{"rnbqkbnr/p1pppppp/8/1p6/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 2", material.PawnValue - 16, "Pawn can take unguarded pawn"},
 		// Pawn
 		{"rnbqkbnr/ppp1pppp/8/3p4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", -28, "Pawn captures guarded pawn"},
-		{"rnb1kbnr/ppp1pppp/8/3n4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", piece.PawnValue + piece.QueenValue - 31, "Pawn captures unguarded knight. Now under with queen and pawn"},
-		{"rnbqkbnr/ppp1pppp/8/3p4/2P5/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", piece.PawnValue + 28, "Bl Pawn captures unguarded W pawn"},
+		{"rnb1kbnr/ppp1pppp/8/3n4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.PawnValue + material.QueenValue - 31, "Pawn captures unguarded knight. Now under with queen and pawn"},
+		{"rnbqkbnr/ppp1pppp/8/3p4/2P5/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.PawnValue + 28, "Bl Pawn captures unguarded W pawn"},
 		// Knight
-		{"rnbqkbnr/ppp1pppp/8/3p4/1N6/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", piece.KnightValue - piece.PawnValue - 8, "White is up knight-pawn"},
-		{"rnb1kbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", piece.KnightValue + piece.QueenValue - 21, "White is up knight and queen"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", piece.KnightValue + 39, "Bl Knigh captures guarded W queen"},
+		{"rnbqkbnr/ppp1pppp/8/3p4/1N6/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.KnightValue - material.PawnValue - 8, "White is up knight-pawn"},
+		{"rnb1kbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.KnightValue + material.QueenValue - 21, "White is up knight and queen"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.KnightValue + 39, "Bl Knigh captures guarded W queen"},
 		// Bishop
-		{"rnb1kbnr/ppp1pppp/8/3p4/2B5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", piece.BishopValue + piece.QueenValue + 4, "White is up bishop and queen"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/2B5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.BishopValue + material.QueenValue + 4, "White is up bishop and queen"},
 		{"rnbqkbnr/ppp1pppp/8/3n4/4B3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", -3, "Bishop captures guarded knight"},
-		{"rnbqkbnr/ppp1pppp/8/3b4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", piece.BishopValue + 53, "Black is up a bishop"},
+		{"rnbqkbnr/ppp1pppp/8/3b4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.BishopValue + 53, "Black is up a bishop"},
 		// Rook
-		{"rnb1kbnr/ppp1pppp/8/3p4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", piece.RookValue + piece.QueenValue + 1, "White is up Rook and queen"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", piece.RookValue - piece.KnightValue - 24, "White is up Rook vs knight"},
-		{"rnbqkbnr/ppp1pppp/8/3r1B2/8/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", piece.RookValue + 13, "Black is up a Rook"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.RookValue + material.QueenValue + 1, "White is up Rook and queen"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.RookValue - material.KnightValue - 24, "White is up Rook vs knight"},
+		{"rnbqkbnr/ppp1pppp/8/3r1B2/8/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.RookValue + 13, "Black is up a Rook"},
 		// Queen
-		{"rnbqkbnr/ppp1pppp/8/3p4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", piece.QueenValue - piece.PawnValue - 39, "White is up a Queen vs a Pawn"},
-		{"rnb1kbnr/ppp1pppp/8/3n4/2Q5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", piece.QueenValue*2 + 52, "White is up 2 Queens"},
-		{"rnbqkbnr/ppp1pppp/8/3q4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", piece.QueenValue + 1, "Black Queen captures guarded W queen and is up a Queen"},
+		{"rnbqkbnr/ppp1pppp/8/3p4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.QueenValue - material.PawnValue - 39, "White is up a Queen vs a Pawn"},
+		{"rnb1kbnr/ppp1pppp/8/3n4/2Q5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.QueenValue*2 + 52, "White is up 2 Queens"},
+		{"rnbqkbnr/ppp1pppp/8/3q4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.QueenValue + 1, "Black Queen captures guarded W queen and is up a Queen"},
 		// King
-		{"rnb1kbnr/ppp1pppp/8/3p4/2K5/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", piece.QueenValue - 67, "White is Queen up after King captures unguarded pawn"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/3K4/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", -piece.KnightValue - 277, "Black is knight up"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/2K5/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", material.QueenValue - 67, "White is Queen up after King captures unguarded pawn"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/3K4/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", -material.KnightValue - 277, "Black is knight up"},
 		{"rnbq1bnr/ppp1pppp/8/3k4/4N3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", -104, "Bl King captures unguarded W knight. It's equal"},
 	}
 	var bd board.Board

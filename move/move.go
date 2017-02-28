@@ -4,9 +4,8 @@ import (
 
 	// "GoAlaric/board"  går ej!!
 
-	"GoAlaric/piece"
+	"GoAlaric/material"
 	"GoAlaric/square"
-	"GoAlaric/util"
 	"strings"
 )
 
@@ -106,8 +105,8 @@ func ToString(mv int) string {
 	s += square.ToString(From(mv))
 	s += square.ToString(To(mv))
 
-	if Prom(mv) != piece.None {
-		s += strings.ToLower(piece.ToString(Prom(mv)))
+	if Prom(mv) != material.None {
+		s += strings.ToLower(material.ToString(Prom(mv)))
 	}
 
 	return s
@@ -120,17 +119,17 @@ func IsTactical(mv int) bool {
 
 // IsCapture returns true if the move is a capture
 func IsCapture(mv int) bool {
-	return Capt(mv) != piece.None
+	return Capt(mv) != material.None
 }
 
 // IsCastling returns true if the move is a castling move
 func IsCastling(mv int) bool {
-	return Piece(mv) == piece.King && util.Iabs(To(mv)-From(mv)) == square.CastlingDelta
+	return Piece(mv) == material.King && Iabs(To(mv)-From(mv)) == square.CastlingDelta
 }
 
 // IsPromotion returns true if the move is a promotion
 func IsPromotion(mv int) bool {
-	return Prom(mv) != piece.None
+	return Prom(mv) != material.None
 }
 
 // SeeMax returns the maximum value that can be earned from a capture
@@ -138,11 +137,19 @@ func SeeMax(mv int) int {
 
 	//util.ASSERT(Is_tactical(mv))
 
-	sc := piece.Value[Capt(mv)]
+	sc := material.Value[Capt(mv)]
 
 	pp := Prom(mv)
-	if pp != piece.None {
-		sc += piece.Value[pp] - piece.PawnValue
+	if pp != material.None {
+		sc += material.Value[pp] - material.PawnValue
 	}
 	return sc
+}
+
+// Iabs returns the absolute value of an int
+func Iabs(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
 }

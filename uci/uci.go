@@ -10,13 +10,13 @@ import (
 	"GoAlaric/move"
 	"GoAlaric/search"
 	//	"GoAlaric/sort"
-	"GoAlaric/util"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 )
 
-var tellGUI = util.TellGUI
+var tellGUI = func(line string) { fmt.Println(line) }
 var trim = strings.TrimSpace
 
 // Bd is the board on top of the whole session
@@ -86,7 +86,7 @@ func HandleInput(line string, chSearch *chan int) string {
 		case "pm":
 			PrintMoves()
 		case "pn":
-			util.EndianCheck()
+			endianCheck()
 		default:
 			if len(words) > 1 {
 				words = words[1:]
@@ -355,4 +355,25 @@ func PrintMoves() {
 	var ml gen.ScMvList
 	gen.LegalMoves(&ml, &Bd)
 	gen.PrintAllMoves(&ml)
+}
+
+// endianCheck is a test function to determine if the processor is using Big or Low Endian
+func endianCheck() {
+	var TellGUI = func(line string) {
+		fmt.Println(line)
+	}
+	var ourOrderIsBE bool
+
+	// case will need maintenace with more BE archs coming
+
+	switch runtime.GOARCH {
+	case "mips64", "ppc64":
+		ourOrderIsBE = true
+	}
+
+	if ourOrderIsBE {
+		TellGUI("info string BigEndian")
+	} else {
+		TellGUI("info string LowEndian")
+	}
 }

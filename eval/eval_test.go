@@ -3,7 +3,7 @@ package eval
 
 import (
 	"GoAlaric/board"
-	"GoAlaric/piece"
+	"GoAlaric/material"
 	"fmt"
 	"testing"
 )
@@ -130,8 +130,8 @@ func TestCompAttacks(t *testing.T) {
 			fmt.Println("all attacks from", text)
 			board.PrintBB(ai.allAtks[sd])
 
-			for pc := piece.Pawn; pc <= piece.King; pc++ {
-				fmt.Printf("attacks from lower than %v %v", text, piece.ToString(pc))
+			for pc := material.Pawn; pc <= material.King; pc++ {
+				fmt.Printf("attacks from lower than %v %v", text, material.ToString(pc))
 				//				board.PrintBB(ai.ltAtks[sd][pc])
 			}
 			text = "Black"
