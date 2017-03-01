@@ -8,6 +8,7 @@ import (
 	"GoAlaric/material"
 	"GoAlaric/move"
 	"fmt"
+	"log"
 	"strings"
 	"testing"
 	"time"
@@ -38,7 +39,7 @@ func Test_Next(t *testing.T) {
 		}
 		bFail = true
 		mov := move.ToString(mv)
-		fmt.Printf(mov + " ")
+		log.Printf("%v ", mov)
 	}
 	fmt.Println()
 	if bFail {
