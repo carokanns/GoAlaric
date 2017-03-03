@@ -5,7 +5,6 @@ package gen
 import (
 	"GoAlaric/bit"
 	"GoAlaric/board"
-	"GoAlaric/castling"
 	"GoAlaric/eval"
 	"GoAlaric/material"
 	"GoAlaric/move"
@@ -772,14 +771,14 @@ func PawnPushes(ml *ScMvList, sd int, bd *board.Board) {
 
 func canCastle(sd int, wg int, bd *board.Board) bool {
 
-	index := castling.Index(sd, wg)
+	index := board.CastleIndex(sd, wg)
 
-	if castling.Flag(bd.Flags(), uint(index)) {
+	if board.CastleFlag(bd.Flags(), uint(index)) {
 
-		kf := castling.Info[index].KingFr
-		// int kt = castling.info[index].kt;
-		rf := castling.Info[index].RookFr
-		rt := castling.Info[index].RokTo
+		kf := board.CastleInfo[index].KingFr
+		// int kt = board.info[index].kt;
+		rf := board.CastleInfo[index].RookFr
+		rt := board.CastleInfo[index].RokTo
 
 		// assert(bd.square_is(kf, material.King, sd))
 		// assert(bd.square_is(rf, material.Rook, sd))
@@ -950,8 +949,8 @@ func AddCastling(ml *ScMvList, sd int, bd *board.Board) {
 
 	for wg := 0; wg < 2; wg++ {
 		if canCastle(sd, wg, bd) {
-			index := castling.Index(sd, wg)
-			addPieceMv(ml, castling.Info[index].KingFr, castling.Info[index].KingTo, bd)
+			index := board.CastleIndex(sd, wg)
+			addPieceMv(ml, board.CastleInfo[index].KingFr, board.CastleInfo[index].KingTo, bd)
 		}
 	}
 }

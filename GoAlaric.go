@@ -9,9 +9,9 @@ import (
 	"io"
 	"os"
 	// Följande 3 imports för samt "go func" först i main() för pprof
-	//	"log"
-	//	"net/http"
-	//	_ "net/http/pprof"
+	"log"
+	"net/http"
+	_ "net/http/pprof"
 )
 
 // TellGUI prints a line to stdout (to the GUI)
@@ -23,11 +23,11 @@ func tellGUI(line string) {
 // Den avbryts av uci-kommandot "quit" (som avslutar programmet)
 func main() {
 	// Följande för pprof
-	//	go func() {
-	//		log.Println(http.ListenAndServe("localhost:8080", nil))
-	//	}()
+	go func() {
+		log.Println(http.ListenAndServe("localhost:8080", nil))
+	}()
 	// starta från kommandotolken för en 30-sekunders CPU profile:
-	//     go tool pprof http://localhost:6060/debug/pprof/profile
+	//     go tool pprof http://localhost:8080/debug/pprof/profile
 	//     Detaljer i: https://golang.org/pkg/net/http/pprof/
 
 	printTODO()

@@ -3,7 +3,6 @@ package eval
 import (
 	"GoAlaric/bit"
 	"GoAlaric/board"
-	"GoAlaric/castling"
 	"GoAlaric/hash"
 	"GoAlaric/material"
 	"GoAlaric/move"
@@ -859,9 +858,9 @@ func shelterScore(sq int, sd int, bd *board.Board, pi *pawnEntry) int {
 
 	for wg := 0; wg < 2; wg++ {
 
-		index := castling.Index(sd, wg)
+		index := board.CastleIndex(sd, wg)
 
-		if castling.Flag(bd.Flags(), uint(index)) {
+		if board.CastleFlag(bd.Flags(), uint(index)) {
 			fl := shelterFile[wg]
 			s1 = Imax(s1, int(pi.Shelter[fl][sd]))
 		}

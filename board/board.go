@@ -2,7 +2,6 @@ package board
 
 import (
 	"GoAlaric/bit"
-	"GoAlaric/castling"
 	"GoAlaric/hash"
 	"GoAlaric/material"
 	"GoAlaric/move"
@@ -136,13 +135,13 @@ func SetFen(fen string, bd *Board) {
 			i := strings.IndexAny("KQkq", c)
 
 			if bd.castleOk(i) {
-				castling.SetFlag(&bd.copyStr.flags, uint(i))
+				setFlag(&bd.copyStr.flags, uint(i))
 			}
 		}
 	} else { // guess from position
 		for i := 0; i < 4; i++ {
 			if bd.castleOk(i) {
-				castling.SetFlag(&bd.copyStr.flags, uint(i))
+				setFlag(&bd.copyStr.flags, uint(i))
 			}
 		}
 	}
@@ -234,9 +233,9 @@ func (bd *Board) SetRoot() {
 }
 func (bd *Board) castleOk(index int) bool {
 
-	sd := castling.Side(index)
+	sd := castleSide(index)
 
-	return bd.SquareIs(castling.Info[index].KingFr, material.King, sd) && bd.SquareIs(castling.Info[index].RookFr, material.Rook, sd)
+	return bd.SquareIs(CastleInfo[index].KingFr, material.King, sd) && bd.SquareIs(CastleInfo[index].RookFr, material.Rook, sd)
 }
 func (bd *Board) setSquare(pc int, sd int, sq int, updateCopy bool) {
 
@@ -380,7 +379,7 @@ func (bd *Board) getP12(sq int) int {
 // Key returns the hash key for the position
 func (bd *Board) Key() hash.Key {
 	key := bd.copyStr.key
-	key ^= castling.FlagsKey[bd.copyStr.flags]
+	key ^= castleKey[bd.copyStr.flags]
 	key ^= hash.EnPassantKey(bd.copyStr.epSq)
 	return key
 }
@@ -394,7 +393,7 @@ func (bd *Board) PawnKey() hash.Key {
 func (bd *Board) EvalKey() hash.Key {
 	key := bd.copyStr.key
 	key ^= hash.StmKey(bd.stm) // remove incremental STM
-	key ^= castling.FlagsKey[bd.copyStr.flags]
+	key ^= castleKey[bd.copyStr.flags]
 	return key
 }
 
@@ -530,14 +529,14 @@ func (bd *Board) MakeFenMve(mv int) {
 		if to < fr {
 			wg = WingQUEEN // Damflyfeln
 		}
-		index := castling.Index(sd, wg)
+		index := CastleIndex(sd, wg)
 
-		// util.ASSERT(castling.Flag(p_copy.flags, index));
+		// util.ASSERT(Flag(p_copy.flags, index));
 
-		// util.ASSERT(fr == castling.Info[index].kf);
-		// util.ASSERT(to == castling.Info[index].kt);
+		// util.ASSERT(fr == Info[index].kf);
+		// util.ASSERT(to == Info[index].kt);
 
-		bd.moveSquare(material.Rook, sd, castling.Info[index].RookFr, castling.Info[index].RokTo, true)
+		bd.moveSquare(material.Rook, sd, CastleInfo[index].RookFr, CastleInfo[index].RokTo, true)
 	}
 
 	// turn
@@ -546,8 +545,8 @@ func (bd *Board) MakeFenMve(mv int) {
 
 	// castling flags
 
-	bd.copyStr.flags &= ^castling.FlagsMask[fr]
-	bd.copyStr.flags &= ^castling.FlagsMask[to]
+	bd.copyStr.flags &= ^castleMask[fr]
+	bd.copyStr.flags &= ^castleMask[to]
 
 	// en-passant square
 
@@ -710,14 +709,14 @@ func (bd *Board) Move(mv int) {
 		if to < fr {
 			wg = WingQUEEN
 		}
-		index := castling.Index(sd, wg)
+		index := CastleIndex(sd, wg)
 
-		// util.ASSERT(castling.flag(p_copy.flags, index));
+		// util.ASSERT(flag(p_copy.flags, index));
 
-		// util.ASSERT(fr == castling.info[index].kf);
-		// util.ASSERT(to == castling.info[index].kt);
+		// util.ASSERT(fr == info[index].kf);
+		// util.ASSERT(to == info[index].kt);
 
-		bd.moveSquare(material.Rook, sd, castling.Info[index].RookFr, castling.Info[index].RokTo, true)
+		bd.moveSquare(material.Rook, sd, CastleInfo[index].RookFr, CastleInfo[index].RokTo, true)
 	}
 
 	// turn
@@ -726,8 +725,8 @@ func (bd *Board) Move(mv int) {
 
 	// castling flags
 
-	bd.copyStr.flags &= ^castling.FlagsMask[fr]
-	bd.copyStr.flags &= ^castling.FlagsMask[to]
+	bd.copyStr.flags &= ^castleMask[fr]
+	bd.copyStr.flags &= ^castleMask[to]
 
 	// en-passant square
 
@@ -788,12 +787,12 @@ func (bd *Board) Undo() {
 		if to < fr {
 			wg = WingQUEEN
 		}
-		index := castling.Index(sd, wg)
+		index := CastleIndex(sd, wg)
 
-		// util.ASSERT(fr == castling.Info[index].kf);
-		// util.ASSERT(to == castling.info[index].kt);
+		// util.ASSERT(fr == Info[index].kf);
+		// util.ASSERT(to == info[index].kt);
 
-		bd.moveSquare(material.Rook, sd, castling.Info[index].RokTo, castling.Info[index].RookFr, false)
+		bd.moveSquare(material.Rook, sd, CastleInfo[index].RokTo, CastleInfo[index].RookFr, false)
 	}
 
 	// promotion
@@ -1004,326 +1003,3 @@ func PrintBB(bb bit.BB) {
 	}
 	fmt.Printf("\n\n")
 }
-
-/*
-
-func Turn_key(turn int) hash.Hash_to {
-	if turn == WHITE {
-		return 0
-	}
-	return rand_key(TURN)
-}
-
-   class Board {
-
-   private:
-
-      static const int SCORE_None = -10000; // HACK because "score.None" is defined later
-
-
-
-   public:
-
-      void operator=(const Board & bd) {
-
-         for (int pc = 0; pc < material.SIZE; pc++) {
-            p_piece[pc] = bd.p_piece[pc];
-         }
-
-         for (int sd = 0; sd < side.SIZE; sd++) {
-            p_side[sd] = bd.p_side[sd];
-            p_king[sd] = bd.p_king[sd];
-         }
-
-         p_all = bd.p_all;
-
-         for (int p12 = 0; p12 < material.SIDE_SIZE; p12++) {
-            p_count[p12] = bd.p_count[p12];
-         }
-
-         for (int sq = 0; sq < square.SIZE; sq++) {
-            p_square[sq] = bd.p_square[sq];
-         }
-
-         p_turn = bd.p_turn;
-         p_copy = bd.p_copy;
-
-         p_root = bd.p_root;
-         p_sp = bd.p_sp;
-
-         for (int sp = 0; sp < bd.p_sp; sp++) {
-            p_stack[sp] = bd.p_stack[sp];
-         }
-
-         // util.ASSERT(moves() == bd.moves());
-      }
-
-
-
-
-      int count(int pc, int sd) const {
-         // util.ASSERT(pc < material.SIZE);
-         // util.ASSERT(pc != material.None);
-         // return bit.count(piece(pc, sd));
-         return p_count[material.make(pc, sd)];
-      }
-
-      bit.Bit_to side(int sd) const {
-         return p_side[sd];
-      }
-
-
-
-
-      bit.Bit_to empty() const {
-         return ~p_all;
-      }
-
-
-
-
-
-
-      int ep_sq() const {
-         return p_copy.ep_sq;
-      }
-
-      int moves() const {
-         return p_copy.moves;
-      }
-
-      int recap() const {
-         return p_copy.recap;
-      }
-
-
-
-      int last_move() const {
-         return (p_sp == 0) ? move.None : p_stack[p_sp - 1].move;
-      }
-
-
-
-
-      void clear_square(int pc, int sd, int sq, bool update_copy) {
-
-         // util.ASSERT(pc < material.SIZE);
-         // util.ASSERT(pc != material.None);
-         // util.ASSERT(sq >= 0 && sq < square.SIZE);
-
-         // util.ASSERT(pc == p_square[sq]);
-
-         // util.ASSERT(bit.is_set(p_piece[pc], sq));
-         bit.clear(p_piece[pc], sq);
-
-         // util.ASSERT(bit.is_set(p_side[sd], sq));
-         bit.clear(p_side[sd], sq);
-
-         // util.ASSERT(p_square[sq] != material.None);
-         p_square[sq] = material.None;
-
-         int p12 = material.make(pc, sd);
-
-         // util.ASSERT(p_count[p12] != 0);
-         p_count[p12]--;
-
-         if (update_copy) {
-
-            hash_to key = hash.piece_key(p12, sq);
-            p_copy.key ^= key;
-            if (pc == material.PAWN) p_copy.pawn_key ^= key;
-
-            p_copy.phase -= material.phase(pc);
-         }
-      }
-
-
-      void move_square(int pc, int sd, int fr, int to, bool update_copy) { // TODO
-         clear_square(pc, sd, fr, update_copy);
-         set_square(pc, sd, to, update_copy);
-      }
-
-      void flip_turn() {
-         p_turn = side.opposit(p_turn);
-         p_copy.key ^= hash.turn_flip();
-      }
-
-
-
-      void move(int mv) {
-
-         // util.ASSERT(mv != move.None);
-         // util.ASSERT(mv != move.NULL_);
-
-         int sd = p_turn;
-         int xd = side.opposit(sd);
-
-         int fr = move.from(mv);
-         int to = move.to(mv);
-
-         int pc = move.piece(mv);
-         int cp = move.cap(mv);
-         int pp = move.prom(mv);
-
-         // util.ASSERT(p_square[fr] == pc);
-         // util.ASSERT(square_side(fr) == sd);
-
-         // util.ASSERT(p_sp < 1024);
-         Undo & undo = p_stack[p_sp++];
-
-         undo.copy = p_copy;
-         undo.move = mv;
-         undo.castling = false;
-
-         p_copy.moves++;
-         p_copy.recap = square.None;
-
-         // capture
-
-         // util.ASSERT(cp != material.King);
-
-         if (pc == material.PAWN && to == p_copy.ep_sq) {
-
-            int cap_sq = to - square.pawn_inc(sd);
-            // util.ASSERT(p_square[cap_sq] == cp);
-            // util.ASSERT(cp == material.PAWN);
-
-            undo.cap_sq = cap_sq;
-
-            clear_square(cp, xd, cap_sq, true);
-
-         } else if (cp != material.None) {
-
-            // util.ASSERT(p_square[to] == cp);
-            // util.ASSERT(square_side(to) == xd);
-
-            undo.cap_sq = to;
-
-            clear_square(cp, xd, to, true);
-
-         } else {
-
-            // util.ASSERT(p_square[to] == cp);
-         }
-
-         // promotion
-
-         if (pp != material.None) {
-            // util.ASSERT(pc == material.PAWN);
-            clear_square(material.PAWN, sd, fr, true);
-            set_square(pp, sd, to, true);
-         } else {
-            move_square(pc, sd, fr, to, true);
-         }
-
-         // castling Rook
-
-         if (pc == material.King && std.abs(to - fr) == square.CASTLING_DELTA) {
-
-            undo.castling = true;
-
-            int wg = (to > fr) ? WingKING : WingQUEEN;
-            int index = castling.index(sd, wg);
-
-            // util.ASSERT(castling.flag(p_copy.flags, index));
-
-            // util.ASSERT(fr == castling.info[index].kf);
-            // util.ASSERT(to == castling.info[index].kt);
-
-            move_square(material.ROOK, sd, castling.info[index].rf, castling.info[index].rt, true);
-         }
-
-         // turn
-
-         flip_turn();
-
-         // castling flags
-
-         p_copy.flags &= ~castling.flags_mask[fr];
-         p_copy.flags &= ~castling.flags_mask[to];
-
-         // en-passant square
-
-         p_copy.ep_sq = square.None;
-
-         if (pc == material.PAWN && std.abs(to - fr) == square.DOUBLE_PAWN_DELTA) {
-            int sq = (fr + to) / 2;
-            if (pawn_is_attacked(sq, xd)) {
-               p_copy.ep_sq = sq;
-            }
-         }
-
-         // move counter
-
-         if (cp != material.None || pc == material.PAWN) {
-            p_copy.moves = 0; // conversion;
-         }
-
-         // recapture
-
-         if (cp != material.None || pp != material.None) {
-            p_copy.recap = to;
-         }
-
-         update();
-      }
-
-      void undo() {
-
-         // util.ASSERT(p_sp > 0);
-         const Undo & undo = p_stack[--p_sp];
-
-         int mv = undo.move;
-
-         int fr = move.from(mv);
-         int to = move.to(mv);
-
-         int pc = move.piece(mv);
-         int cp = move.cap(mv);
-         int pp = move.prom(mv);
-
-         int xd = p_turn;
-         int sd = side.opposit(xd);
-
-         // util.ASSERT(p_square[to] == pc || p_square[to] == pp);
-         // util.ASSERT(square_side(to) == sd);
-
-         // castling Rook
-
-         if (undo.castling) {
-
-            int wg = (to > fr) ? WingKING : WingQUEEN;
-            int index = castling.index(sd, wg);
-
-            // util.ASSERT(fr == castling.info[index].kf);
-            // util.ASSERT(to == castling.info[index].kt);
-
-            move_square(material.ROOK, sd, castling.info[index].rt, castling.info[index].rf, false);
-         }
-
-         // promotion
-
-         if (pp != material.None) {
-            // util.ASSERT(pc == material.PAWN);
-            clear_square(pp, sd, to, false);
-            set_square(material.PAWN, sd, fr, false);
-         } else {
-            move_square(pc, sd, to, fr, false);
-         }
-
-         // capture
-
-         if (cp != material.None) {
-            set_square(cp, xd, undo.cap_sq, false);
-         }
-
-         flip_turn();
-         p_copy = undo.copy;
-
-         update();
-      }
-
-
-   };
-}
-*/
