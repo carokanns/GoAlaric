@@ -1007,7 +1007,6 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 				}
 
 				if sc >= beta {
-
 					if depth > 0 && !inCheck && !move.IsTactical(mv) {
 						sl.killer.Add(mv, bd.Ply())
 						SG.History.Add(mv, searched, bd)
@@ -1017,7 +1016,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 			}
 		}
 		/*
-			if !bStop && depth >= 6 && !in_check && !use_fp && can_split(sl, sl_top(sl)) {
+			if !bStop && depth >= 6 && !inCheck && !useFP && can_split(sl, sl_top(sl)) {
 				return split(sl, depth, old_alpha, alpha, beta, pv, ml, searched, bs, bm)
 			}
 		*/

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestGen_legals(t *testing.T) {
+func Test_genLegals(t *testing.T) {
 
 	var bd board.Board
 	var ml ScMvList

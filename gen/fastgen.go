@@ -102,7 +102,7 @@ func (l *List) gen() bool {
 	case genEvasion:
 
 		AddEvasions(&l.todoList, l.board.Stm(), l.board, l.attacks)
-		Evasions(&l.todoList, l.transMove)
+		evasions(&l.todoList, l.transMove)
 
 	case genTrans:
 
@@ -248,15 +248,18 @@ func (l *List) post(mv int) bool {
 }
 
 // Next move from list
+//   gen adds to Size for each generated move.
+//   l.pos adds one for each used move.
+//   l.idx is the index to the next phase (SV=Status Variable) of moves (checks, tatical etc)
 func (l *List) Next() int {
 
 	for true {
-		for l.pos >= l.todoList.Size() {
-			l.genSV = (*l.progPointer)[l.idx]
+		for l.pos >= l.todoList.Size() {   // we have no unused generated moves
+			l.genSV = (*l.progPointer)[l.idx]     // set next SV
 			l.idx++
-			l.postSV = (*l.progPointer)[l.idx]
+			l.postSV = (*l.progPointer)[l.idx]    // set next SV
 			l.idx++
-			if !l.gen() {
+			if !l.gen() {                        // generate more moves (sometimes not for that SV!)
 				return move.None
 			}
 		}
@@ -475,17 +478,18 @@ func IsRecapture(mv int, bd *board.Board) bool {
 	return move.To(mv) == bd.Recap() && IsWin(mv, bd)
 }
 
-// Evasions is sorting evasion moves
-func Evasions(ml *ScMvList, transMv int) {
+// evasions is sorting evasion moves
+func evasions(ml *ScMvList, transMv int) {
 
 	for pos := 0; pos < ml.Size(); pos++ {
-		ml.SetScore(pos, EvasionScore(ml.Move(pos), transMv))
+		ml.SetScore(pos, evasionScore(ml.Move(pos), transMv))
 	}
 
 	ml.Sort()
 }
 
-func EvasionScore(mv, transMv int) int {
+// evasionScore sets a score for an evasion move
+func evasionScore(mv, transMv int) int {
 
 	if mv == transMv {
 		return move.ScoreMask
@@ -577,7 +581,7 @@ func IsQuiet(mv int, bd *board.Board) bool {
 // LegalMoves is generating psudomoves and selecting the legal ones
 func LegalMoves(ml *ScMvList, bd *board.Board) {
 	var pseudos ScMvList
-	GenPseudos(&pseudos, bd)
+	genPseudos(&pseudos, bd)
 	selectLegals(ml, &pseudos, bd)
 }
 
@@ -788,7 +792,8 @@ func canCastle(sd int, wg int, bd *board.Board) bool {
 
 	return false
 }
-func GenPseudos(ml *ScMvList, bd *board.Board) {
+
+func genPseudos(ml *ScMvList, bd *board.Board) {
 
 	ml.Clear()
 

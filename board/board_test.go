@@ -3,12 +3,8 @@ package board
 
 import (
 	"GoAlaric/bit"
-	"GoAlaric/castling"
-	//"GoAlaric/engine"
 	"GoAlaric/material"
-	//"GoAlaric/search"
 	"GoAlaric/square"
-
 	"strings"
 	"testing"
 )
@@ -177,12 +173,12 @@ func KollaBoard(t *testing.T, ix int, caller string, turn string, rockader strin
 	// castling rights
 	for i, c := range "KQkq" {
 		if strings.Index(rockader, string(c)) >= 0 {
-			if !castling.Flag(bd.copyStr.flags, uint(i)) {
+			if !CastleFlag(bd.copyStr.flags, uint(i)) {
 				t.Errorf("Test=%v %v: rockad %v ej satt ", caller, ix, string(c))
 			}
 
 		} else {
-			if castling.Flag(bd.copyStr.flags, uint(i)) {
+			if CastleFlag(bd.copyStr.flags, uint(i)) {
 				t.Errorf("Test=%v %v: rockad %v felaktigt satt ", caller, ix, string(c))
 			}
 		}
