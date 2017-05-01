@@ -254,12 +254,12 @@ func (l *List) post(mv int) bool {
 func (l *List) Next() int {
 
 	for true {
-		for l.pos >= l.todoList.Size() {   // we have no unused generated moves
-			l.genSV = (*l.progPointer)[l.idx]     // set next SV
+		for l.pos >= l.todoList.Size() { // we have no unused generated moves
+			l.genSV = (*l.progPointer)[l.idx] // set next SV
 			l.idx++
-			l.postSV = (*l.progPointer)[l.idx]    // set next SV
+			l.postSV = (*l.progPointer)[l.idx] // set next SV
 			l.idx++
-			if !l.gen() {                        // generate more moves (sometimes not for that SV!)
+			if !l.gen() { // generate more moves (sometimes not for that SV!)
 				return move.None
 			}
 		}
