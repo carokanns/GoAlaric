@@ -92,6 +92,7 @@ func (l *List) Init(depth int, bd *board.Board, attacks *eval.Attacks, transMove
 	l.candidate = false
 }
 
+// Here is where the moves are actually generated
 func (l *List) gen() bool {
 
 	l.todoList.Clear()
@@ -300,7 +301,7 @@ func (se *SEE) init(to int, sd int) {
 	se.color = sd
 }
 
-func (se *SEE) move(fr int) int {
+func (se *SEE) moveVal(fr int) int {
 
 	// assert(bit::is_set(p_all, fr));
 	bit.Clear(&se.bbAlll, fr)
@@ -350,7 +351,7 @@ func (se *SEE) seeRec(alpha, beta int) (val, cnt int) {
 		return s0, 0
 	}
 
-	capVal := se.move(fr) // NOTE: has side effect
+	capVal := se.moveVal(fr) // NOTE: has side effect
 
 	v, ct := se.seeRec(capVal-beta, capVal-alpha)
 
@@ -393,7 +394,7 @@ func (se *SEE) See(mv int, alpha int, beta int, bd *board.Board) (val, cnt int) 
 	sd := se.board.SquareSide(fr)
 
 	se.init(to, sd)
-	capVal := se.move(fr) // NOTE: assumes queen promotion
+	capVal := se.moveVal(fr) // NOTE: assume queen promotion to start with
 
 	if pc == material.Pawn && square.IsPromotion(to) { // adjust for under-promotion
 		delta := material.QueenValue - material.Value[move.Prom(mv)]

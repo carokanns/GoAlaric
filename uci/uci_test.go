@@ -10,8 +10,8 @@ var chSearch = make(chan int)
 
 func TestSetoption(t *testing.T) {
 	HandleInput("setoption name Hash value 256", &chSearch)
-	if search.Engine.Hash != 256 {
-		t.Errorf("Hash borde vara %v men är %v", 256, search.Engine.Hash)
+	if search.Engine.Hashss != 256 {
+		t.Errorf("Hash borde vara %v men är %v", 256, search.Engine.Hashss)
 	}
 
 }

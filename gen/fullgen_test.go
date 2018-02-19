@@ -20,7 +20,7 @@ func Test_genLegals(t *testing.T) {
 	board.SetFen("r3k2r/pppqbppp/2n1bn2/3pp3/3PP3/2N1BN2/PPPQBPPP/R3K2R w KQkq - 10 8", &bd)
 	LegalMoves(&ml, &bd)
 	if ml.Size() != 40 {
-		t.Errorf("Test 2: Borde vara 37 drag men är %v", ml.Size())
+		t.Errorf("Test 2: Borde vara 40 drag men är %v", ml.Size())
 		PrintAllMoves(&ml)
 	}
 

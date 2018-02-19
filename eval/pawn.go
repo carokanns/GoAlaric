@@ -71,7 +71,7 @@ func isControlled(sq, sd int, bd *board.Board) bool {
 	return bit.CountLoop(attackers) > bit.CountLoop(defenders)
 }
 
-// PawnInit is done ince per session to set bits used to detect passed and isolated pawns
+// PawnInit is done once per session to set bits used to detect passed and isolated pawns
 func PawnInit() {
 	fmt.Println("info string PawnInit startar")
 	for sq := 0; sq < square.BoardSize; sq++ {

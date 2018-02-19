@@ -901,8 +901,8 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 			alpha = bs
 
-			if bs >= beta {
-				return bs
+			if alpha >= beta {
+				return alpha
 			}
 		}
 	}
@@ -1069,7 +1069,7 @@ func evalu8(stm int, sl *searchLocal) int {
 	return eval
 }
 
-// qsStatic is the function called by the search when it is time to evaluate the position.
+// qs is the function called by the search when it is time to evaluate the position.
 // This function makes sure that possible captures, promotions and checks are tries out first
 // before the evaluation is done.
 func qs(sl *searchLocal, beta, gain int) int { // for static NMP
@@ -1092,11 +1092,11 @@ func qs(sl *searchLocal, beta, gain int) int { // for static NMP
 	// move loop
 
 	var attacks eval.Attacks
-	eval.InitAttacks(&attacks, bd.Stm(), bd)
+	eval.InitAttacks(&attacks, bd.Stm(), bd) // creates attacks - a bitboard with attacks to
 
 	///// Search_Global här
 	//var ml gen.List
-	gl := &(genList[sl.ID][bd.Ply()])
+	gl := &(genList[sl.ID][bd.Ply()])                                    // points to the current starting point in genlist
 	gl.Init(-1, bd, &attacks, move.None, &sl.killer, &SG.History, false) // QS move generator
 
 	done := bit.BB(0)
@@ -1204,7 +1204,7 @@ func searchEnd() {
 	infoToGUI()
 }
 
-// inc_node increments the node counter and checks if it's time to update
+// incNode increments the node counter and checks if it's time to update
 // current data for later info to GUI. It also checks if the time is up to stop.
 // The cnt variable gives an interval 0-cnt within which the NODE_PERIOD test is true
 func incNode(sl *searchLocal, cnt int) {

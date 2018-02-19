@@ -139,7 +139,7 @@ func Test_QS(t *testing.T) {
 		//mv := move.Make(fr, to, pc, cp, pr)
 		rightVal := ss.val
 
-		val := qs(&sl, maxScore, 0)
+		val := qs(&sl, maxScoress, 0)
 
 		if val != rightVal {
 			t.Errorf("Case %v: gav %v istf %v - %v", ix+1, val, rightVal, ss.comment)

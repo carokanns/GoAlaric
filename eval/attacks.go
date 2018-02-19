@@ -188,7 +188,7 @@ func getBlockers(pc, fr int) bit.BB {
 
 	var b bit.BB
 
-	attacks := computePieceAttacks(pc, fr)
+	attacks := computePieceAttacks(pc, fr) // gives all to-sq from fr-sq
 
 	for bb := attacks; bb != 0; bb = bit.Rest(bb) {
 		sq := bit.First(bb)
@@ -267,6 +267,7 @@ func computeBetween(fr, to int) bit.BB {
 	return b
 }
 
+// returns attacks on sq beyond to-sq
 func attacksThrough(fr, to int) bit.BB {
 
 	fr = square.To88(fr)
@@ -456,7 +457,7 @@ type Attacks struct {
 // InitAttacks is doing just that before starting a search node
 func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
-	atk := board.Opposit(sd)
+	opp := board.Opposit(sd)
 	def := sd
 
 	to := bd.King(def)
@@ -469,8 +470,8 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
 	{
 		b := bit.BB(0)
-		b |= bd.PieceSd(material.Pawn, atk) & PawnAttacks[def][to] // HACK
-		b |= bd.PieceSd(material.Knight, atk) & pieceAttacks[material.Knight][to]
+		b |= bd.PieceSd(material.Pawn, opp) & PawnAttacks[def][to] // HACK
+		b |= bd.PieceSd(material.Knight, opp) & pieceAttacks[material.Knight][to]
 
 		if b != 0 {
 			// assert(bit::single(b));
@@ -482,7 +483,7 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
 	// sliders
 
-	for b := sliderPseudoAttacksTo(atk, to, bd); b != 0; b = bit.Rest(b) {
+	for b := sliderPseudoAttacksTo(opp, to, bd); b != 0; b = bit.Rest(b) {
 
 		fr := bit.First(b)
 
