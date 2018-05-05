@@ -454,13 +454,13 @@ type Attacks struct {
 	Pinned bit.BB
 }
 
-// InitAttacks is doing just that before starting a search node
+// InitAttacks is finding attacks and pins towards the king before starting a search node
 func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
 	opp := board.Opposit(sd)
 	def := sd
 
-	to := bd.King(def)
+	kSq := bd.King(def)
 
 	attacks.Size = 0
 	attacks.Avoid = 0
@@ -470,8 +470,8 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
 	{
 		b := bit.BB(0)
-		b |= bd.PieceSd(material.Pawn, opp) & PawnAttacks[def][to] // HACK
-		b |= bd.PieceSd(material.Knight, opp) & pieceAttacks[material.Knight][to]
+		b |= bd.PieceSd(material.Pawn, opp) & PawnAttacks[def][kSq] // HACK
+		b |= bd.PieceSd(material.Knight, opp) & pieceAttacks[material.Knight][kSq]
 
 		if b != 0 {
 			// assert(bit::single(b));
@@ -483,17 +483,17 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
 	// sliders
 
-	for b := sliderPseudoAttacksTo(opp, to, bd); b != 0; b = bit.Rest(b) {
+	for b := sliderPseudoAttacksTo(opp, kSq, bd); b != 0; b = bit.Rest(b) {
 
 		fr := bit.First(b)
 
-		bb := bd.All() & Between[fr][to]
+		bb := bd.All() & Between[fr][kSq]
 
 		if bb == 0 {
 			// assert(attacks.Size < 2);
 			attacks.Square[attacks.Size] = fr
 			attacks.Size++
-			attacks.Avoid |= Ray(fr, to)
+			attacks.Avoid |= Ray(fr, kSq)
 		} else if bit.Single(bb) {
 			attacks.Pinned |= bb
 		}

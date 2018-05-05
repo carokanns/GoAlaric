@@ -103,7 +103,7 @@ func (l *List) gen() bool {
 	case genEvasion:
 
 		AddEvasions(&l.todoList, l.board.Stm(), l.board, l.attacks)
-		evasions(&l.todoList, l.transMove)
+		evasions(&l.todoList, l.transMove)   // sort them
 
 	case genTrans:
 
@@ -155,7 +155,7 @@ func (l *List) gen() bool {
 	case genQuiet:
 
 		AddQuietMoves(&l.todoList, l.board.Stm(), l.board)
-		History(&l.todoList, l.board, l.historyTab)
+		l.historyTab.Sort(&l.todoList, l.board)
 
 		l.candidate = false
 	case genBad:
@@ -544,7 +544,7 @@ func Tacticals(ml *ScMvList) {
 	ml.Sort()
 }
 
-// IsQuiet returns true if the given move
+// IsQuiet returns true if the given move is legal and not capture and not prom
 func IsQuiet(mv int, bd *board.Board) bool {
 
 	sd := bd.Stm()
@@ -579,7 +579,7 @@ func IsQuiet(mv int, bd *board.Board) bool {
 	return eval.PieceAttack(pc, fr, to, bd)
 }
 
-// LegalMoves is generating psudomoves and selecting the legal ones
+// LegalMoves is generating pseudomoves and selecting the legal ones
 func LegalMoves(ml *ScMvList, bd *board.Board) {
 	var pseudos ScMvList
 	genPseudos(&pseudos, bd)

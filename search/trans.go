@@ -7,45 +7,45 @@ import (
 	"fmt"
 )
 
-// score types
+// score limits
 const (
 	EvalMin = -8999
 	EvalMAX = +8999
 )
 
 //
-// Castling flags
+// score flags
 const (
-	flagsNone  = 0
-	flagsLower = 1 << 0
-	flagsUpper = 1 << 1
-	flagsExact = flagsLower | flagsUpper
+	//no scoretype = 0
+	scoreTypeLower = 0x1
+	scoreTypeUpper = 0x2
+	scoreTypeGood  = scoreTypeLower | scoreTypeUpper
 )
 
-// flags sets if it is an upper or lower scpre
-func flags(sc, alpha, beta int) int {
+// scoreType sets if it is an upper or lower scpre
+func scoreType(sc, alpha, beta int) int {
 
-	flags := flagsNone
+	scoreType := 0
 	if sc > alpha {
-		flags |= flagsLower
+		scoreType |= scoreTypeLower
 	}
 	if sc < beta {
-		flags |= flagsUpper
+		scoreType |= scoreTypeUpper
 	}
 
-	return flags
+	return scoreType
 }
 
 const sizeEntry = 16
 
 type entry struct { // 16 bytes
 	lock      uint32
-	move      uint32 // TODO: uint16 #
+	move      uint32 // TODO: maybe uint16 (fr+to+pr)
 	utfyllnad uint16 // endast utfyllnad
 	score     int16
 	date      uint8
 	depth     int8
-	flags     uint8
+	scoreType uint8
 	tomt      uint8 // endast utfyllnad
 }
 
@@ -114,7 +114,7 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, flags int) {
 	//util.ASSERT(mv != move.NULL_)
 	//util.ASSERT(sc >= score.MIN && sc <= score.MAX)
 
-	sc = ToHashScore(sc, ply)
+	sc = RemMatePly(sc, ply)
 
 	index := hash.Index(key) & int64(t.mask)
 	lock := hash.Lock(key)
@@ -139,7 +139,7 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, flags int) {
 				}
 				entry.depth = int8(depth)
 				entry.score = int16(sc)
-				entry.flags = uint8(flags)
+				entry.scoreType = uint8(flags)
 				return
 			}
 
@@ -173,7 +173,7 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, flags int) {
 	be.move = uint32(mv)
 	be.depth = int8(depth)
 	be.score = int16(sc)
-	be.flags = uint8(flags)
+	be.scoreType = uint8(flags)
 }
 
 // SetSize sets the size that will be used next time we Allocate a new Hash Table
@@ -218,17 +218,17 @@ func (t *transTable) Retrieve(key hash.Key, depth, ply int, mv *int, sc *int, fl
 				t.cntUsed++
 			}
 			*mv = int(entry.move)
-			*sc = HashScore(int(entry.score), ply)
-			*flags = int(entry.flags)
+			*sc = AddMatePly(int(entry.score), ply)
+			*flags = int(entry.scoreType)
 
 			if int(entry.depth) >= depth {
 				return true
 			}
 
 			if IsMateScore(*sc) {
-				*flags &= ^flagsUpper // assume value
+				*flags &= ^scoreTypeUpper
 				if *sc < 0 {
-					*flags &= ^flagsLower
+					*flags &= ^scoreTypeLower
 				}
 				//flags &= ~(score < 0 ? FLAGS_LOWER : FLAGS_UPPER);
 				return true
@@ -256,13 +256,13 @@ func clearEntry(entry *entry) {
 	entry.score = 0
 	entry.date = 0
 	entry.depth = -1
-	entry.flags = flagsNone
+	entry.scoreType = 0
 	//entry.tomt = 0   behövs inte
 }
 
-// ToHashScore removes ply from the score value (score - ply) if mate
-// in order to ensure that we use the shortest mate variant
-func ToHashScore(sc, ply int) int {
+// RemMatePly removes ply from the score value (score - ply) if mate
+// in order to mix up different depths
+func RemMatePly(sc, ply int) int {
 	if sc < EvalMin {
 		return sc - ply
 	} else if sc > EvalMAX {
@@ -272,9 +272,8 @@ func ToHashScore(sc, ply int) int {
 	}
 }
 
-// HashScore puts back ply to the score value (mate)
-//
-func HashScore(sc, ply int) int {
+// AddMatePly adjusts mate value with ply if mate score
+func AddMatePly(sc, ply int) int {
 	if sc < EvalMin {
 		return sc + ply
 	} else if sc > EvalMAX {

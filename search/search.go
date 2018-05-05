@@ -118,8 +118,8 @@ func (t *timerStr) getElapsed() int {
 //	diff := now2.Sub(now)
 //	diff.Nanoseconds()
 type limitStr struct {
-	nodeIsLmited  bool
-	timeIsLimited bool
+	nodeIsLmited  bool // varför inte testa på om limit.nodes > 0
+	timeIsLimited bool // varför inte testa på om limit.time > 0
 	depth         int
 	nodes         uint64
 	time          uint64 // time limit for this move when we have X moves in T seconds
@@ -150,11 +150,11 @@ type currStruct struct {
 }
 
 type bestStruct struct {
-	depth int
-	move  int
-	score int
-	flags int
-	pv    pvStruct
+	depth     int
+	move      int
+	score     int
+	scoreType int
+	pv        pvStruct
 }
 
 const pvSize int = maxPly
@@ -351,7 +351,7 @@ func clear() {
 	best.depth = 0
 	best.move = move.None
 	best.score = noScore
-	best.flags = flagsNone
+	best.scoreType = 0
 	best.pv.clear()
 }
 
@@ -360,7 +360,7 @@ func updateBest(best *bestStruct, sc, flags int, pv *pvStruct) {
 	//util.ASSERT(sc != None)
 	//util.ASSERT(pv.size() != 0)
 
-	limit.drop = flags == flagsUpper || (sc <= limit.lastScore-30 && current.size > 1)
+	limit.drop = flags == scoreTypeUpper || (sc <= limit.lastScore-30 && current.size > 1)
 
 	if pv.getMove(0) != best.move || limit.drop {
 		limit.flag = false
@@ -369,7 +369,7 @@ func updateBest(best *bestStruct, sc, flags int, pv *pvStruct) {
 	best.depth = current.depth
 	best.move = pv.getMove(0)
 	best.score = sc
-	best.flags = flags
+	best.scoreType = flags
 	best.pv = *pv
 }
 
@@ -464,7 +464,7 @@ func SetPonder(p bool) {
 	limit.ponder = p
 }
 
-// StartSearch determines what kind of search that
+// StartSearch (called from GoAlaric.go) determines what kind of search that
 // the GUI has demanded and sets values according that.
 // It then starts up the search by calling search_go
 //	Search kommer att polla på att bool bStop/bPonderHit är true
@@ -517,14 +517,13 @@ func StartSearch(searchType chan int, bestmove chan string, bd *board.Board) {
 	}
 }
 
-// Search_go initializes the search, the SMP and transposition table etc.
-// Then it calls search_id. After the search is finished it up
+// Search_go (called by StartSearch) initializes the search, the SMP and transposition table etc.
+// Then it calls searchID. After the search is finished it up
 func searchGo(bd *board.Board) {
 	//	fmt.Println("Search_go")
 	//	defer fmt.Println("exit Search_go")
 	clear()
 	initSg()
-	SG.Trans.IncDate()
 
 	for id := 0; id < Engine.Threads; id++ {
 		slInitEarly(&slEntries[id], id)
@@ -552,11 +551,12 @@ func searchGo(bd *board.Board) {
 
 func initSg() {
 	SG.History.Clear()
+	SG.Trans.IncDate()
 }
 
 // searchID is the iterative deepening of the search.
 // it adds one ply to the search for each loop unil time is up or some
-// other search limit condition is met
+// other search limit condition is met. It calls searchAsp
 func searchID(bd *board.Board) {
 	//	fmt.Println("search_id")
 	//	defer fmt.Println("exit search_id")
@@ -625,7 +625,7 @@ func searchID(bd *board.Board) {
 	slPop(sl) //räkna in alla fåren
 }
 
-// search_asp makes the aspiration search. Meaning that it tries to search with
+// search_asp makes the aspiration search. It calls searchRoot with
 // a very narrow alpha-beta window and if the search returns a value outside the window
 // it search again with a wider window. This goes on until the search
 // returns a value that is inside the window
@@ -693,12 +693,10 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 		dangerous := inCheck || move.IsTactical(mv) || eval.IsCheck(mv, bd) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd)
 
 		ext := extension(sl, mv, depth, pvNode)
-		red := reduction(sl, mv, depth /* pv_node,*/, inCheck, searchedSize, dangerous) // LMR
-
-		if ext != 0 {
-			red = 0
+		red := 0
+		if ext == 0 {
+			red = reduction(sl, mv, depth /* pv_node,*/, inCheck, searchedSize, dangerous) // LMR
 		}
-		//util.ASSERT(ext == 0 || red == 0)
 
 		var sc int
 		var npv pvStruct
@@ -730,7 +728,7 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 			var pv pvStruct
 
 			pv.catenate(mv, &npv)
-			updateBest(&best, sc, flags(sc, alpha, beta), &pv)
+			updateBest(&best, sc, scoreType(sc, alpha, beta), &pv)
 
 			updateCurrent()
 			writePV(&best)
@@ -746,7 +744,7 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 
 				///// Search_Global här
 				if depth >= 0 {
-					SG.Trans.Store(key, depth, bd.Ply(), mv, sc, flagsLower)
+					SG.Trans.Store(key, depth, bd.Ply(), mv, sc, scoreTypeLower)
 				}
 
 				if sc >= beta {
@@ -760,7 +758,7 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 	//util.ASSERT(bs < beta)
 
 	if depth >= 0 {
-		flags := flags(bs, oldAlpha, beta)
+		flags := scoreType(bs, oldAlpha, beta)
 
 		///// Search_Global här
 		SG.Trans.Store(key, depth, bd.Ply(), bm, bs, flags)
@@ -787,9 +785,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	// mate-distance pruning
 
-	mateSc := HashScore(mateScore-1, bd.Ply())
-
-	if mateSc < beta {
+	if mateSc := AddMatePly(mateScore-1, bd.Ply()); mateSc < beta {
 
 		beta = mateSc
 
@@ -829,25 +825,25 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		var flags int
 
 		if SG.Trans.Retrieve(key, transDepth, bd.Ply(), &transMove, &transSc, &flags) && !pvNode { // assigns trans_move #
-			if flags == flagsLower && transSc >= beta {
+			if flags == scoreTypeLower && transSc >= beta {
 				return transSc
 			}
-			if flags == flagsUpper && transSc <= alpha {
+			if flags == scoreTypeUpper && transSc <= alpha {
 				return transSc
 			}
-			if flags == flagsExact {
+			if flags == scoreTypeGood {
 				return transSc
 			}
 		}
 	}
 
-	// ply limit
+	ev := evalWithSign(stm, sl)
 
+	// ply limit
 	if bd.Ply() >= maxPly {
-		return evalu8(stm, sl)
+		return ev
 	}
 
-	ev := evalu8(stm, sl)
 	// beta pruning
 	if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(beta) && !inCheck {
 
@@ -859,7 +855,6 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 	}
 
 	// null-move pruning
-
 	if !pvNode && depth > 0 && !IsMateScore(beta) && !inCheck && !board.LoneKing(stm, bd) && ev >= beta {
 
 		bd.MoveNull() // TODO: use sl?
@@ -867,6 +862,8 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		sc := minScore
 
 		if depth <= 3 { // static
+			// if you don't beat me with 100 points,
+			// then I think your position sucks
 			sc = -qs(sl, -beta+1, 100)
 		} else { // dynamic
 			var npv pvStruct
@@ -880,7 +877,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		if sc >= beta {
 
 			if useTrans {
-				SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, flagsLower)
+				SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, scoreTypeLower)
 			}
 			return sc
 		}
@@ -892,42 +889,35 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 	oldAlpha := alpha
 	val := noScore // for delta pruning
 
-	if depth <= 0 && !inCheck {
+	hardPruning := false // Futility and Delta and SEE pruning
 
-		bs = ev
-		val = bs + 100 // QS-DP margin
+	if !inCheck { // rewritten apr 2018
+		if depth <= 0 {
+			bs = ev
+			val = bs + 100 // QS-DP margin
 
-		if bs > alpha {
+			if bs > alpha {
 
-			alpha = bs
+				alpha = bs
 
-			if alpha >= beta {
-				return alpha
+				if alpha >= beta {
+					return alpha
+				}
+			}
+			hardPruning = true
+		} else if depth <= 8 && !IsMateScore(alpha) {
+			// futility-pruning condition
+			sc := ev + depth*40
+			val = sc + 50 // FP-DP margin, extra 50 for captures
+
+			if sc <= alpha {
+				bs = sc
+				hardPruning = true
 			}
 		}
 	}
 
-	// futility-pruning condition
-
-	useFP := false
-
-	if depth > 0 && depth <= 8 && !IsMateScore(alpha) && !inCheck {
-
-		sc := ev + depth*40
-		val = sc + 50 // FP-DP margin, extra 50 for captures
-
-		if sc <= alpha {
-			bs = sc
-			useFP = true
-		}
-	}
-
-	if depth <= 0 && !inCheck { // unify FP and QS
-		useFP = true
-	}
-
 	// IID
-
 	if pvNode && depth >= 3 && transMove == move.None {
 
 		var npv pvStruct
@@ -942,18 +932,18 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	//var ml gen.List
 	gl := &(genList[sl.ID][bd.Ply()])
-	gl.Init(depth, bd, &attacks, transMove, &sl.killer, &SG.History, useFP)
+	gl.Init(depth, bd, &attacks, transMove, &sl.killer, &SG.History, hardPruning)
 
 	searched := &genSearched[sl.ID][bd.Ply()]
 	searched.Clear()
 	for mv := gl.Next(); mv != move.None; mv = gl.Next() {
 		dangerous := inCheck || move.IsTactical(mv) || eval.IsCheck(mv, bd) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd) || gl.Candidate()
 
-		if useFP && move.IsTactical(mv) && !eval.IsCheck(mv, bd) && val+move.SeeMax(mv) <= alpha { // delta pruning
+		if hardPruning && move.IsTactical(mv) && !eval.IsCheck(mv, bd) && val+move.SeeMax(mv) <= alpha { // delta pruning
 			continue
 		}
 
-		if useFP && !gen.IsSafe(mv, bd) { // SEE pruning
+		if hardPruning && !gen.IsSafe(mv, bd) { // SEE pruning
 			continue
 		}
 
@@ -967,7 +957,6 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		if ext != 0 {
 			red = 0
 		}
-		//util.ASSERT(ext == 0 || red == 0)
 
 		var sc int
 		var npv pvStruct
@@ -1003,7 +992,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 				alpha = sc
 
 				if useTrans {
-					SG.Trans.Store(key, transDepth, bd.Ply(), mv, sc, flagsLower)
+					SG.Trans.Store(key, transDepth, bd.Ply(), mv, sc, scoreTypeLower)
 				}
 
 				if sc >= beta {
@@ -1034,7 +1023,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 	//util.ASSERT(bs < beta)
 
 	if useTrans {
-		flags := flags(bs, oldAlpha, beta)
+		flags := scoreType(bs, oldAlpha, beta)
 		SG.Trans.Store(key, transDepth, bd.Ply(), bm, bs, flags)
 	}
 
@@ -1059,9 +1048,9 @@ func failHighTrue() {
 	limit.flag = false
 }
 
-// evalu8 evaluates a position and gives a value from side to move viewpoint.
-// it doesn't check captures so it has to be done before eval starts.
-func evalu8(stm int, sl *searchLocal) int {
+// evalWithSign evaluates a position and gives a value from side to move viewpoint.
+// it doesn't check captures so that has to be done before eval starts.
+func evalWithSign(stm int, sl *searchLocal) int {
 	eval := sl.evalHash.Eval(&sl.board, &sl.pawnHash)
 	if stm == board.BLACK {
 		return -eval
@@ -1070,7 +1059,7 @@ func evalu8(stm int, sl *searchLocal) int {
 }
 
 // qs is the function called by the search when it is time to evaluate the position.
-// This function makes sure that possible captures, promotions and checks are tries out first
+// This function makes sure that possible captures, promotions and checks are tried out first
 // before the evaluation is done.
 func qs(sl *searchLocal, beta, gain int) int { // for static NMP
 	//var se gen.SEE
@@ -1082,7 +1071,7 @@ func qs(sl *searchLocal, beta, gain int) int { // for static NMP
 	// assert(!attack::is_in_check()); // triggers for root move ordering
 
 	// stand pat
-	bs := evalu8(bd.Stm(), sl)
+	bs := evalWithSign(bd.Stm(), sl)
 	val := bs + gain
 
 	if bs >= beta {
@@ -1264,7 +1253,7 @@ func incNode(sl *searchLocal, cnt int) {
 
 func poll() bool {
 
-	maybeToGUI()
+	maybeToGUI() // if time exceeded, info to GUI
 
 	//fmt.Println("\nsg.lock() ")
 	//defer fmt.Println("sg.unlock() ")
@@ -1303,7 +1292,7 @@ func genAndSortLegals(sl *searchLocal, ml *gen.ScMvList) {
 
 	gen.LegalMoves(ml, bd)
 
-	v := evalu8(bd.Stm(), sl)
+	v := evalWithSign(bd.Stm(), sl)
 	for pos := 0; pos < ml.Size(); pos++ {
 
 		mv := ml.Move(pos)
@@ -1372,10 +1361,10 @@ func writePV(best *bestStruct) {
 		line += fmt.Sprintf(" score cp %v ", best.score)
 	}
 
-	if best.flags == flagsLower {
+	if best.scoreType == scoreTypeLower {
 		line += fmt.Sprintf("lowerbound ")
 	}
-	if best.flags == flagsUpper {
+	if best.scoreType == scoreTypeUpper {
 		line += fmt.Sprintf("upperbound ")
 	}
 

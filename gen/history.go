@@ -30,13 +30,13 @@ func (h *HistoryTab) index(mv int, bd *board.Board) int {
 	return p12*square.BoardSize + move.To(mv)
 }
 
-func (h *HistoryTab) updateGood(mv int, bd *board.Board) {
+func (h *HistoryTab) good(mv int, bd *board.Board) {
 	if !move.IsTactical(mv) {
 		h.entry[h.index(mv, bd)] += (histOne - h.entry[h.index(mv, bd)]) >> histShift
 	}
 }
 
-func (h *HistoryTab) updateBad(mv int, bd *board.Board) {
+func (h *HistoryTab) bad(mv int, bd *board.Board) {
 	if !move.IsTactical(mv) {
 		h.entry[h.index(mv, bd)] -= h.entry[h.index(mv, bd)] >> histShift
 	}
@@ -54,32 +54,28 @@ func (h *HistoryTab) Clear() {
 	}
 
 	for ix := 0; ix < material.SideSize*square.BoardSize; ix++ {
-		//util.ASSERT(h.entry[ix] == PROB_HALF)
 		h.entry[ix] = histHalf
 	}
 }
 
 // Add score into history table
 func (h *HistoryTab) Add(bm int, searched *ScMvList, bd *board.Board) {
-
-	//util.ASSERT(bm != move.None)
-
-	h.updateGood(bm, bd)
+	h.good(bm, bd)
 
 	for pos := 0; pos < searched.Size(); pos++ {
 		mv := searched.Move(pos)
 		if mv != bm {
-			h.updateBad(mv, bd)
+			h.bad(mv, bd)
 		}
 	}
 }
 
-// History is sorting history moves
-func History(ml *ScMvList, bd *board.Board, history *HistoryTab) {
+// Sort is sorting history moves
+func (h *HistoryTab) Sort(ml *ScMvList, bd *board.Board) {
 
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
-		sc := history.Score(mv, bd)
+		sc := h.Score(mv, bd)
 		ml.SetScore(pos, sc)
 	}
 

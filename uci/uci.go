@@ -32,7 +32,7 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI("id name GoAlaric")
 			tellGUI("id author Peter Fendrich")
 
-			tellGUI(fmt.Sprintf("option name Hash type spin default %v  min 16 max 16384\n", search.Engine.Hashss))
+			tellGUI(fmt.Sprintf("option name Hash type spin default %v  min 16 max 16384\n", search.Engine.Hash))
 			tellGUI(fmt.Sprintf("option name Ponder type check default %v\n", search.Engine.Ponder))
 			tellGUI(fmt.Sprintf("option name Threads type spin default %v min 1 max 16\n", search.Engine.Threads))
 			tellGUI(fmt.Sprintf("option name LogFile type check default %v\n", search.Engine.Log))
@@ -77,7 +77,7 @@ func HandleInput(line string, chSearch *chan int) string {
 			e := eval.CompEval(&Bd, &pawnHash) // NOTE: score for white
 			tellGUI(fmt.Sprintf("eval(w): %v", e))
 		case "peng":
-			txt := fmt.Sprintf("Hash: %v Threads: %v Ponder: %v Log: %v \n", search.Engine.Hashss, search.Engine.Threads, search.Engine.Ponder, search.Engine.Log)
+			txt := fmt.Sprintf("Hash: %v Threads: %v Ponder: %v Log: %v \n", search.Engine.Hash, search.Engine.Threads, search.Engine.Ponder, search.Engine.Log)
 			tellGUI(txt)
 		case "pb":
 			Bd.PrintBoard()
@@ -249,17 +249,17 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 	value := strings.ToLower(strings.TrimSpace(words[3]))
 	switch word {
 	case "hash":
-		fmt.Println("info string Hash before:", search.Engine.Hashss)
+		fmt.Println("info string Hash before:", search.Engine.Hash)
 		hashVal, err := strconv.ParseInt(value, 10, 32)
 		if err != nil {
 			return
 		}
-		search.Engine.Hashss = int(hashVal)
+		search.Engine.Hash = int(hashVal)
 		search.SG.Trans.InitTable()
-		search.SG.Trans.SetSize(search.Engine.Hashss)
+		search.SG.Trans.SetSize(search.Engine.Hash)
 		search.SG.Trans.Alloc()
 
-		fmt.Println("info string Hash after:", search.Engine.Hashss)
+		fmt.Println("info string Hash after:", search.Engine.Hash)
 
 	case "threads":
 		threads, err := strconv.ParseInt(value, 10, 32)
@@ -350,7 +350,7 @@ func initGame() {
 
 //////////////// för testande /////////////////////
 
-// PrintMoves is for testing. It prints all the move in the current position
+// PrintMoves is for testing. It prints all legal moves in the current position
 func PrintMoves() {
 	var ml gen.ScMvList
 	gen.LegalMoves(&ml, &Bd)

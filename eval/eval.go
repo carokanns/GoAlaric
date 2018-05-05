@@ -163,7 +163,7 @@ func (t *Hash) Clear() {
 	}
 }
 
-// Eval is called by evalu8 (search) and if it cannot use eval-hash-table it calls comp_eval.
+// Eval is called by evalWithSign (search) and if it cannot use eval-hash-table it calls comp_eval.
 // it returns score for white
 func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score for white
 
@@ -186,7 +186,7 @@ func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score f
 	return eval
 }
 
-// Eval is called by evalu8 (in search). It calls table.eval and returns the stm evaluation
+// Eval is called by evalWithSign (in search). It calls table.eval and returns the stm evaluation
 //func Eval(bd *board.Board, table *Table, pawn_table *PawnTable) int {
 //	return score.Side_score(table.Eval(bd, pawn_table), bd.Turn())
 //}

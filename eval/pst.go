@@ -56,14 +56,14 @@ func PstInit() {
 
 	for pc := material.Pawn; pc <= material.King; pc++ {
 
-		wp := material.MakeP12(pc, WHITE)
-		bp := material.MakeP12(pc, BLACK)
+		wP12 := material.MakeP12(pc, WHITE)
+		bP12 := material.MakeP12(pc, BLACK)
 
-		for bs := 0; bs < square.BoardSize; bs++ {
+		for bSq := 0; bSq < square.BoardSize; bSq++ {
 
-			ws := square.OppositRank(bs)
-			scoreTab[bp][bs][MG] = scoreTab[wp][ws][MG]
-			scoreTab[bp][bs][EG] = scoreTab[wp][ws][EG]
+			wSq := square.OppositRank(bSq)
+			scoreTab[bP12][bSq][MG] = scoreTab[wP12][wSq][MG]
+			scoreTab[bP12][bSq][EG] = scoreTab[wP12][wSq][EG]
 		}
 	}
 }

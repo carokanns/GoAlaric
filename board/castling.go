@@ -13,7 +13,7 @@ type info struct {
 	RokTo int
 }
 
-// Info is the castling Info
+// CastleInfo is the castling Info
 var CastleInfo = [...]info{{square.E1, square.G1, square.H1, square.F1},
 	{square.E1, square.C1, square.A1, square.D1},
 	{square.E8, square.G8, square.H8, square.F8},

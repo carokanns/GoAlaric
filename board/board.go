@@ -618,7 +618,7 @@ func (bd *Board) flipStm() {
 	bd.stm = Opposit(bd.stm)
 	bd.copyStr.key ^= hash.StmFlip()
 }
-func (bd *Board) moveSquare(pc, sd, fr, to int, updateCopy bool) { // TODO
+func (bd *Board) moveSquare(pc, sd, fr, to int, updateCopy bool) {
 	//util.ASSERT(fr < 64 && fr >= 0)
 	//util.ASSERT(to < 64 && to >= 0)
 	bd.clearSquare(pc, sd, fr, updateCopy)
@@ -843,7 +843,7 @@ func (bd *Board) IsDraw() bool {
 	return false
 }
 
-// IsMove returns true if it is a possible moves (except checks)
+// IsMove returns true if it is a possible move (except checks)
 func IsMove(mv int, bd *Board) bool {
 
 	sd := bd.Stm()
