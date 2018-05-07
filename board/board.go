@@ -219,8 +219,8 @@ func make(fr int, to int, pp int, bd *Board) int {
 	return move.Build(fr, to, pc, cp, pp)
 }
 
-//////////////////////////////////////////////
-//  Tilhör class Board  (I princip allt unde namespace)
+/////////////////////////////////////////////
+//  Tilhör class Board  
 /////////////////////////////////////////////
 
 func (bd *Board) update() {

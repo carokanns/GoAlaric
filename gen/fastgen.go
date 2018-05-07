@@ -94,10 +94,8 @@ func (l *List) Init(depth int, bd *board.Board, attacks *eval.Attacks, transMove
 
 // Here is where the moves are actually generated
 func (l *List) gen() bool {
-
 	l.todoList.Clear()
 	l.pos = 0
-
 	switch l.genSV {
 
 	case genEvasion:
@@ -253,6 +251,7 @@ func (l *List) post(mv int) bool {
 //   l.pos adds one for each used move.
 //   l.idx is the index to the next phase (SV=Status Variable) of moves (checks, tatical etc)
 func (l *List) Next() int {
+	// 	progMain    = genSV{ genTrans, postKiller, genTactical, postMoveSEE, genKiller, postKillerSEE, genQuiet, postMoveSEE, genBad, postBad, genEnd, genEnd}
 
 	for true {
 		for l.pos >= l.todoList.Size() { // we have no unused generated moves

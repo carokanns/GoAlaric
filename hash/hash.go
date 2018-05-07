@@ -35,7 +35,6 @@ func rand64() Key {
 }
 
 func randKey(index int) Key {
-	//assert(index >= 0 && index < SIZE);
 	return randVal[index]
 }
 
@@ -93,7 +92,7 @@ func Lock(key Key) uint32 {
 // RandInt returns a random integer number
 var r1 = (*rand.Rand)(rand.New(rand.NewSource(42)))
 
+// RandInt returns an random integer < n 
 func RandInt(n int) int {
-	//assert(n > 0);
 	return r1.Intn(n)
 }

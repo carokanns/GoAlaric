@@ -355,12 +355,12 @@ func clear() {
 	best.pv.clear()
 }
 
-func updateBest(best *bestStruct, sc, flags int, pv *pvStruct) {
+func updateBest(best *bestStruct, sc, scoreType int, pv *pvStruct) {
 
 	//util.ASSERT(sc != None)
 	//util.ASSERT(pv.size() != 0)
 
-	limit.drop = flags == scoreTypeUpper || (sc <= limit.lastScore-30 && current.size > 1)
+	limit.drop = scoreType == scoreTypeUpper || (sc <= limit.lastScore-30 && current.size > 1)
 
 	if pv.getMove(0) != best.move || limit.drop {
 		limit.flag = false
@@ -369,7 +369,7 @@ func updateBest(best *bestStruct, sc, flags int, pv *pvStruct) {
 	best.depth = current.depth
 	best.move = pv.getMove(0)
 	best.score = sc
-	best.scoreType = flags
+	best.scoreType = scoreType
 	best.pv = *pv
 }
 
@@ -758,10 +758,8 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 	//util.ASSERT(bs < beta)
 
 	if depth >= 0 {
-		flags := scoreType(bs, oldAlpha, beta)
-
 		///// Search_Global här
-		SG.Trans.Store(key, depth, bd.Ply(), bm, bs, flags)
+		SG.Trans.Store(key, depth, bd.Ply(), bm, bs, scoreType(bs, oldAlpha, beta))
 	}
 }
 
@@ -819,25 +817,25 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 
 	if useTrans {
 
-		key = bd.Key()
+		key = bd.Key()   	// It's here both castlingKey and epKey is included
 
 		var transSc int
-		var flags int
+		var scoreType int
 
-		if SG.Trans.Retrieve(key, transDepth, bd.Ply(), &transMove, &transSc, &flags) && !pvNode { // assigns trans_move #
-			if flags == scoreTypeLower && transSc >= beta {
+		if SG.Trans.Retrieve(key, transDepth, bd.Ply(), &transMove, &transSc, &scoreType) && !pvNode { // assigns trans_move #
+			if scoreType == scoreTypeLower && transSc >= beta {
 				return transSc
 			}
-			if flags == scoreTypeUpper && transSc <= alpha {
+			if scoreType == scoreTypeUpper && transSc <= alpha {
 				return transSc
 			}
-			if flags == scoreTypeGood {
+			if scoreType == scoreTypeBetween {
 				return transSc
 			}
 		}
 	}
 
-	ev := evalWithSign(stm, sl)
+	ev := evalByColor(stm, sl)
 
 	// ply limit
 	if bd.Ply() >= maxPly {
@@ -961,7 +959,8 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		var sc int
 		var npv pvStruct
 
-		slMove(sl, mv)
+		slMove(sl, mv) // do the move
+
 		if (pvNode && searched.Size() != 0) || red != 0 {
 
 			sc = -search(sl, depth+ext-red-1, -alpha-1, -alpha, &npv)
@@ -1023,8 +1022,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 	//util.ASSERT(bs < beta)
 
 	if useTrans {
-		flags := scoreType(bs, oldAlpha, beta)
-		SG.Trans.Store(key, transDepth, bd.Ply(), bm, bs, flags)
+		SG.Trans.Store(key, transDepth, bd.Ply(), bm, bs, scoreType(bs, oldAlpha, beta))
 	}
 
 	return bs
@@ -1048,9 +1046,9 @@ func failHighTrue() {
 	limit.flag = false
 }
 
-// evalWithSign evaluates a position and gives a value from side to move viewpoint.
+// evalByColor evaluates a position and gives a value from side to move viewpoint.
 // it doesn't check captures so that has to be done before eval starts.
-func evalWithSign(stm int, sl *searchLocal) int {
+func evalByColor(stm int, sl *searchLocal) int {
 	eval := sl.evalHash.Eval(&sl.board, &sl.pawnHash)
 	if stm == board.BLACK {
 		return -eval
@@ -1071,7 +1069,7 @@ func qs(sl *searchLocal, beta, gain int) int { // for static NMP
 	// assert(!attack::is_in_check()); // triggers for root move ordering
 
 	// stand pat
-	bs := evalWithSign(bd.Stm(), sl)
+	bs := evalByColor(bd.Stm(), sl)
 	val := bs + gain
 
 	if bs >= beta {
@@ -1292,7 +1290,7 @@ func genAndSortLegals(sl *searchLocal, ml *gen.ScMvList) {
 
 	gen.LegalMoves(ml, bd)
 
-	v := evalWithSign(bd.Stm(), sl)
+	v := evalByColor(bd.Stm(), sl)
 	for pos := 0; pos < ml.Size(); pos++ {
 
 		mv := ml.Move(pos)

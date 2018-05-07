@@ -17,9 +17,9 @@ const (
 // score flags
 const (
 	//no scoretype = 0
-	scoreTypeLower = 0x1
-	scoreTypeUpper = 0x2
-	scoreTypeGood  = scoreTypeLower | scoreTypeUpper
+	scoreTypeLower   = 0x1                             // sc > alpha
+	scoreTypeUpper   = 0x2                             // sc < beta
+	scoreTypeBetween = scoreTypeLower | scoreTypeUpper // alpha < sc < beta
 )
 
 // scoreType sets if it is an upper or lower scpre
@@ -108,7 +108,7 @@ func (t *transTable) Clear() {
 // From the key we get an index to the table.
 // We will try 4 entries in a sequence until a lock is found
 // We always try to replace another generation and/or a lower searched depth
-func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, flags int) {
+func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, scoreType int) {
 	//fmt.Println(key, depth, ply, mv, sc, flags)
 	//util.ASSERT(depth >= 0 && depth < 100)
 	//util.ASSERT(mv != move.NULL_)
@@ -139,7 +139,7 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, flags int) {
 				}
 				entry.depth = int8(depth)
 				entry.score = int16(sc)
-				entry.scoreType = uint8(flags)
+				entry.scoreType = uint8(scoreType)
 				return
 			}
 
@@ -173,7 +173,7 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, flags int) {
 	be.move = uint32(mv)
 	be.depth = int8(depth)
 	be.score = int16(sc)
-	be.scoreType = uint8(flags)
+	be.scoreType = uint8(scoreType)
 }
 
 // SetSize sets the size that will be used next time we Allocate a new Hash Table
