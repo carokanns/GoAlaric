@@ -690,11 +690,10 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
 
-		dangerous := inCheck || move.IsTactical(mv) || eval.IsCheck(mv, bd) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd)
-
 		ext := extension(sl, mv, depth, pvNode)
 		red := 0
 		if ext == 0 {
+			dangerous := inCheck || move.IsTactical(mv) || eval.IsCheck(mv, bd) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd)
 			red = reduction(sl, mv, depth /* pv_node,*/, inCheck, searchedSize, dangerous) // LMR
 		}
 
@@ -706,14 +705,14 @@ func searchRoot(sl *searchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 		slMove(sl, mv)
 		//write_info()
 		if !bStop {
-			if (pvNode && searchedSize != 0) || red != 0 {
-				sc = -search(sl, depth+ext-red-1, -alpha-1, -alpha, &npv)
+			if (searchedSize == 0) && red != 0 {
+				sc = -search(sl, depth-1+ext, -beta, -alpha, &npv)
+			} else {
+				sc = -search(sl, depth-1+ext-red, -alpha-1, -alpha, &npv)
 				if sc > alpha { // PVS/LMR re-search
 					failHighTrue()
-					sc = -search(sl, depth+ext-1, -beta, -alpha, &npv)
+					sc = -search(sl, depth-1+ext, -beta, -alpha, &npv)
 				}
-			} else {
-				sc = -search(sl, depth+ext-1, -beta, -alpha, &npv)
 			}
 		}
 		undo(sl)
@@ -792,14 +791,11 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		}
 	}
 
-	// transposition table
-	transMove := move.None
-
 	if bd.IsDraw() {
 		return 0
 	}
 
-	stm := bd.Stm() // NOTE!! before and after move
+	stm := bd.Stm() // NOTE!! be aware of before and after move
 	var attacks eval.Attacks
 	eval.InitAttacks(&attacks, stm, bd)
 	inCheck := attacks.Size != 0
@@ -813,11 +809,11 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 	}
 
 	key := hash.Key(0)
-	transMove = move.None
+	transMove := move.None
 
 	if useTrans {
 
-		key = bd.Key()   	// It's here both castlingKey and epKey is included
+		key = bd.Key() // It's here both castlingKey and epKey is included
 
 		var transSc int
 		var scoreType int
@@ -950,10 +946,10 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		}
 
 		ext := extension(sl, mv, depth, pvNode)
-		red := reduction(sl, mv, depth /*pv_node,*/, inCheck, searched.Size(), dangerous) // LMR
 
-		if ext != 0 {
-			red = 0
+		red := 0
+		if ext == 0 {
+			red = reduction(sl, mv, depth /*pv_node,*/, inCheck, searched.Size(), dangerous) // LMR
 		}
 
 		var sc int
@@ -962,7 +958,6 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 		slMove(sl, mv) // do the move
 
 		if (pvNode && searched.Size() != 0) || red != 0 {
-
 			sc = -search(sl, depth+ext-red-1, -alpha-1, -alpha, &npv)
 			if !bStop {
 				if sc > alpha { // PVS/LMR re-search
@@ -973,7 +968,7 @@ func search(sl *searchLocal, depth, alpha, beta int, pv *pvStruct) int {
 			sc = -search(sl, depth+ext-1, -beta, -alpha, &npv)
 		}
 
-		undo(sl)
+		undo(sl) // undo the move
 		if bStop {
 			return alpha
 		}

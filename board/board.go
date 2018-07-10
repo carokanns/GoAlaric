@@ -53,7 +53,7 @@ type Undo struct {
 type Board struct {
 	piece [material.Size]bit.BB // bb per piece
 	side  [2]bit.BB             // bb per side
-	all   bit.BB                // bb alla pieces
+	all   bit.BB                // bb all pieces
 
 	king  [2]int                 // kungpos per side
 	count [material.SideSize]int // counter per piece - varannan vit/svart

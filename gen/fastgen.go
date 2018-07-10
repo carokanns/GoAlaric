@@ -101,7 +101,7 @@ func (l *List) gen() bool {
 	case genEvasion:
 
 		AddEvasions(&l.todoList, l.board.Stm(), l.board, l.attacks)
-		evasions(&l.todoList, l.transMove)   // sort them
+		evasions(&l.todoList, l.transMove) // sort them
 
 	case genTrans:
 
@@ -657,17 +657,17 @@ func (list *ScMvList) Score(pos int) int {
 func (list *ScMvList) MoveToFront(pos int) {
 	list.moveTo(pos, 0)
 }
-func (list *ScMvList) moveTo(frPair, toPair int) {
+func (list *ScMvList) moveTo(frPos, toPos int) {
 
 	// assert(pt <= pf && pf < p_size)
 
-	pair := list.scMv[frPair]
+	scMv := list.scMv[frPos]
 
-	for i := frPair; i > toPair; i-- {
+	for i := frPos; i > toPos; i-- {
 		list.scMv[i] = list.scMv[i-1]
 	}
 
-	list.scMv[toPair] = pair
+	list.scMv[toPos] = scMv
 }
 
 // SetScore sets the score paired with a move in the Score/Move list

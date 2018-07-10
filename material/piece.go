@@ -13,7 +13,7 @@ const (
 const stageSize int = 2 // NOTE: declared elsewhere to
 
 var score = [Size][stageSize]int{{85, 95}, {325, 325}, {325, 325}, {460, 540}, {975, 975}, {0, 0}, {0, 0}}
-var powerVal = [Size]int{0, 1, 1, 2, 4, 0, 0}
+var powerVal = [Size]int{0, 1, 1, 2, 4, 0, 0}  // in capture situation
 
 // Piece types (no color)
 const (

@@ -14,7 +14,7 @@ const (
 )
 
 //
-// score flags
+// score types
 const (
 	//no scoretype = 0
 	scoreTypeLower   = 0x1                             // sc > alpha
@@ -22,7 +22,7 @@ const (
 	scoreTypeBetween = scoreTypeLower | scoreTypeUpper // alpha < sc < beta
 )
 
-// scoreType sets if it is an upper or lower scpre
+// scoreType sets if it is an upper or lower score
 func scoreType(sc, alpha, beta int) int {
 
 	scoreType := 0

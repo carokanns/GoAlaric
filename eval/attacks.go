@@ -460,18 +460,17 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 	opp := board.Opposit(sd)
 	def := sd
 
-	kSq := bd.King(def)
+	kingSq := bd.King(def)
 
 	attacks.Size = 0
 	attacks.Avoid = 0
 	attacks.Pinned = 0
 
 	// non-sliders
-
 	{
 		b := bit.BB(0)
-		b |= bd.PieceSd(material.Pawn, opp) & PawnAttacks[def][kSq] // HACK
-		b |= bd.PieceSd(material.Knight, opp) & pieceAttacks[material.Knight][kSq]
+		b |= bd.PieceSd(material.Pawn, opp) & PawnAttacks[def][kingSq] // HACK
+		b |= bd.PieceSd(material.Knight, opp) & pieceAttacks[material.Knight][kingSq]
 
 		if b != 0 {
 			// assert(bit::single(b));
@@ -483,17 +482,17 @@ func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
 	// sliders
 
-	for b := sliderPseudoAttacksTo(opp, kSq, bd); b != 0; b = bit.Rest(b) {
+	for b := sliderPseudoAttacksTo(opp, kingSq, bd); b != 0; b = bit.Rest(b) {
 
 		fr := bit.First(b)
 
-		bb := bd.All() & Between[fr][kSq]
+		bb := bd.All() & Between[fr][kingSq]
 
 		if bb == 0 {
 			// assert(attacks.Size < 2);
 			attacks.Square[attacks.Size] = fr
 			attacks.Size++
-			attacks.Avoid |= Ray(fr, kSq)
+			attacks.Avoid |= Ray(fr, kingSq)
 		} else if bit.Single(bb) {
 			attacks.Pinned |= bb
 		}

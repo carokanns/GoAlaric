@@ -338,7 +338,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 					eval += evalOutpost(sq, sd, bd, pEntry) * 5
 				}
 
-				if (pc == material.Knight || pc == material.Bishop) && rk >= square.Rank5 && !bit.IsOne(ai.allAtks[sd], sq) { // loose minor
+				if (pc == material.Knight || pc == material.Bishop) && rk >= square.Rank5 && !bit.IsOne(ai.allAtks[sd], sq) { // not guarded minor
 					mg -= 10
 				}
 
@@ -378,7 +378,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 					}
 				}
 
-				if pc == material.King { // king out
+				if pc == material.King { // king distance from A and H
 
 					dl := (pEntry.leftFile - 1) - int8(fl)
 					if dl > 0 {
@@ -395,7 +395,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 		//fmt.Println("col:", sd, "Pi eval:", eval, "mg:", mg, "eg:", eg)
 		// ---- end pieces ---
 
-		if bd.Count(material.Bishop, sd) >= 2 {
+		if bd.Count(material.Bishop, sd) >= 2 {   // double bishop bonus
 			mg += 30
 			eg += 50
 		}
