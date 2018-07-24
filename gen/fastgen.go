@@ -453,8 +453,6 @@ func isLegal(mv int, bd *board.Board, attacks *eval.Attacks) bool {
 // IsWin returns true if a move is maybe winning
 func IsWin(mv int, bd *board.Board) bool {
 
-	// assert(is_tactical(mv));
-
 	pc := move.Piece(mv)
 	cp := move.Capt(mv)
 	pp := move.Prom(mv)
