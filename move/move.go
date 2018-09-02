@@ -132,11 +132,8 @@ func IsPromotion(mv int) bool {
 	return Prom(mv) != material.None
 }
 
-// SeeMax returns the maximum value that can be earned from a capture
-func SeeMax(mv int) int {
-
-	//util.ASSERT(Is_tactical(mv))
-
+// CaptMax returns the maximum value that can be earned from a capture
+func CaptMax(mv int) int {
 	sc := material.Value[Capt(mv)]
 
 	pp := Prom(mv)

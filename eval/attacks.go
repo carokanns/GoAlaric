@@ -72,8 +72,6 @@ func deltaInc(fr, to int) int {
 }
 func pawnMovesFrom(sd int, bd *board.Board) bit.BB { // for pawn mobility
 
-	//util.ASSERT(sd < 2)
-
 	bbFr := bd.PieceSd(material.Pawn, sd)
 
 	if sd == WHITE {
@@ -206,7 +204,6 @@ func PseudoAttacksTo(pc, sd, to int) bit.BB {
 }
 
 func pawnAttacksTo(sd, to int) bit.BB {
-	//util.ASSERT(sd < 2)
 	return pawnAttacksFrom(board.Opposit(sd), to)
 }
 

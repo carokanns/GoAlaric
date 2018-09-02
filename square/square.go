@@ -1,7 +1,6 @@
 package square
 
 import (
-	"GoAlaric/util"
 	"math"
 	"strconv"
 )
@@ -142,10 +141,6 @@ func Make(fl, rk int) int {
 
 // MakeSd builds internal square from file, rank, and color
 func MakeSd(fl, rk, col int) int {
-
-	//util.ASSERT(fl < 8)
-	//util.ASSERT(rk < 8)
-
 	return Make(fl, (rk^-col)&7)
 }
 
@@ -212,7 +207,6 @@ func Stop(sq, sd int) int {
 
 // FromString converts a string square to internal format
 func FromString(s string) int {
-	util.ASSERT(len(s) == 2)
 	return Make(int(s[0]-'a'), int(s[1]-'1'))
 }
 
@@ -248,41 +242,3 @@ func ToString(sq int) string {
 
 	return s
 }
-
-/*
-
-
-   int opposit_file(int sq) {
-      return sq ^ 070;
-   }
-
-   int opposit_rank(int sq) {
-      return sq ^ 007;
-   }
-
-   bool is_promotion(int sq) {
-      int rk = rank(sq);
-      return rk == rank1 || rk == rank8;
-   }
-
-   int colour(int sq) {
-      return ((sq >> 3) ^ sq) & 1;
-   }
-
-
-   bool same_line(int s0, int s1) {
-      return File(s0) == File(s1) || rank(s0) == rank(s1);
-   }
-
-
-
-
-
-   int From_string(const std::string & s) {
-      //util.ASSERT(s.length() == 2);
-      return make(s[0] - 'a', s[1] - '1');
-   }
-
-
-}
-*/

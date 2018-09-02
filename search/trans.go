@@ -3,7 +3,6 @@ package search
 import (
 	"GoAlaric/hash"
 	"GoAlaric/move"
-	"GoAlaric/util"
 	"fmt"
 )
 
@@ -190,7 +189,6 @@ func (t *transTable) SetSize(size int) {
 
 // Alloc makes a Hash table with the size that is set by SetSize
 func (t *transTable) Alloc() {
-	util.ASSERT(t.entries == nil)
 	t.entries = make([]entry, t.size)
 	t.Clear()
 }

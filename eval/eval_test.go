@@ -1,7 +1,7 @@
-// eval_test.go
 package eval
 
 import (
+	"GoAlaric/square"
 	"GoAlaric/board"
 	"GoAlaric/material"
 	"fmt"
@@ -136,5 +136,33 @@ func TestCompAttacks(t *testing.T) {
 			}
 			text = "Black"
 		}
+	}
+}
+
+func Test_calcDist(t *testing.T) {
+	type args struct {
+		f      int
+		t      int
+		weight int
+	}
+	tests := []struct {
+		name string
+		args args
+		want int
+	}{
+		{"a",args{square.D2,square.E3,10}, 8},
+		{"b",args{square.F2,square.E3,20}, 17},
+		{"c",args{square.E2,square.F2,10}, 8},
+		{"d",args{square.G2,square.F2,20}, 17},
+		{"e",args{square.E2,square.F5,10}, 35},
+		{"f",args{square.G2,square.F5,20}, 70},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := calcDist(tt.args.f, tt.args.t, tt.args.weight); got != tt.want {
+				fmt.Println(distWeight)
+				t.Errorf("calcDist() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

@@ -1,9 +1,12 @@
 package material
 
 import (
-	"GoAlaric/util"
+	"GoAlaric/parms"
 	"strings"
 )
+
+// Parms is an array with evaluation values
+var Parms = &parms.Parms
 
 // number of pieces + 1 (with color and without color)
 const (
@@ -12,8 +15,9 @@ const (
 )
 const stageSize int = 2 // NOTE: declared elsewhere to
 
-var score = [Size][stageSize]int{{85, 95}, {325, 325}, {325, 325}, {460, 540}, {975, 975}, {0, 0}, {0, 0}}
-var powerVal = [Size]int{0, 1, 1, 2, 4, 0, 0}  // in capture situation
+//var score = [Size][stageSize]int{{85, 95}, {325, 325}, {325, 325}, {460, 540}, {975, 975}, {0, 0}, {0, 0}}
+var score = [Size][stageSize]int{{Parms[21], Parms[22]}, {Parms[23], Parms[24]}, {Parms[25], Parms[26]}, {Parms[27], Parms[28]}, {Parms[29], Parms[30]}, {0, 0}, {0, 0}}
+var powerVal = [Size]int{0, Parms[47], Parms[48], Parms[49], Parms[50], 0, 0} // in capture situation  //1, 1, 2, 4,
 
 // Piece types (no color)
 const (
@@ -69,6 +73,12 @@ const (
 	fenChar = "PpNnBbRrQqKk"
 )
 
+// Update is for tuning. See tune.go 
+func Update(){
+ score = [Size][stageSize]int{{Parms[21], Parms[22]}, {Parms[23], Parms[24]}, {Parms[25], Parms[26]}, {Parms[27], Parms[28]}, {Parms[29], Parms[30]}, {0, 0}, {0, 0}}
+ powerVal = [Size]int{0, Parms[47], Parms[48], Parms[49], Parms[50], 0, 0} // in capture situation  //1, 1, 2, 4,
+}
+
 // Power returns the power of a piece in capture situations
 func Power(pc int) int {
 	//util.ASSERT(pc < piece.SIZE)
@@ -95,7 +105,6 @@ func ToString(pc int) string {
 
 // ToFen converts a p12 to a string
 func ToFen(p12 int) string {
-	util.ASSERT(p12 < SideSize)
 	return fenChar[p12 : p12+1]
 }
 

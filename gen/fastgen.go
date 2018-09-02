@@ -9,7 +9,6 @@ import (
 	"GoAlaric/material"
 	"GoAlaric/move"
 	"GoAlaric/square"
-	"GoAlaric/util"
 	"fmt"
 	"math"
 )
@@ -201,7 +200,7 @@ func (l *List) post(mv int) bool {
 			return false
 		}
 
-		if !IsSafe(mv, l.board) {
+		if !NoSacrifice(mv, l.board) {
 			l.badList.Add(mv)
 			return false
 		}
@@ -230,7 +229,7 @@ func (l *List) post(mv int) bool {
 
 		l.doneList.Add(mv)
 
-		if !IsSafe(mv, l.board) {
+		if !NoSacrifice(mv, l.board) {
 			l.badList.Add(mv)
 			return false
 		}
@@ -240,7 +239,7 @@ func (l *List) post(mv int) bool {
 		//util.ASSERT(Is_legal(mv, l.p_board, l.p_attacks))
 
 	default:
-		util.ASSERT(false)
+		panic("don't go here List.post")
 	}
 
 	return true
@@ -404,8 +403,8 @@ func (se *SEE) See(mv int, alpha int, beta int, bd *board.Board) (val, cnt int) 
 	return capVal - v, ct + 1 //cnt+1 for the move above
 }
 
-// IsSafe ...
-func IsSafe(mv int, bd *board.Board) bool {
+// NoSacrifice is true if the move doesn't directly sacrifice itself
+func NoSacrifice(mv int, bd *board.Board) bool {
 
 	pc := move.Piece(mv)
 	cp := move.Capt(mv)

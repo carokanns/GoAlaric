@@ -5,16 +5,16 @@ import (
 	"math"
 )
 
-const pawnPhase int = 0
-const knightPhase int = 1
-const bishopPhase int = 1
-const rookPhase int = 2
-const queenPhase int = 4
+const pawnPhase  = 0
+const knightPhase = 1
+const bishopPhase  = 1
+const rookPhase  = 2
+const queenPhase  = 4
 
 // TotalPhase is the phase weight for all pieces all together
 const TotalPhase int = pawnPhase*16 + knightPhase*4 + bishopPhase*4 + rookPhase*4 + queenPhase*2
 
-// PhaseWeight ir the weight of a phase in evaluation
+// PhaseWeight is the weight of a phase in evaluation
 var PhaseWeight [TotalPhase + 1]int
 
 var phaseVal = [...]int{pawnPhase, knightPhase, bishopPhase, rookPhase, queenPhase, 0, 0}

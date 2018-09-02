@@ -15,7 +15,7 @@ import (
 )
 
 var bd board.Board
-var sl searchLocal
+var sl SearchLocal
 
 func Test_Next(t *testing.T) {
 	board.SetFen("8/6kp/5p2/3n2pq/3N1n1R/1P3P2/P6P/4QK2 w - - 2 2", &bd)
@@ -131,15 +131,15 @@ func Test_QS(t *testing.T) {
 	}
 	var bd board.Board
 	sl.ID = 0
-	sl.board = bd
+	sl.Board = bd
 	for ix, ss := range seeTest {
-		board.SetFen(ss.fen, &sl.board)
+		board.SetFen(ss.fen, &sl.Board)
 		//alpha := 0
 		//beta := score.EVAL_MAX
 		//mv := move.Make(fr, to, pc, cp, pr)
 		rightVal := ss.val
 
-		val := qs(&sl, maxScore, 0)
+		val := Qs(&sl, maxScore, 0)
 
 		if val != rightVal {
 			t.Errorf("Case %v: gav %v istf %v - %v", ix+1, val, rightVal, ss.comment)

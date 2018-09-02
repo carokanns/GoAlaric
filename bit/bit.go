@@ -3,7 +3,6 @@ package bit
 import (
 	"GoAlaric/square"
 	"fmt"
-	//	"GoAlaric/util"
 )
 
 ///////////////////////////
@@ -44,14 +43,12 @@ func Set(bb *BB, n int) {
 
 // Bit returns a bitboard with bit n set to 1
 func Bit(n int) BB {
-	// // util.ASSERT(n < 64);
 	return BB(1) << uint(n)
 }
 
 // Single is true if there is only one and only one bit set to 1
 // Do not use for bitboards == 0
 func Single(b BB) bool {
-	// util.ASSERT(b != 0);
 	return Rest(b) == 0
 }
 
@@ -89,32 +86,27 @@ func CountLoop(b BB) int {
 
 // File returns a bitboard with all sq on file fl set to 1
 func File(fl int) BB {
-	// // util.ASSERT(fl < 8);
 	return BB(uint64(0xFF) << uint(fl*8))
 }
 
 // AdjFiles returns a bitboard the given file and its close neigbors set to 1
 func AdjFiles(fl int) BB {
-	//	// util.ASSERT(fl < 8)
 	file := File(fl)
 	return (file << 8) | file | (file >> 8)
 }
 
 // Rank returns a bitboard with all bits on row rk is set to 1
 func Rank(rk int) BB {
-	// // util.ASSERT(rk < 8);
 	return BB(uint64(0x0101010101010101) << uint(rk))
 }
 
 // Front returns a bitboard with all rows in front of the given row, set to 1
 func Front(row int) BB {
-	//util.ASSERT(rk < 8)
 	return frontBB[row]
 }
 
 // Rear returns a bitboard with all rows behind the given row, set to 1
 func Rear(row int) BB {
-	//util.ASSERT(row < 8)
 	return rearBB[row]
 }
 
@@ -134,15 +126,11 @@ func RearSd(sq, sd int) BB { //name conflict rear
 
 // Rest returns a new bitboard with the first bitpos set to 1 removed
 func Rest(b BB) BB {
-	//util.ASSERT(b != 0)
 	return b & (b - 1)
 }
 
 // First returns the first bitpos set to 1 in a bitboard
 func First(b BB) int {
-
-	//util.ASSERT(b != 0)
-
 	return index[(uint64(b&-b)*uint64(0x218A392CD3D5DBF))>>(64-6)]
 
 	//return __builtin_ctzll(b); // in GCC but I can't find it in my env
@@ -186,11 +174,6 @@ func IsOne(b BB, n int) bool {
 }
 
 /*
-   int first(bit_t b) {
-
-      // util.ASSERT(b != 0);
-*/
-/*
    static const int index[64] = {
        0,  1,  2,  7,  3, 13,  8, 19,
        4, 25, 14, 28,  9, 34, 20, 40,
@@ -203,39 +186,4 @@ func IsOne(b BB, n int) bool {
    };
 
    return index[((b & -b) * U64(0x218A392CD3D5DBF)) >> (64 - 6)];
-*/
-/*
-      return __builtin_ctzll(b); // GCC
-   }
-
-   bit_t rest(bit_t b) {
-      // util.ASSERT(b != 0);
-      return b & (b - 1);
-   }
-
-
-
-
-
-
-   bit_t files(int fl) {
-      // util.ASSERT(fl < 8);
-      bit_t file = bit.file(fl);
-      return (file << 8) | file | (file >> 8);
-   }
-
-   bit_t left(int fl) {
-      // util.ASSERT(fl < 8);
-      return p_left[fl];
-   }
-
-   bit_t right(int fl) {
-      // util.ASSERT(fl < 8);
-      return p_right[fl];
-   }
-
-
-
-
-}
 */

@@ -1,6 +1,13 @@
 {
   "files.exclude": {
     "__error": "Not found",
-    "**/*.exe": true
+    "**/*.exe": true,
+    "godep.x": true,
+    "**.bat": true,
+    "**.fen": true,
+    "**.png": true,
+    "**.xlsx": true,
+    "**.cmd": true,
+    "**/*.db": true
   }
 }

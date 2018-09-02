@@ -31,9 +31,6 @@ var pair [square.BoardSize]bit.BB
 //             returns 2 if a pawn is on file=fl on rank 2
 //             return 0 in alla other cases
 func ShelterFile(fl, sd int, bd *board.Board) int {
-
-	//util.ASSERT(fl >= 0 && fl < 8)
-
 	if bd.SquareIs(square.MakeSd(fl, square.Rank2, sd), material.Pawn, sd) {
 		return 2
 	}
@@ -56,7 +53,6 @@ func shelterFiles(fl, sd int, bd *board.Board) int {
 	}
 
 	sc := ShelterFile(fl, sd, bd)*2 + ShelterFile(left, sd, bd) + ShelterFile(right, sd, bd)
-	//util.ASSERT(sc >= 0 && sc <= 8)
 
 	return sc
 }
@@ -309,7 +305,6 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 	}
 
 	weak &= ^strong // defended doubled pawns are not weak
-	//util.ASSERT((weak & strong) == 0)
 
 	entry.target[WHITE] |= bd.PieceSd(material.Pawn, BLACK) & weak
 	entry.target[BLACK] |= bd.PieceSd(material.Pawn, WHITE) & weak
@@ -321,8 +316,6 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 		entry.leftFile = int8(square.FileA)
 		entry.rightFile = int8(square.FileH)
 	}
-
-	//util.ASSERT(info.left_file <= info.right_file)
 
 	// file "openness"
 
@@ -424,9 +417,6 @@ func isWeak(sq, sd int, bd *board.Board) bool {
 		s1 := s0 - inc
 		s2 := s1 - inc
 		s3 := s2 - inc
-
-		//util.ASSERT(sq >= square.A2 && sq < 64)
-		//util.ASSERT(sd == 0 || sd == 1)
 
 		if rk == square.Rank5 && bd.SquareIs(s3, material.Pawn, sd) && isSafe(s2, sd, bd) && isSafe(s1, sd, bd) {
 			return false
