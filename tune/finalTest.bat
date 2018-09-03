@@ -1,0 +1,2 @@
+rem match between old and "new parms" goalaric
+C:\Users\JP\Documents\Schack\cutechess>cutechess-cli -engine conf=GoAlaricNew -engine conf=GoAlaric -each tc=60/10:0+5 timemargin=200 book="C:\Users\JP\Documents\My Chess Database\My Openings\myfullbook.bin" bookdepth=10 -concurrency 2 -draw movenumber=40 movecount=5 score=25 -resign movecount=3 score=300 -event newParms -games 10 -rounds 2 -openings file=openings.pgn -pgnout parmtest.pgnmatych
