@@ -210,11 +210,10 @@ func pawnAttacksTo(sd, to int) bit.BB {
 // PawnAttacksFrom returns a bitboard with all pawn attacks from side=sd
 func PawnAttacksFrom(sd int, bd *board.Board) bit.BB {
 
-	// assert(sd < 2);
-
 	fs := bd.PieceSd(material.Pawn, sd)
 
 	if sd == WHITE {
+		//Yes! this works because the bitboards are turned to the side
 		return (fs >> 7) | (fs << 9)
 	}
 	return (fs >> 9) | (fs << 7)

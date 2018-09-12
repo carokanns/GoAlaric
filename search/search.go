@@ -150,7 +150,7 @@ type currStruct struct {
 type bestStruct struct {
 	depth     int
 	move      int
-	score     int
+	Score     int
 	scoreType int
 	pv        pvStruct
 }
@@ -209,7 +209,9 @@ func (pv *pvStruct) getMove(pos int) int { // se även s_move(
 
 var limit limitStr
 var current currStruct
-var best bestStruct
+
+// Best is the best move after each search
+var Best bestStruct
 
 var pv pvStruct
 
@@ -246,7 +248,7 @@ type splitPoint struct { ////////: public util::Lockable
 
 	//private:
 
-	master *SearchLocal
+	master *Local
 	parent *splitPoint
 
 	board    board.Board
@@ -267,7 +269,7 @@ type splitPoint struct { ////////: public util::Lockable
 	pv        pvStruct
 }
 
-func (sp *splitPoint) initRoot(master *SearchLocal) {
+func (sp *splitPoint) initRoot(master *Local) {
 
 	sp.master = master
 	sp.parent = nil
@@ -289,8 +291,8 @@ func (sp *splitPoint) updateRoot() {
 
 var rootSP splitPoint
 
-// SearchLocal is the data used for each thread
-type SearchLocal struct {
+// Local is the data used for each thread
+type Local struct {
 	ID int
 	//std::thread thread;
 
@@ -312,14 +314,14 @@ type SearchLocal struct {
 }
 
 // ClearHash is used by tune.go
-func (sl *SearchLocal) ClearHash() {
+func (sl *Local) ClearHash() {
 	sl.pawnHash.Clear()
 	sl.evalHash.Clear()
 }
 
-var slEntries [maxThreads]SearchLocal
+var slEntries [maxThreads]Local
 
-func (sl *SearchLocal) init() {
+func (sl *Local) init() {
 	for i := 0; i < 64; i++ {
 		(sl.sspStack)[i] = new(splitPoint)
 	}
@@ -352,11 +354,11 @@ func clear() {
 
 	current.lastTime = 0
 
-	best.depth = 0
-	best.move = move.None
-	best.score = noScore
-	best.scoreType = 0
-	best.pv.clear()
+	Best.depth = 0
+	Best.move = move.None
+	Best.Score = noScore
+	Best.scoreType = 0
+	Best.pv.clear()
 }
 
 func updateBest(best *bestStruct, sc, scoreType int, pv *pvStruct) {
@@ -372,16 +374,16 @@ func updateBest(best *bestStruct, sc, scoreType int, pv *pvStruct) {
 
 	best.depth = current.depth
 	best.move = pv.getMove(0)
-	best.score = sc
+	best.Score = sc
 	best.scoreType = scoreType
 	best.pv = *pv
 }
 
-func slSetRoot(sl *SearchLocal, bd *board.Board) {
+func slSetRoot(sl *Local, bd *board.Board) {
 	sl.Board = *bd
 	sl.Board.SetRoot()
 }
-func undo(sl *SearchLocal) {
+func undo(sl *Local) {
 	bd := &sl.Board
 	bd.Undo()
 }
@@ -502,11 +504,11 @@ func StartSearch(searchType chan int, bestmove chan string, bd *board.Board) {
 			continue
 		}
 
-		writePV(&best)
-		bestmv := "bestmove " + move.ToString(best.move)
+		writePV(&Best)
+		bestmv := "bestmove " + move.ToString(Best.move)
 		var ponder string
-		if best.pv.getSize() > 1 && best.pv.getMove(1) != 0 {
-			ponder = " ponder " + move.ToString(best.pv.getMove(1))
+		if Best.pv.getSize() > 1 && Best.pv.getMove(1) != 0 {
+			ponder = " ponder " + move.ToString(Best.pv.getMove(1))
 		} else {
 			ponder = ""
 		}
@@ -570,8 +572,8 @@ func searchID(bd *board.Board) {
 	var ml gen.ScMvList
 	genAndSortLegals(sl, &ml) // generate legal and sort
 	//util.ASSERT(ml.Size() != 0)
-	best.move = ml.Move(0)
-	best.score = 0
+	Best.move = ml.Move(0)
+	Best.Score = 0
 
 	easy := (ml.Size() == 1 || (ml.Size() > 1 && ml.Score(0)-ml.Score(1) >= 50/4)) // HACK: uses gen_sort() internals
 	easyMove := ml.Move(0)
@@ -586,9 +588,9 @@ func searchID(bd *board.Board) {
 			return
 		}
 		//p_time.drop = (best.score <= p_time.last_score-50) // moved to update_best()
-		limit.lastScore = best.score
+		limit.lastScore = Best.Score
 
-		if best.move != easyMove || limit.drop {
+		if Best.move != easyMove || limit.drop {
 			easy = false
 		}
 
@@ -649,9 +651,9 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 				return
 			}
 
-			if best.score > a && best.score < b {
+			if Best.Score > a && Best.Score < b {
 				return
-			} else if IsMateScore(best.score) {
+			} else if IsMateScore(Best.Score) {
 				break
 			}
 		}
@@ -663,7 +665,7 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 // search_root is the search from the current position.
 // Here we can generate all the moves and sort them.
 // Something that is not done deeper in the tree
-func searchRoot(sl *SearchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
+func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 	//	fmt.Println("search_root d=", depth)
 	//	defer fmt.Println("exit search_root")
 	//util.ASSERT(depth > 0 && depth < MAX_DEPTH)
@@ -727,10 +729,10 @@ func searchRoot(sl *SearchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 			var pv pvStruct
 
 			pv.catenate(mv, &npv)
-			updateBest(&best, sc, scoreType(sc, alpha, beta), &pv)
+			updateBest(&Best, sc, scoreType(sc, alpha, beta), &pv)
 
 			updateCurrent()
-			writePV(&best)
+			writePV(&Best)
 
 			if sc > alpha {
 
@@ -766,7 +768,7 @@ func searchRoot(sl *SearchLocal, ml *gen.ScMvList, depth, alpha, beta int) {
 // When it reaches its max search depth (set by search_go) it starts the
 // qs (quiscense search) to make sure captures, checks and promotions are
 // tried out before evaluation is made
-func search(sl *SearchLocal, depth, alpha, beta int, pv *pvStruct) int {
+func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	//	fmt.Println("search", depth, sl.board.Ply())
 	//	defer fmt.Println("exit search", depth, sl.board.Ply())
 	pv.clear()
@@ -1034,7 +1036,7 @@ func failHighTrue() {
 
 // evalByColor evaluates a position and gives a value from side to move viewpoint.
 // it doesn't check captures so that has to be done before eval starts.
-func evalByColor(stm int, sl *SearchLocal) int {
+func evalByColor(stm int, sl *Local) int {
 	eval := sl.evalHash.Eval(&sl.Board, &sl.pawnHash)
 	if stm == board.BLACK {
 		return -eval
@@ -1045,7 +1047,7 @@ func evalByColor(stm int, sl *SearchLocal) int {
 // Qs is the function called by the search when it is time to evaluate the position.
 // This function makes sure that possible captures, promotions and checks are tried out first
 // before the evaluation is done.
-func Qs(sl *SearchLocal, beta, gain int) int { // for static NMP
+func Qs(sl *Local, beta, gain int) int { // for static NMP
 	//fmt.Println("i Qs",parms.Parms[23],parms.Parms[24])
 	//var se gen.SEE
 	se := &(genQS[sl.ID][0]) // noll tills vi har en (=1) rekursion av qs
@@ -1106,7 +1108,7 @@ func Qs(sl *SearchLocal, beta, gain int) int { // for static NMP
 	return bs
 }
 
-func extension(sl *SearchLocal, mv int, depth int, pvNode bool) int {
+func extension(sl *Local, mv int, depth int, pvNode bool) int {
 
 	bd := &sl.Board
 
@@ -1124,7 +1126,7 @@ func extension(sl *SearchLocal, mv int, depth int, pvNode bool) int {
 
 }
 
-func reduction(sl *SearchLocal, mv int, depth int /* pvNode bool,*/, inCheck bool, searchedSize int, interesting bool) int {
+func reduction(sl *Local, mv int, depth int /* pvNode bool,*/, inCheck bool, searchedSize int, interesting bool) int {
 	//int reduction(Search_Local & /* sl , int /* mv , int depth, bool /* pv_node , bool /* in_check , int searched_size, bool dangerous) {
 
 	red := 0
@@ -1184,7 +1186,7 @@ func searchEnd() {
 // incNode increments the node counter and checks if it's time to update
 // current data for later info to GUI. It also checks if the time is up to stop.
 // The cnt variable gives an interval 0-cnt within which the NODE_PERIOD test is true
-func incNode(sl *SearchLocal, cnt int) {
+func incNode(sl *Local, cnt int) {
 
 	sl.node++
 
@@ -1259,7 +1261,7 @@ func poll() bool {
 }
 
 // move(...) konfliktar så jag döper om till s_move
-func slMove(sl *SearchLocal, mv int) {
+func slMove(sl *Local, mv int) {
 
 	bd := &sl.Board
 
@@ -1274,7 +1276,7 @@ func slMove(sl *SearchLocal, mv int) {
 	}
 }
 
-func genAndSortLegals(sl *SearchLocal, ml *gen.ScMvList) {
+func genAndSortLegals(sl *Local, ml *gen.ScMvList) {
 
 	var bd = &sl.Board
 
@@ -1343,10 +1345,10 @@ func writePV(best *bestStruct) {
 
 	line := fmt.Sprintf("info depth %v seldepth %v ", best.depth, current.maxPly)
 	line += fmt.Sprintf("nodes %v time %v ", current.node, current.time)
-	if IsMateScore(best.score) {
-		line += fmt.Sprintf(" score mate %v ", mateWithSign(best.score))
+	if IsMateScore(best.Score) {
+		line += fmt.Sprintf(" score mate %v ", mateWithSign(best.Score))
 	} else {
-		line += fmt.Sprintf(" score cp %v ", best.score)
+		line += fmt.Sprintf(" score cp %v ", best.Score)
 	}
 
 	if best.scoreType == scoreTypeLower {
@@ -1380,17 +1382,17 @@ func writePV(best *bestStruct) {
 	tellGUI(line)
 }
 
-func slPush(sl *SearchLocal, sp *splitPoint) {
+func slPush(sl *Local, sp *splitPoint) {
 	//assert(sl.ssp_stack_size < 16);
 	sl.sspStack[sl.sspStackSize] = sp
 	sl.sspStackSize++
 }
-func slPop(sl *SearchLocal) {
+func slPop(sl *Local) {
 	// assert(sl.ssp_stack_size > 0);
 	sl.sspStackSize--
 }
 
-func slInitEarly(sl *SearchLocal, id int) {
+func slInitEarly(sl *Local, id int) {
 
 	sl.ID = id
 
@@ -1405,7 +1407,7 @@ func slInitEarly(sl *SearchLocal, id int) {
 	sl.init()
 }
 
-func slInitLate(sl *SearchLocal) {
+func slInitLate(sl *Local) {
 	sl.killer.Clear()
 	sl.pawnHash.Clear() // pawn-eval cache
 	sl.evalHash.Clear() // eval cache

@@ -15,7 +15,7 @@ import (
 )
 
 var bd board.Board
-var sl SearchLocal
+var sl Local
 
 func Test_Next(t *testing.T) {
 	board.SetFen("8/6kp/5p2/3n2pq/3N1n1R/1P3P2/P6P/4QK2 w - - 2 2", &bd)
