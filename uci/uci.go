@@ -76,6 +76,18 @@ func HandleInput(line string, chSearch *chan int) string {
 
 			e := eval.CompEval(&Bd, &pawnHash) // NOTE: score for white
 			tellGUI(fmt.Sprintf("eval(w): %v", e))
+		case "pq":
+			var sl search.Local
+			search.SG.Trans.Clear()
+			search.SG.History.Clear()
+			sl.ID = 0
+			sl.Board = Bd
+			eval.Update()
+			val := search.Qs(&sl, search.EvalMAX, 0)
+			if Bd.Stm() == eval.BLACK {
+				val = -val
+			}
+			tellGUI(fmt.Sprintf("qs(w): %v", val))
 		case "peng":
 			txt := fmt.Sprintf("Hash: %v Threads: %v Ponder: %v Log: %v \n", search.Engine.Hash, search.Engine.Threads, search.Engine.Ponder, search.Engine.Log)
 			tellGUI(txt)
