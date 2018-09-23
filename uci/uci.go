@@ -73,13 +73,14 @@ func HandleInput(line string, chSearch *chan int) string {
 		case "pe":
 			var pawnHash eval.PawnHash
 			pawnHash.Clear()
-
+			eval.Update()
 			e := eval.CompEval(&Bd, &pawnHash) // NOTE: score for white
 			tellGUI(fmt.Sprintf("eval(w): %v", e))
 		case "pq":
 			var sl search.Local
 			search.SG.Trans.Clear()
 			search.SG.History.Clear()
+			sl.ClearHash()
 			sl.ID = 0
 			sl.Board = Bd
 			eval.Update()

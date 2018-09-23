@@ -42,11 +42,11 @@ func init() {
 
 	scanEpd(&epd) // läs in alla epd-positioner
 	run()
-	//testRun()
+	/////////////////testRun()
 	log.Fatalln("tune finished")
 }
 
-// cerate a file where c0 is qs value and c1 is eval after 10s
+// cerate a file where c0 is qs value and c1 is eval after xs
 func run() {
 	f, err := os.Create(outputFile)
 	if err != nil {
@@ -55,6 +55,7 @@ func run() {
 	defer f.Close()
 	//startTime := time.Now()
 	nPositions := len(epd)
+	diffHigh := 0
 	chInput := make(chan string)
 	chSearch := make(chan int)
 	chBestmove := make(chan string)
@@ -75,29 +76,61 @@ func run() {
 		fen := strings.Split(epd[pos], "c0")
 
 		//		uci.SetPosition("position fen " + fen[0])
+		_ = uci.HandleInput("ucinewgame", &chSearch)
 		_ = uci.HandleInput("position fen "+fen[0], &chSearch)
+
+		var ph eval.PawnHash
+		ph.Clear()
+		re := eval.CompEval(&uci.Bd, &ph)
+		
+		//////////////////////////
+		var sl search.Local
+		sl.ID = 0
+		sl.Board = uci.Bd
+		sl.ClearHash()
+		eval.Update()
+		qs := search.Qs(&sl, search.EvalMAX, 0)
+		///////////////////////
+
+		_ = uci.HandleInput("ucinewgame", &chSearch)
+		_ = uci.HandleInput("position fen "+fen[0], &chSearch)
+		eval.Update()
 		_ = uci.HandleInput("go depth 1", &chSearch)
 		_ = <-chBestmove
-		q := search.Best.Score
+		e1 := search.Best.Score
 		//		q := getQs()
+		if abs(qs-re) > 75 {
+			diffHigh++
+		}
 		if uci.Bd.Stm() == board.BLACK {
-			q = -q
+			e1 = -e1
 			panic("NOOOOOOOOOOOOOOOOOOOOOOO")
 		}
-		uci.HandleGo("go movetime 10000", &chSearch)
+
+		//		uci.HandleGo("go movetime 10000", &chSearch)
+		uci.HandleGo("go movetime 100", &chSearch)
 		_ = <-chBestmove
 
-		e := search.Best.Score
+		es := search.Best.Score
 		if uci.Bd.Stm() == board.BLACK {
-			e = -e
+			es = -es
+			panic("NOOOOOOOOOOOOOOOOOOOOOOO")
 		}
 
-		fmt.Println("POS ===================================================  qs", q, "ev", e, pos)
-		_, err = f.WriteString(fmt.Sprintf("%v c0 %v c1 %v\n", fen[0], q, e))
+		fmt.Println("POS ====== rootEv",re,  "qs", qs, "e1", e1 ,"ev", es, pos)
+		_, err = f.WriteString(fmt.Sprintf("%v c0 %v c1 %v\n", fen[0], re , es))
 		if err != nil {
 			panic(err)
 		}
 	}
+	fmt.Println("no of diffHigh", diffHigh, "of", nPositions)
+}
+
+func abs(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
 }
 
 func scanEpd(epd *[]string) {

@@ -20,6 +20,7 @@ import (
 var Parms = &parms.Parms
 
 /////////////////////////////////////////////////////////
+// Tuning the eval-parms by optimise to sigmoid(res)   //
 // read in the epd-lines and save the result given by  //
 // the c1-tag in EPD                                   //
 /////////////////////////////////////////////////////////
