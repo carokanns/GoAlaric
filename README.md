@@ -1,0 +1,2 @@
+# GoAlaric
+Alaric in Golang
