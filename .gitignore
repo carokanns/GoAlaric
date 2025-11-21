@@ -4,3 +4,6 @@
 *.png
 *.gif
 *.svg
+tune/cleanRaw.epd
+tune/results.pgn
+tune/results.epd
