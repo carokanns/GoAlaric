@@ -88,7 +88,7 @@ var Parms = [...]int{
 	14, //	   14, // 14,  	  //30, 		// bishop pair bonus MG
 	//ix=70 (next
 	43,  //	   43,  // 43, 	  //50,  		// bishop pair bonus EG
-	200, //	   200, // 200,	  //200, 		// shelter score  (from 2 to 200 I scaled it up by 100)
+	200, //	   200, // 200,	  //200, 		// shelter score  (from 2 to 200)
 	34,  //	   34,  // 34, 	  //30,  		// KingPower in Kingscore
 	32,  //	   32,  // 32, 	  //32,  		// KingScore parm
 	5,   //	   5,   // 5,  	  //5,   		// KingScore bias

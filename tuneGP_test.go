@@ -1,5 +1,5 @@
+//go:build tune
 // +build tunegp
-
 
 package main
 
@@ -22,7 +22,7 @@ func Test_mirror(t *testing.T) {
 			got := mirror(tt.epd)
 			x := strings.Fields(got)[1]
 
-			if x != tt.want {
+			if x = tt.want {
 				t.Errorf("mirror() = %v, want %v", got, tt.want)
 			}
 		})

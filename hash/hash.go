@@ -1,16 +1,16 @@
 package hash
 
 import (
-	"GoAlaric/material"
-	"GoAlaric/square"
 	"fmt"
 	"math/rand"
+
+	"goalaric/material"
+	"goalaric/square"
 )
 
 // Key is the Hash type
 type Key uint64
 
-//
 const (
 	WHITE int = iota
 	BLACK
@@ -92,7 +92,7 @@ func Lock(key Key) uint32 {
 // RandInt returns a random integer number
 var r1 = (*rand.Rand)(rand.New(rand.NewSource(42)))
 
-// RandInt returns an random integer < n 
+// RandInt returns an random integer < n
 func RandInt(n int) int {
 	return r1.Intn(n)
 }

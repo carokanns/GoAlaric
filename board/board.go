@@ -1,12 +1,13 @@
 package board
 
 import (
-	"GoAlaric/bit"
-	"GoAlaric/hash"
-	"GoAlaric/material"
-	"GoAlaric/move"
-	"GoAlaric/square"
 	"fmt"
+
+	"goalaric/bit"
+	"goalaric/hash"
+	"goalaric/material"
+	"goalaric/move"
+	"goalaric/square"
 
 	"strconv"
 	"strings"
@@ -220,7 +221,7 @@ func make(fr int, to int, pp int, bd *Board) int {
 }
 
 /////////////////////////////////////////////
-//  Tilhör class Board  
+//  Tilhör class Board
 /////////////////////////////////////////////
 
 func (bd *Board) update() {
@@ -368,7 +369,7 @@ func (bd *Board) SquareSide(sq int) int {
 	return int((bd.side[BLACK] >> uint(sq)) & 1) // HACK: uses Side internals
 }
 
-//Square returns content of given board square
+// Square returns content of given board square
 func (bd *Board) Square(sq int) int {
 	return bd.square[sq]
 }
@@ -557,6 +558,7 @@ func (bd *Board) MakeFenMve(mv int) {
 		if bd.pawnIsAttacked(sq, xd) {
 			bd.copyStr.epSq = sq
 		}
+		//		fmt.Println(bd.copyStr.epSq, bd.EpSq())
 	}
 
 	// move counter
@@ -1002,4 +1004,64 @@ func PrintBB(bb bit.BB) {
 		}
 	}
 	fmt.Printf("\n\n")
+}
+
+// CreateFen makes an epd/fen string from the current position
+func (bd *Board) CreateFen() string {
+	epd := ""
+	for rank := 7; rank >= 0; rank-- {
+		cnt := 0
+		for file := 0; file < square.FileSize; file++ {
+			sq := square.Make(file, rank)
+			if bd.Square(sq) == material.None {
+				cnt++
+			} else {
+				if cnt > 0 {
+					epd += fmt.Sprintf("%v", cnt)
+					cnt = 0
+				}
+				fenPc := material.ToFen(bd.getP12(sq))
+				epd += fmt.Sprintf("%v", fenPc)
+			}
+		}
+		if cnt > 0 {
+			epd += fmt.Sprintf("%v", cnt)
+		}
+		if rank > 0 {
+			epd += "/"
+		}
+	}
+	strturn := "b"
+	if bd.stm == 0 {
+		strturn = "w"
+	}
+	castlStr := ""
+	castl := bd.Flags()
+	if castl == 0 {
+		castlStr = "-"
+	} else {
+		if castl >= 15 {
+			castlStr += "K"
+			castl -= 8
+		}
+		if castl >= 7 {
+			castlStr += "Q"
+			castl -= 4
+		}
+		if castl >= 3 {
+			castlStr += "k"
+			castl -= 2
+		}
+		if castl == 1 {
+			castlStr += "q"
+		}
+	}
+	epStr := "-"
+	if bd.EpSq() > 0 {
+		epStr = strings.ToLower(square.ToString(bd.EpSq()))
+	}
+
+	epd += fmt.Sprintf(" %v %v %v 0", strturn, castlStr, epStr)
+
+	return epd
 }

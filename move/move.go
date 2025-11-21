@@ -2,11 +2,12 @@ package move
 
 import (
 
-	// "GoAlaric/board"  går ej!!
+	// "goalaric/board"  går ej!!
 
-	"GoAlaric/material"
-	"GoAlaric/square"
 	"strings"
+
+	"goalaric/material"
+	"goalaric/square"
 )
 
 // flags
@@ -30,7 +31,6 @@ const (
 	ScoreMask int = scoreSize - 1
 )
 
-//
 const (
 	None = 0
 	Null = 1

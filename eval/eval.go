@@ -1,15 +1,19 @@
+//go:build !tunegp
+// +build !tunegp
+
 package eval
 
 import (
-	"GoAlaric/bit"
-	"GoAlaric/board"
-	"GoAlaric/hash"
-	"GoAlaric/material"
-	"GoAlaric/move"
-	"GoAlaric/parms"
-	"GoAlaric/square"
 	"fmt"
 	"math"
+
+	"goalaric/bit"
+	"goalaric/board"
+	"goalaric/hash"
+	"goalaric/material"
+	"goalaric/move"
+	"goalaric/parms"
+	"goalaric/square"
 )
 
 // Parms is an array with evaluation values
@@ -18,7 +22,6 @@ var (
 	Nparms = parms.Nparms
 )
 
-//
 // WHITE is 0 and means the white color pieces Black is 1
 const (
 	WHITE int = iota
@@ -879,7 +882,7 @@ func shelterScore(sq int, sd int, bd *board.Board, pi *pawnEntry) int {
 	}
 
 	if s1 > int(s0) {
-		return 100 * (int(s0) + s1) / Parms[71] //200  (I scaled it up by 100)
+		return (int(s0) + s1) / Parms[71] //200
 	}
 	return int(s0)
 

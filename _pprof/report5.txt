@@ -2,24 +2,24 @@
 Dropped 187 nodes (cum <= 0.92s)
       flat  flat%   sum%        cum   cum%
    152.68s 82.91% 82.91%    152.68s 82.91%  runtime._ExternalCode
-    13.07s  7.10% 90.01%     21.46s 11.65%  GoAlaric/eval.Comp_eval
-     1.99s  1.08% 91.09%      3.77s  2.05%  GoAlaric/eval.comp_attacks
-     1.74s  0.94% 92.03%      1.74s  0.94%  GoAlaric/eval.Piece_attacks_from
-     0.66s  0.36% 92.39%     28.46s 15.45%  GoAlaric/search.search
-     0.45s  0.24% 92.64%      1.18s  0.64%  GoAlaric/eval.comp_pawnInfo
-     0.25s  0.14% 92.77%      3.10s  1.68%  GoAlaric/gen2.(*List).Next
-     0.17s 0.092% 92.86%     21.63s 11.75%  GoAlaric/eval.(*Table).eval
-     0.10s 0.054% 92.92%      2.12s  1.15%  GoAlaric/gen2.(*List).gen
-     0.07s 0.038% 92.96%      1.25s  0.68%  GoAlaric/eval.(*PawnTable).Info
-     0.05s 0.027% 92.98%     21.68s 11.77%  GoAlaric/eval.Eval
-     0.05s 0.027% 93.01%     21.73s 11.80%  GoAlaric/search.evalu8
+    13.07s  7.10% 90.01%     21.46s 11.65%  ./eval.Comp_eval
+     1.99s  1.08% 91.09%      3.77s  2.05%  ./eval.comp_attacks
+     1.74s  0.94% 92.03%      1.74s  0.94%  ./eval.Piece_attacks_from
+     0.66s  0.36% 92.39%     28.46s 15.45%  ./search.search
+     0.45s  0.24% 92.64%      1.18s  0.64%  ./eval.comp_pawnInfo
+     0.25s  0.14% 92.77%      3.10s  1.68%  ./gen2.(*List).Next
+     0.17s 0.092% 92.86%     21.63s 11.75%  ./eval.(*Table).eval
+     0.10s 0.054% 92.92%      2.12s  1.15%  ./gen2.(*List).gen
+     0.07s 0.038% 92.96%      1.25s  0.68%  ./eval.(*PawnTable).Info
+     0.05s 0.027% 92.98%     21.68s 11.77%  ./eval.Eval
+     0.05s 0.027% 93.01%     21.73s 11.80%  ./search.evalu8
      0.03s 0.016% 93.03%      1.91s  1.04%  runtime.systemstack
-         0     0% 93.03%     28.46s 15.45%  GoAlaric/search.Search_go
-         0     0% 93.03%     28.46s 15.45%  GoAlaric/search.StartSearch
-         0     0% 93.03%      1.89s  1.03%  GoAlaric/search.qs_static
-         0     0% 93.03%     28.46s 15.45%  GoAlaric/search.search_asp
-         0     0% 93.03%     28.46s 15.45%  GoAlaric/search.search_id
-         0     0% 93.03%     28.46s 15.45%  GoAlaric/search.search_root
+         0     0% 93.03%     28.46s 15.45%  ./search.Search_go
+         0     0% 93.03%     28.46s 15.45%  ./search.StartSearch
+         0     0% 93.03%      1.89s  1.03%  ./search.qs_static
+         0     0% 93.03%     28.46s 15.45%  ./search.search_asp
+         0     0% 93.03%     28.46s 15.45%  ./search.search_id
+         0     0% 93.03%     28.46s 15.45%  ./search.search_root
          0     0% 93.03%    152.71s 82.93%  runtime._System
          0     0% 93.03%     28.50s 15.48%  runtime.goexit
          0     0% 93.03%      1.88s  1.02%  runtime.startTheWorldWithSema

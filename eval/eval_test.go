@@ -1,11 +1,12 @@
 package eval
 
 import (
-	"GoAlaric/square"
-	"GoAlaric/board"
-	"GoAlaric/material"
 	"fmt"
 	"testing"
+
+	"goalaric/board"
+	"goalaric/material"
+	"goalaric/square"
 )
 
 func initAll() { // copy of main initSession()
@@ -24,7 +25,7 @@ func initAll() { // copy of main initSession()
 
 var bd board.Board
 
-//func Interpolation(eval-mg, eval-eg int, bd *board.Board) int
+// func Interpolation(eval-mg, eval-eg int, bd *board.Board) int
 func TestInterpolation(t *testing.T) {
 	type interStruct struct {
 		fen  string
@@ -150,12 +151,12 @@ func Test_calcDist(t *testing.T) {
 		args args
 		want int
 	}{
-		{"a",args{square.D2,square.E3,10}, 8},
-		{"b",args{square.F2,square.E3,20}, 17},
-		{"c",args{square.E2,square.F2,10}, 8},
-		{"d",args{square.G2,square.F2,20}, 17},
-		{"e",args{square.E2,square.F5,10}, 35},
-		{"f",args{square.G2,square.F5,20}, 70},
+		{"a", args{square.D2, square.E3, 10}, 8},
+		{"b", args{square.F2, square.E3, 20}, 17},
+		{"c", args{square.E2, square.F2, 10}, 8},
+		{"d", args{square.G2, square.F2, 20}, 17},
+		{"e", args{square.E2, square.F5, 10}, 35},
+		{"f", args{square.G2, square.F5, 20}, 70},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

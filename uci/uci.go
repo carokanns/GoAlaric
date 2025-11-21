@@ -4,16 +4,16 @@
 package uci
 
 import (
-	"GoAlaric/board"
-	"GoAlaric/eval"
-	"GoAlaric/gen"
-	"GoAlaric/move"
-	"GoAlaric/search"
-	//	"GoAlaric/sort"
 	"fmt"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"goalaric/board"
+	"goalaric/eval"
+	"goalaric/gen"
+	"goalaric/move"
+	"goalaric/search" //	"../sort"
 )
 
 var tellGUI = func(line string) { fmt.Println(line) }
@@ -70,13 +70,28 @@ func HandleInput(line string, chSearch *chan int) string {
 					search.StartPerft(depth, &Bd)
 				}
 			}
+		case "pmirr": // make a mirror of the fen
+			if len(words) > 1 {
+				mfen := mirror(line[5:]) // line without 'pmirr'
+				fmt.Println(mfen)
+			}
+		case "ptest":
+			// check that the value after c0 in every epd-line is exactly eq to eval
+			inputFile := "parmsGP.epd"
+			_ = inputFile
+			var epd []string
+			_ = epd
+
+			fmt.Println("scanEpd and runCompare are disabled as commented")
+			//			scanEpd(inputFile,&epd) // läs in alla epd-positioner
+			//			runGetParms(epd)
 		case "pe":
 			var pawnHash eval.PawnHash
 			pawnHash.Clear()
 			eval.Update()
 			e := eval.CompEval(&Bd, &pawnHash) // NOTE: score for white
 			tellGUI(fmt.Sprintf("eval(w): %v", e))
-		case "pq":
+		case "pq": //qs value
 			var sl search.Local
 			search.SG.Trans.Clear()
 			search.SG.History.Clear()
@@ -89,17 +104,47 @@ func HandleInput(line string, chSearch *chan int) string {
 				val = -val
 			}
 			tellGUI(fmt.Sprintf("qs(w): %v", val))
-		case "peng":
+		case "peng": // engine vslues
 			txt := fmt.Sprintf("Hash: %v Threads: %v Ponder: %v Log: %v \n", search.Engine.Hash, search.Engine.Threads, search.Engine.Ponder, search.Engine.Log)
 			tellGUI(txt)
-		case "pb":
+		case "pb": // print  asci-board
 			Bd.PrintBoard()
 		case "pbb":
-			Bd.PrintBBInfo()
+			Bd.PrintBBInfo() // all bitboards
 		case "pm":
-			PrintMoves()
+			PrintMoves() // all moves
+		case "pf":
+			PrintFens() // one fen per legal move in current position
 		case "pn":
 			endianCheck()
+		case "help":			
+			tellGUI("case uci: Alltid vid start. Svarar med tellGUI(uciok)")
+			tellGUI("case isready: Synkar med GUI:t som skall svarar med tellGUI(readyok)")
+
+			tellGUI("case setoption: sätter options")
+			tellGUI("case position:  sätter_position (fen)")
+			tellGUI("case go: starta motorn")
+			tellGUI("case ponderhit:")
+			tellGUI("case stop, s: stoppa programmets sökning")
+			tellGUI("case quit, q: stoppa he och lämna programmet")
+			tellGUI("case ucinewgame: initGame()")
+			tellGUI("case debug: //tellGUI(debug!)")
+			tellGUI("case register:\n")
+
+			tellGUI("///// Mina egna ///////////////////")
+			tellGUI("case perft:  kör perft x (x ply)")
+			tellGUI("case pmirr: // make a mirror of the fen")
+			tellGUI("case ptest: // check that the value after c0 in every epd-line is exactly eq to eval")
+			tellGUI("case pe:   pawn evaluation")
+			tellGUI("case pq: //qs value")
+			tellGUI("case peng: // engine values")
+			tellGUI("case pb: // print  asci-board")
+			tellGUI("case pbb: // printall bitboards")
+			tellGUI("case pm: // all valid moves")
+			tellGUI("case pf: // one fen per legal move in current position")
+			tellGUI("case pn: endianCheck()")
+		
+
 		default:
 			if len(words) > 1 {
 				words = words[1:]
@@ -111,48 +156,115 @@ func HandleInput(line string, chSearch *chan int) string {
 	return ""
 }
 
-/*
- go
-	start calculating on the current position set up with the "position" command.
-	There are a number of commands that can follow this command, all will be sent in the same string.
-	If one command is not sent its value should be interpreted as it would not influence the search.
-	* searchmoves <move1> .... <movei>
-		restrict search to this moves only
-		Example: After "position startpos" and "go infinite searchmoves e2e4 d2d4"
-		the engine should only search the two moves e2e4 and d2d4 in the initial position.
-	* ponder
-		start searching in pondering mode.
-		Do not exit the search in ponder mode, even if it's mate!
-		This means that the last move sent in in the position string is the ponder move.
-		The engine can do what it wants to do, but after a "ponderhit" command
-		it should execute the suggested move to ponder on. This means that the ponder move sent by
-		the GUI can be interpreted as a recommendation about which move to ponder. However, if the
-		engine decides to ponder on a different move, it should not display any mainlines as they are
-		likely to be misinterpreted by the GUI because the GUI expects the engine to ponder
-	   on the suggested move.
-	* wtime <x>
-		white has x msec left on the clock
-	* btime <x>
-		black has x msec left on the clock
-	* winc <x>
-		white increment per move in mseconds if x > 0
-	* binc <x>
-		black increment per move in mseconds if x > 0
-	* movestogo <x>
-      there are x moves to the next time control,
-		this will only be sent if x > 0,
-		if you don't get this and get the wtime and btime it's sudden death
-	* depth <x>
-		search x plies only.
-	* nodes <x>
-	   search x nodes only,
-	* mate <x>
-		search for a mate in x moves
-	* movetime <x>
-		search exactly x mseconds
-	* infinite
-		search until the "stop" command. Do not exit the search without being told so in this mode!
-*/
+/////////////////////////////////////////////////////////
+/* func runGetParms(epd []string) {
+
+	fmt.Println("starting test eval vs c0")
+	fmt.Println()
+	for pos := 0; pos < len(epd); pos++ {
+		fields := strings.Fields(epd[pos])
+		if fields[1] == "b" {
+			epd[pos] = mirror(epd[pos])
+		}
+
+		SetPosition("position fen "+epd[pos])
+
+		//get eval
+		var pawnHash eval.PawnHash
+		pawnHash.Clear()
+		eval.Update()
+		e := eval.CompEval(&Bd, &pawnHash) // NOTE: score for white
+
+		// get c0 value
+		c0,err := strconv.Atoi(fields[5])
+		if err!=nil{log.Fatalf("illegal field %v line %v",fields[5],pos)}
+		if c0 != e{
+			fmt.Printf("ERROR: line %v epd-eval=%v eval=%v\n",pos,c0,e)
+		}
+		if pos%1000 == 0 {
+			fmt.Println("\nPOS", pos, "====================== rootEv")
+		}
+	}
+	fmt.Println("no of positions", len(epd))
+}
+
+func scanEpd(inputFile string, epd *[]string) {
+	file, err := os.Open(inputFile)
+	if err != nil {
+		panic(err)
+	}
+
+	fscanner := bufio.NewScanner(file)
+	ix := 0
+	for fscanner.Scan() {
+		epdLine := fscanner.Text()
+		if len(epdLine) == 0 {
+			continue
+		}
+		if ix = strings.Index(epdLine, "c0"); ix < 0 {
+			log.Fatalln("c0 saknas i", epdLine)
+		}
+
+		*epd = append(*epd, epdLine)
+	}
+} */
+////////////////////////////////////////////////////////////
+
+func mirror(epd string) string {
+	fields := strings.Fields(epd)
+	if len(fields) < 4 {
+		fmt.Println("invalid epd - missing data len=", len(fields), fields)
+		return ""
+	}
+
+	rows := strings.Split(fields[0], "/")
+	rows[0], rows[1], rows[2], rows[3], rows[4], rows[5], rows[6], rows[7] = rows[7], rows[6], rows[5], rows[4], rows[3], rows[2], rows[1], rows[0]
+	temp := strings.Join(rows, "/")
+	up := []string{"P", "N", "B", "R", "Q", "K"}
+	lo := []string{"p", "n", "b", "r", "q", "k"}
+	xd := []string{"@", "£", "$", "€", "<", ">"}
+	for i := 0; i < len(up); i++ {
+		temp = strings.Replace(temp, up[i], xd[i], -1)
+	}
+	for i := 0; i < len(lo); i++ {
+		temp = strings.Replace(temp, lo[i], up[i], -1)
+	}
+	for i := 0; i < len(xd); i++ {
+		temp = strings.Replace(temp, xd[i], lo[i], -1)
+	}
+	fields[0] = temp
+	if fields[1] == "w" {
+		fields[1] = "b"
+	} else {
+		fields[1] = "w"
+	}
+	if fields[2] != "-" {
+		newField := ""
+		if strings.Contains(fields[2][:], "k") {
+			newField = newField + "K"
+		}
+		if strings.Contains(fields[2], "q") {
+			newField = newField + "Q"
+		}
+		if strings.Contains(fields[2], "K") {
+			newField = newField + "k"
+		}
+		if strings.Contains(fields[2], "Q") {
+			newField = newField + "q"
+		}
+		//fmt.Printf("%v %#v\n", fields[2], newField)
+		fields[2] = newField
+	}
+
+	if fields[3] != "-" {
+		n, _ := strconv.Atoi(fields[3][1:])
+		n = 9 - n
+		fields[3] = fields[3][0:1] + strconv.Itoa(n)
+	}
+
+	newEpd := strings.Join(fields, " ")
+	return newEpd
+}
 
 // HandleGo handles the go-command from GUI
 func HandleGo(line string, chSearch *chan int) {
@@ -164,11 +276,11 @@ func HandleGo(line string, chSearch *chan int) {
 
 	line = strings.ToLower(strings.TrimSpace(line))
 
-	if strings.Index(line, "infinite") >= 0 {
+	if strings.Contains(line, "infinite") {
 		search.Infinite = true
 	}
 
-	if strings.Index(line, "ponder") >= 0 {
+	if strings.Contains(line, "ponder") {
 		search.SetPonder(true)
 	}
 
@@ -300,16 +412,17 @@ func SetPosition(str string) {
 	words := strings.Split(str, " ")[1:]
 	word1 := strings.ToLower(strings.TrimSpace(words[0]))
 	mpos := strings.Index(strings.TrimSpace(str), "moves")
-	if word1 == "startpos" {
+	switch word1 {
+	case "startpos":
 		board.SetFen(board.StartFen, &Bd)
-	} else if word1 == "fen" {
+	case "fen":
 		if mpos == -1 {
 			board.SetFen(strings.Join(words[1:], " "), &Bd)
 		} else {
 			fpos := strings.Index(str, "fen") + 4
 			board.SetFen(strings.TrimSpace(str[fpos:mpos]), &Bd)
 		}
-	} else {
+	default:
 		return
 	}
 	if mpos >= 0 {
@@ -368,6 +481,21 @@ func PrintMoves() {
 	var ml gen.ScMvList
 	gen.LegalMoves(&ml, &Bd)
 	gen.PrintAllMoves(&ml)
+}
+
+// PrintFens is for GPTune test. It prints fen from all legal moves in the current position
+func PrintFens() {
+	var ml gen.ScMvList
+	gen.LegalMoves(&ml, &Bd)
+	for pos := 0; pos < ml.Size(); pos++ {
+		mv := ml.Move(pos)
+		strMove := move.ToString(mv)
+		Bd.Move(mv)
+		epd := Bd.CreateFen()
+
+		fmt.Println(epd, "c0 0 c1 1 c2", strMove)
+		Bd.Undo()
+	}
 }
 
 // endianCheck is a test function to determine if the processor is using Big or Low Endian

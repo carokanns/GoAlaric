@@ -3,16 +3,16 @@ package eval
 //namespace pawn { // HACK: early declaration for pawn-pushes move type
 
 import (
-	"GoAlaric/bit"
-	"GoAlaric/board"
-	"GoAlaric/hash"
-	"GoAlaric/material"
-	"GoAlaric/move"
-	"GoAlaric/square"
 	"fmt"
+
+	"goalaric/bit"
+	"goalaric/board"
+	"goalaric/hash"
+	"goalaric/material"
+	"goalaric/move"
+	"goalaric/square"
 )
 
-//
 const (
 	SIDE = 2 // two sides
 )
@@ -28,8 +28,9 @@ var passedOpp [square.BoardSize][2]bit.BB
 var pair [square.BoardSize]bit.BB
 
 // ShelterFile returns 1 if a pawn is on file=fl on rank 1
-//             returns 2 if a pawn is on file=fl on rank 2
-//             return 0 in alla other cases
+//
+//	returns 2 if a pawn is on file=fl on rank 2
+//	return 0 in alla other cases
 func ShelterFile(fl, sd int, bd *board.Board) int {
 	if bd.SquareIs(square.MakeSd(fl, square.Rank2, sd), material.Pawn, sd) {
 		return 2
@@ -121,7 +122,7 @@ func (pawnHash *PawnHash) getEntry(bd *board.Board) *pawnEntry {
 	return entry
 }
 
-////// flyttat från  pawn ///////////
+// //// flyttat från  pawn ///////////
 func isPassed(sq, sd int, bd *board.Board) bool {
 	return (bd.PieceSd(material.Pawn, board.Opposit(sd))&passedOpp[sq][sd]) == 0 &&
 		(bd.PieceSd(material.Pawn, sd)&passedMe[sq][sd]) == 0

@@ -2,8 +2,9 @@
 package uci
 
 import (
-	"GoAlaric/search"
 	"testing"
+
+	"goalaric/search"
 )
 
 var chSearch = make(chan int)

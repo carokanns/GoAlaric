@@ -2,9 +2,10 @@
 package search
 
 import (
-	"GoAlaric/board"
-	"GoAlaric/hash"
 	"testing"
+
+	"goalaric/board"
+	"goalaric/hash"
 )
 
 //var bd board.Board

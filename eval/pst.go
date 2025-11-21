@@ -1,9 +1,10 @@
 package eval
 
 import (
-	"GoAlaric/material"
-	"GoAlaric/square"
 	"fmt"
+
+	"goalaric/material"
+	"goalaric/square"
 )
 
 var knightLine = [8]int{-4, -2, 0, +1, +1, 0, -2, -4}

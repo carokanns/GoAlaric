@@ -2,11 +2,12 @@
 package board
 
 import (
-	"GoAlaric/bit"
-	"GoAlaric/material"
-	"GoAlaric/square"
 	"strings"
 	"testing"
+
+	"goalaric/bit"
+	"goalaric/material"
+	"goalaric/square"
 )
 
 func TestFenMove(t *testing.T) {

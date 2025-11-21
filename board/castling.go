@@ -1,9 +1,10 @@
 package board
 
 import (
-	"GoAlaric/hash"
-	"GoAlaric/square"
 	"fmt"
+
+	"goalaric/hash"
+	"goalaric/square"
 )
 
 type info struct {

@@ -1,16 +1,17 @@
 package gen
 
 import (
-	"GoAlaric/board"
-	"GoAlaric/material"
-	"GoAlaric/move"
-	"GoAlaric/square"
 	"testing"
+
+	"goalaric/board"
+	"goalaric/material"
+	"goalaric/move"
+	"goalaric/square"
 )
 
 var bd board.Board
 
-//var See SEE
+// var See SEE
 func initAll() { // copy of main initSession()
 	// input.Init()
 	//engine.Init()

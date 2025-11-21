@@ -1,13 +1,14 @@
 package bit
 
 import (
-	"GoAlaric/square"
 	"fmt"
+
+	"goalaric/square"
 )
 
-///////////////////////////
-///// bit twiddling ///////
-///////////////////////////
+// /////////////////////////
+// /// bit twiddling ///////
+// /////////////////////////
 var index = [64]int{
 	0, 1, 2, 7, 3, 13, 8, 19,
 	4, 25, 14, 28, 9, 34, 20, 40,
@@ -19,7 +20,6 @@ var index = [64]int{
 	61, 22, 43, 51, 60, 42, 59, 58,
 }
 
-//
 const (
 	WHITE int = iota
 	BLACK
@@ -168,7 +168,7 @@ func init() {
 	}
 }
 
-//IsOne checks if bit n in a bitboard is set to 1
+// IsOne checks if bit n in a bitboard is set to 1
 func IsOne(b BB, n int) bool {
 	return (b & Bit(n)) != 0
 }

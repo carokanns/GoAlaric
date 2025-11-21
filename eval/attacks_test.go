@@ -1,12 +1,13 @@
 package eval
 
 import (
-	"GoAlaric/material"
-	"GoAlaric/bit"
-	"GoAlaric/board"
 	"reflect"
 	"strings"
 	"testing"
+
+	"goalaric/bit"
+	"goalaric/board"
+	"goalaric/material"
 )
 
 func TestPawnAttacksFrom(t *testing.T) {
@@ -28,7 +29,7 @@ func TestPawnAttacksFrom(t *testing.T) {
 
 			if got := PawnAttacksFrom(tt.sd, bd); !reflect.DeepEqual(got, tt.want) {
 				board.PrintBB(got)
-				fs:=bd.PieceSd(material.Pawn, tt.sd)
+				fs := bd.PieceSd(material.Pawn, tt.sd)
 				board.PrintBB(fs)
 				t.Errorf("PawnAttacksFrom() = %x, want %x", got, tt.want)
 			}

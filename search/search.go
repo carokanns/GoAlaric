@@ -1,20 +1,21 @@
 package search
 
 import (
-	"GoAlaric/bit"
-	"GoAlaric/board"
-	"GoAlaric/eval"
-	"GoAlaric/gen"
-	"GoAlaric/hash"
-	"GoAlaric/move"
 	"fmt"
 	"math"
 	"time"
+
+	"goalaric/bit"
+	"goalaric/board"
+	"goalaric/eval"
+	"goalaric/gen"
+	"goalaric/hash"
+	"goalaric/move"
 )
 
 var tellGUI = func(line string) { fmt.Println(line) }
 
-////// Engine paramters ///////
+// //// Engine paramters ///////
 // status of the engine
 const (
 	idle    = 0
@@ -109,6 +110,7 @@ func (t *timerStr) getElapsed() int {
 }
 
 // timeStr is the struct that holds search conditions
+//
 //	Exempel för att mäta tid om time Time
 //	now := time.Now()
 //	time.Sleep(100 * time.Millisecond)
@@ -469,10 +471,11 @@ func SetPonder(p bool) {
 // StartSearch (called from GoAlaric.go) determines what kind of search that
 // the GUI has demanded and sets values according that.
 // It then starts up the search by calling search_go
-//	Search kommer att polla på att bool bStop/bPonderHit är true
-//	Ponderhit kan tas omhand genom att beräkna kvarvarande tid etc.
-//	 - Om stop kommer skickar vi bestmove på den ponder som vi utför,
-//   - vilket ju kan vara fel drag
+//
+//		Search kommer att polla på att bool bStop/bPonderHit är true
+//		Ponderhit kan tas omhand genom att beräkna kvarvarande tid etc.
+//		 - Om stop kommer skickar vi bestmove på den ponder som vi utför,
+//	  - vilket ju kan vara fel drag
 func StartSearch(searchType chan int, bestmove chan string, bd *board.Board) {
 	//  Vi kommer att stå blockade här i väntan på return från RootSearch
 	//  Uci tar hand om quit som bryter, stop och ponderhit skickas vidare

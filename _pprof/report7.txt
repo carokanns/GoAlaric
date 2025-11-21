@@ -2,69 +2,69 @@
 Dropped 132 nodes (cum <= 0.38s)
       flat  flat%   sum%        cum   cum%
     42.32s 56.28% 56.28%     42.32s 56.28%  runtime._ExternalCode
-     8.72s 11.60% 67.87%     15.13s 20.12%  GoAlaric/eval.Comp_eval
-     1.64s  2.18% 70.05%      2.72s  3.62%  GoAlaric/eval.comp_attacks
-     1.62s  2.15% 72.21%     27.58s 36.68%  GoAlaric/search.search
-     1.18s  1.57% 73.78%      1.18s  1.57%  GoAlaric/gen.(*List).Sort
-     1.11s  1.48% 75.25%      1.11s  1.48%  GoAlaric/eval.Piece_attacks_from
-     0.96s  1.28% 76.53%      0.96s  1.28%  GoAlaric/trans.(*Table).Retrieve
-     0.89s  1.18% 77.71%      0.93s  1.24%  GoAlaric/eval.check_number
+     8.72s 11.60% 67.87%     15.13s 20.12%  ./eval.Comp_eval
+     1.64s  2.18% 70.05%      2.72s  3.62%  ./eval.comp_attacks
+     1.62s  2.15% 72.21%     27.58s 36.68%  ./search.search
+     1.18s  1.57% 73.78%      1.18s  1.57%  ./gen.(*List).Sort
+     1.11s  1.48% 75.25%      1.11s  1.48%  ./eval.Piece_attacks_from
+     0.96s  1.28% 76.53%      0.96s  1.28%  ./trans.(*Table).Retrieve
+     0.89s  1.18% 77.71%      0.93s  1.24%  ./eval.check_number
      0.87s  1.16% 78.87%         1s  1.33%  runtime.mallocgc
      0.75s     1% 79.87%      0.75s     1%  runtime.memclr
-     0.58s  0.77% 80.64%      0.58s  0.77%  GoAlaric/gen2.(*SEE).pick_lva
+     0.58s  0.77% 80.64%      0.58s  0.77%  ./gen2.(*SEE).pick_lva
      0.44s  0.59% 81.22%      0.45s   0.6%  runtime.osyield
      0.43s  0.57% 81.80%      0.43s  0.57%  runtime.duffzero
      0.42s  0.56% 82.35%      0.42s  0.56%  runtime.mSpan_Sweep.func1
-     0.41s  0.55% 82.90%      0.74s  0.98%  GoAlaric/board.(*Board).Move
-     0.41s  0.55% 83.44%      0.58s  0.77%  GoAlaric/eval.draw_mul
-     0.36s  0.48% 83.92%      0.57s  0.76%  GoAlaric/eval.Is_check
-     0.33s  0.44% 84.36%      4.90s  6.52%  GoAlaric/gen2.(*List).Next
-     0.32s  0.43% 84.79%     15.45s 20.55%  GoAlaric/eval.(*Table).Eval
+     0.41s  0.55% 82.90%      0.74s  0.98%  ./board.(*Board).Move
+     0.41s  0.55% 83.44%      0.58s  0.77%  ./eval.draw_mul
+     0.36s  0.48% 83.92%      0.57s  0.76%  ./eval.Is_check
+     0.33s  0.44% 84.36%      4.90s  6.52%  ./gen2.(*List).Next
+     0.32s  0.43% 84.79%     15.45s 20.55%  ./eval.(*Table).Eval
      0.26s  0.35% 85.13%      0.70s  0.93%  runtime.heapBitsSweepSpan
-     0.25s  0.33% 85.47%      1.04s  1.38%  GoAlaric/gen2.(*SEE).See
-     0.24s  0.32% 85.78%      3.31s  4.40%  GoAlaric/gen2.(*List).gen
-     0.24s  0.32% 86.10%      0.41s  0.55%  GoAlaric/gen2.Is_legal
-     0.21s  0.28% 86.38%      0.39s  0.52%  GoAlaric/board.(*Board).Undo
-     0.21s  0.28% 86.66%      0.42s  0.56%  GoAlaric/board.(*Board).move_square
-     0.21s  0.28% 86.94%      1.26s  1.68%  GoAlaric/gen2.(*List).post
-     0.17s  0.23% 87.17%      0.54s  0.72%  GoAlaric/eval.my_distance
+     0.25s  0.33% 85.47%      1.04s  1.38%  ./gen2.(*SEE).See
+     0.24s  0.32% 85.78%      3.31s  4.40%  ./gen2.(*List).gen
+     0.24s  0.32% 86.10%      0.41s  0.55%  ./gen2.Is_legal
+     0.21s  0.28% 86.38%      0.39s  0.52%  ./board.(*Board).Undo
+     0.21s  0.28% 86.66%      0.42s  0.56%  ./board.(*Board).move_square
+     0.21s  0.28% 86.94%      1.26s  1.68%  ./gen2.(*List).post
+     0.17s  0.23% 87.17%      0.54s  0.72%  ./eval.my_distance
      0.17s  0.23% 87.39%      1.17s  1.56%  runtime.newobject
-     0.16s  0.21% 87.61%      0.79s  1.05%  GoAlaric/gen2.(*SEE).see_rec
+     0.16s  0.21% 87.61%      0.79s  1.05%  ./gen2.(*SEE).see_rec
      0.12s  0.16% 87.77%      1.26s  1.68%  runtime.mCentral_Grow
      0.11s  0.15% 87.91%      0.64s  0.85%  runtime.findrunnable
      0.11s  0.15% 88.06%      1.53s  2.03%  runtime.sweepone
-     0.10s  0.13% 88.19%      1.01s  1.34%  GoAlaric/gen2.Is_safe
-     0.08s  0.11% 88.30%     15.53s 20.65%  GoAlaric/search.evalu8
-     0.08s  0.11% 88.40%      0.47s  0.62%  GoAlaric/sort.Sort_evasions
+     0.10s  0.13% 88.19%      1.01s  1.34%  ./gen2.Is_safe
+     0.08s  0.11% 88.30%     15.53s 20.65%  ./search.evalu8
+     0.08s  0.11% 88.40%      0.47s  0.62%  ./sort.Sort_evasions
      0.08s  0.11% 88.51%      0.51s  0.68%  runtime.lock
      0.08s  0.11% 88.62%      1.42s  1.89%  runtime.mSpan_Sweep
-     0.06s  0.08% 88.70%      0.56s  0.74%  GoAlaric/gen.Add_evasions
+     0.06s  0.08% 88.70%      0.56s  0.74%  ./gen.Add_evasions
      0.06s  0.08% 88.78%      0.63s  0.84%  runtime.mCentral_FreeSpan
      0.06s  0.08% 88.86%      0.47s  0.62%  runtime.mHeap_Free.func1
-     0.05s 0.066% 88.92%      0.88s  1.17%  GoAlaric/sort.Sort_history
+     0.05s 0.066% 88.92%      0.88s  1.17%  ./sort.Sort_history
      0.05s 0.066% 88.99%      0.45s   0.6%  runtime.resetspinning
      0.05s 0.066% 89.06%      1.31s  1.74%  runtime.schedule
-     0.04s 0.053% 89.11%      0.39s  0.52%  GoAlaric/gen.Add_captures
-     0.04s 0.053% 89.16%      0.84s  1.12%  GoAlaric/search.s_move
-     0.03s  0.04% 89.20%      1.32s  1.76%  GoAlaric/search.qs_static
+     0.04s 0.053% 89.11%      0.39s  0.52%  ./gen.Add_captures
+     0.04s 0.053% 89.16%      0.84s  1.12%  ./search.s_move
+     0.03s  0.04% 89.20%      1.32s  1.76%  ./search.qs_static
      0.03s  0.04% 89.24%      0.39s  0.52%  runtime.gentraceback
      0.03s  0.04% 89.28%      1.46s  1.94%  runtime.mCentral_CacheSpan
      0.03s  0.04% 89.32%      3.80s  5.05%  runtime.systemstack
      0.02s 0.027% 89.35%      1.48s  1.97%  runtime.mCache_Refill
      0.02s 0.027% 89.38%      1.10s  1.46%  runtime.mHeap_Alloc
      0.02s 0.027% 89.40%      0.38s  0.51%  runtime.wakep
-     0.01s 0.013% 89.41%      0.40s  0.53%  GoAlaric/search.undo
+     0.01s 0.013% 89.41%      0.40s  0.53%  ./search.undo
      0.01s 0.013% 89.43%      1.28s  1.70%  runtime.goschedImpl
      0.01s 0.013% 89.44%      1.54s  2.05%  runtime.gosweepone.func1
      0.01s 0.013% 89.45%      0.38s  0.51%  runtime.mHeap_Alloc_m
      0.01s 0.013% 89.47%      1.49s  1.98%  runtime.mallocgc.func2
      0.01s 0.013% 89.48%      1.04s  1.38%  runtime.mcall
      0.01s 0.013% 89.49%      0.44s  0.59%  runtime.newstack
-         0     0% 89.49%     27.58s 36.68%  GoAlaric/search.Search_go
-         0     0% 89.49%     27.58s 36.68%  GoAlaric/search.StartSearch
-         0     0% 89.49%     27.58s 36.68%  GoAlaric/search.search_asp
-         0     0% 89.49%     27.58s 36.68%  GoAlaric/search.search_id
-         0     0% 89.49%     27.58s 36.68%  GoAlaric/search.search_root
+         0     0% 89.49%     27.58s 36.68%  ./search.Search_go
+         0     0% 89.49%     27.58s 36.68%  ./search.StartSearch
+         0     0% 89.49%     27.58s 36.68%  ./search.search_asp
+         0     0% 89.49%     27.58s 36.68%  ./search.search_id
+         0     0% 89.49%     27.58s 36.68%  ./search.search_root
          0     0% 89.49%     42.36s 56.33%  runtime._System
          0     0% 89.49%      0.39s  0.52%  runtime.callers.func1
          0     0% 89.49%     27.60s 36.70%  runtime.goexit

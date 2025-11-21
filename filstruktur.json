@@ -1,0 +1,2432 @@
+[
+    {
+        "mapp": "Root",
+        "go-fil": "util.go",
+        "funktionsnamn": "init",
+        "anropar": "fmt.Println"
+    },
+    {
+        "mapp": "Root",
+        "go-fil": "GoAlaric.go",
+        "funktionsnamn": "main",
+        "anropar": "fmt.Println, getInput, initSession, make, printTODO, search.StartSearch, tellGUI, uci.HandleInput, uci.SetPosition"
+    },
+    {
+        "mapp": "Root",
+        "go-fil": "GoAlaric.go",
+        "funktionsnamn": "getInput",
+        "anropar": "len, reader.ReadString"
+    },
+    {
+        "mapp": "Root",
+        "go-fil": "GoAlaric.go",
+        "funktionsnamn": "initSession",
+        "anropar": ""
+    },
+    {
+        "mapp": "Root",
+        "go-fil": "GoAlaric.go",
+        "funktionsnamn": "tellGUI",
+        "anropar": "fmt.Println"
+    },
+    {
+        "mapp": "Root",
+        "go-fil": "GoAlaric.go",
+        "funktionsnamn": "printTODO",
+        "anropar": "tellGUI"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "castling.go",
+        "funktionsnamn": "CastleIndex",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "castling.go",
+        "funktionsnamn": "castleSide",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "castling.go",
+        "funktionsnamn": "CastleFlag",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "castling.go",
+        "funktionsnamn": "setFlag",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "castling.go",
+        "funktionsnamn": "init",
+        "anropar": "computeFlagsKey, fmt.Println, setFlag"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "castling.go",
+        "funktionsnamn": "computeFlagsKey",
+        "anropar": "CastleFlag, hash.FlagKey, hash.Key, uint"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Opposit",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "SetFen",
+        "anropar": "bd.castleOk, bd.clear, bd.pawnIsAttacked, bd.setSquare, bd.update, hash.StmKey, len, material.Color, material.FromFen, material.Piece, setFlag, square.FromFen, square.FromString, strconv.Atoi, strings.IndexAny, uint"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "FenMoves",
+        "anropar": "FromString, bd.MakeFenMve, len, strings.TrimSpace"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "FromString",
+        "anropar": "len, make, material.FromChar, square.FromString, strings.ToUpper"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "make",
+        "anropar": "bd.EpSq, bd.Square, move.Build, square.IsPromotion"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "update",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "SetRoot",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "castleOk",
+        "anropar": "bd.SquareIs, castleSide"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "setSquare",
+        "anropar": "bit.Set, hash.PieceKey, material.MakeP12, material.Phase"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Count",
+        "anropar": "material.MakeP12"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "MoveNull",
+        "anropar": "bd.flipStm, bd.update"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "UndoNull",
+        "anropar": "bd.flipStm, bd.update"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "clear",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "SquareIs",
+        "anropar": "bd.SquareSide"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "pawnIsAttacked",
+        "anropar": "bd.SquareIs, square.File, square.PawnInc"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "SquareSide",
+        "anropar": "int, uint"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Square",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "getP12",
+        "anropar": "bd.Square, bd.SquareSide"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Key",
+        "anropar": "hash.EnPassantKey"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "PawnKey",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "EvalKey",
+        "anropar": "hash.StmKey"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Piece",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Phase",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "PieceSd",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "King",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "All",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "EpSq",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Flags",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Empty",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Pieces",
+        "anropar": "bd.PieceSd"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Side",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "MakeFenMve",
+        "anropar": "CastleIndex, Opposit, bd.clearSquare, bd.flipStm, bd.moveSquare, bd.pawnIsAttacked, bd.setSquare, bd.update, move.Capt, move.From, move.Iabs, move.Piece, move.Prom, move.To, square.PawnInc"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "clearSquare",
+        "anropar": "bit.Clear, hash.PieceKey, material.MakeP12, material.Phase"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Ply",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "flipStm",
+        "anropar": "Opposit, hash.StmFlip"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "moveSquare",
+        "anropar": "bd.clearSquare, bd.setSquare"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Stm",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Move",
+        "anropar": "CastleIndex, Opposit, bd.clearSquare, bd.flipStm, bd.moveSquare, bd.pawnIsAttacked, bd.setSquare, bd.update, move.Capt, move.From, move.Iabs, move.Piece, move.Prom, move.To, square.PawnInc"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Undo",
+        "anropar": "CastleIndex, Opposit, bd.clearSquare, bd.flipStm, bd.moveSquare, bd.setSquare, bd.update, move.Capt, move.From, move.Piece, move.Prom, move.To"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "Recap",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "IsDraw",
+        "anropar": ""
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "IsMove",
+        "anropar": "bd.EpSq, bd.Square, bd.SquareSide, bd.Stm, move.Capt, move.From, move.Piece, move.To"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "LoneKing",
+        "anropar": "bd.Count"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "LoneKingOrBishop",
+        "anropar": "bd.Count"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "LoneBishop",
+        "anropar": "bd.Count"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "LoneKingOrMinor",
+        "anropar": "bd.Count"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "TwoKnights",
+        "anropar": "bd.Count"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "PrintBoard",
+        "anropar": "bd.EpSq, bd.Flags, bd.Square, bd.getP12, fmt.Print, fmt.Printf, fmt.Println, material.ToFen, square.Make, strconv.Itoa"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "PrintBBInfo",
+        "anropar": "PrintBB, fmt.Printf, material.Color, material.Piece, material.ToFen"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "PrintBB",
+        "anropar": "bit.Bit, fmt.Print, fmt.Printf, fmt.Println, square.Make"
+    },
+    {
+        "mapp": "board",
+        "go-fil": "board.go",
+        "funktionsnamn": "CreateFen",
+        "anropar": "bd.EpSq, bd.Flags, bd.Square, bd.getP12, fmt.Sprintf, material.ToFen, square.Make, square.ToString, strings.ToLower"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "history.go",
+        "funktionsnamn": "index",
+        "anropar": "bd.SquareSide, material.MakeP12, move.From, move.Piece, move.To"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "history.go",
+        "funktionsnamn": "good",
+        "anropar": "h.index, move.IsTactical"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "history.go",
+        "funktionsnamn": "bad",
+        "anropar": "h.index, move.IsTactical"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "history.go",
+        "funktionsnamn": "Score",
+        "anropar": "h.index"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "history.go",
+        "funktionsnamn": "Clear",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "history.go",
+        "funktionsnamn": "Add",
+        "anropar": "h.bad, h.good, searched.Move, searched.Size"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "history.go",
+        "funktionsnamn": "Sort",
+        "anropar": "h.Score, ml.Move, ml.SetScore, ml.Size, ml.Sort"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Init",
+        "anropar": "badList.Clear, doneList.Clear, todoList.Clear"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "gen",
+        "anropar": "AddCaptures, AddCastling, AddChecks, AddEvasions, AddProms, AddQuietMoves, IsQuiet, PawnPushes, Tacticals, board.Empty, board.IsMove, board.Ply, board.Stm, evasions, historyTab.Sort, killerMoves.Killer1, killerMoves.Killer2, todoList.Add, todoList.Clear"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "post",
+        "anropar": "NoSacrifice, badList.Add, doneList.Add, doneList.Contain, isLegal, panic"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Next",
+        "anropar": "l.gen, l.post, todoList.Move, todoList.Size"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Candidate",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "init",
+        "anropar": "board.All, board.Square"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "moveVal",
+        "anropar": "bit.Clear, board.Opposit, board.Square, square.IsPromotion"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "seeRec",
+        "anropar": "float64, int, math.Max, se.moveVal, se.pickLva, se.seeRec"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "pickLva",
+        "anropar": "bit.First, bit.Rest, board.PieceSd, eval.PseudoAttacksTo"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "See",
+        "anropar": "board.Square, board.SquareSide, move.From, move.Prom, move.To, se.init, se.moveVal, se.seeRec, square.IsPromotion"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "NoSacrifice",
+        "anropar": "move.Capt, move.Piece, move.Prom, se.See"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "isLegal",
+        "anropar": "IsLegalMv, bd.King, bd.Stm, bit.IsOne, board.Opposit, eval.IsAttacked, eval.IsEnPassant, eval.Ray, move.From, move.Piece, move.To"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "IsWin",
+        "anropar": "move.Capt, move.Piece, move.Prom, se.See"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "IsRecapture",
+        "anropar": "IsWin, bd.Recap, move.To"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "evasions",
+        "anropar": "evasionScore, ml.Move, ml.SetScore, ml.Size, ml.Sort"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "evasionScore",
+        "anropar": "move.Capt, move.IsTactical, move.Piece, move.Prom, tacticalScore"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "tacticalScore",
+        "anropar": "captScore, promotionScore"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "captScore",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "promotionScore",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Tacticals",
+        "anropar": "ml.Move, ml.SetScore, ml.Size, ml.Sort, move.Capt, move.Piece, move.Prom, tacticalScore"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "IsQuiet",
+        "anropar": "bd.Square, bd.SquareSide, bd.Stm, eval.PieceAttack, move.From, move.Piece, move.To, square.IsPromotion, square.PawnInc, square.RankSd"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "LegalMoves",
+        "anropar": "genPseudos, selectLegals"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "selectLegals",
+        "anropar": "IsLegalMv, legals.Add, legals.Clear, src.Move, src.Size"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "IsLegalMv",
+        "anropar": "bd.King, bd.Move, bd.Stm, bd.Undo, eval.IsAttacked"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Clear",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Size",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Move",
+        "anropar": "int, uint32"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Add",
+        "anropar": "list.addPair, uint32"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addPair",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Score",
+        "anropar": "int, uint"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "MoveToFront",
+        "anropar": "list.moveTo"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "moveTo",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "SetScore",
+        "anropar": "list.Move, uint32"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Sort",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "Contain",
+        "anropar": "list.Move, list.Size"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "AddEvasions",
+        "anropar": "AddProms, addEnPassant, addEvasionCaptures, addPawnQuiets, bd.King, bd.Side, pieceEvasionMoves, pieceMovesFr"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "AddCaptures",
+        "anropar": "addEnPassant, addPawnCaptures, addPieceCaptures, bd.Side, board.Opposit"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addEvasionCaptures",
+        "anropar": "addMove, bd.PieceSd, bit.First, bit.Rest, eval.AttacksTo"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "PawnPushes",
+        "anropar": "addPawnQuiets, bd.Empty, bd.Piece, bit.BB, bit.Rank, eval.PawnAttacksFrom"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "canCastle",
+        "anropar": "bd.Flags, board.CastleFlag, board.CastleIndex, board.Opposit, eval.IsAttacked, eval.LineIsEmpty, uint"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "genPseudos",
+        "anropar": "AddCaptures, AddEvasions, AddProms, AddQuietMoves, bd.Empty, bd.Stm, eval.InitAttacks, eval.IsInCheck, ml.Clear"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addMove",
+        "anropar": "addPawnMv, addPieceMv, bd.Square"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "AddChecks",
+        "anropar": "addPawnQuiets, addPieceMv, bd.Empty, bd.King, bd.PieceSd, bd.Pieces, bit.First, bit.Rest, eval.LineIsEmpty, eval.PawnAttacksFrom, eval.PinnedBy, eval.PseudoAttacksFrom, eval.PseudoAttacksTo, eval.Ray, pieceMovesFr"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addPieceMoves",
+        "anropar": "bd.PieceSd, bit.First, bit.Rest, pieceMovesFr"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "pieceMovesFr",
+        "anropar": "addPieceMv, bd.Square, bit.First, bit.Rest, eval.PieceAttacksFrom"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "pieceEvasionMoves",
+        "anropar": "bd.PieceSd, bit.First, bit.Rest, pieceMovesFr"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addPieceCaptures",
+        "anropar": "addPieceMv, bd.PieceSd, bit.First, bit.Rest, eval.LineIsEmpty, eval.PseudoAttacksFrom"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "AddCastling",
+        "anropar": "addPieceMv, board.CastleIndex, canCastle"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "AddProms",
+        "anropar": "addPawnMv, bd.PieceSd, bit.First, bit.Rank, bit.Rest"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addPieceMv",
+        "anropar": "bd.Square, ml.Add, move.Build"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addPawnMv",
+        "anropar": "bd.Square, ml.Add, move.Build, square.IsPromotion"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addEnPassant",
+        "anropar": "bd.EpSq, bd.PieceSd, bit.First, bit.Rest, board.Opposit, ml.Add, move.Build"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "AddQuietMoves",
+        "anropar": "AddCastling, addPawnQuiets, addPieceMoves, bd.Empty"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addPawnQuiets",
+        "anropar": "addPawnMv, bd.Empty, bd.PieceSd, bit.First, bit.Rank, bit.Rest"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "addPawnCaptures",
+        "anropar": "addPawnMv, bd.PieceSd, bd.Side, bit.First, bit.Rest, board.Opposit"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "fastgen.go",
+        "funktionsnamn": "PrintAllMoves",
+        "anropar": "fmt.Print, fmt.Printf, fmt.Println, ml.Move, ml.Size, move.ToString"
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "killer.go",
+        "funktionsnamn": "Clear",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "killer.go",
+        "funktionsnamn": "Add",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "killer.go",
+        "funktionsnamn": "Killer1",
+        "anropar": ""
+    },
+    {
+        "mapp": "gen",
+        "go-fil": "killer.go",
+        "funktionsnamn": "Killer2",
+        "anropar": ""
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "Build",
+        "anropar": ""
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "From",
+        "anropar": ""
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "To",
+        "anropar": ""
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "Piece",
+        "anropar": ""
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "Capt",
+        "anropar": ""
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "Prom",
+        "anropar": ""
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "ToString",
+        "anropar": "From, Prom, To, material.ToString, square.ToString, strings.ToLower"
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "IsTactical",
+        "anropar": "IsCapture, IsPromotion"
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "IsCapture",
+        "anropar": "Capt"
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "IsCastling",
+        "anropar": "From, Iabs, Piece, To"
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "IsPromotion",
+        "anropar": "Prom"
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "CaptMax",
+        "anropar": "Capt, Prom"
+    },
+    {
+        "mapp": "move",
+        "go-fil": "move.go",
+        "funktionsnamn": "Iabs",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "init",
+        "anropar": "fmt.Printf"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "time",
+        "anropar": "diff.Nanoseconds, int, now.Sub, time.Now"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "reset",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "start",
+        "anropar": "time.Now"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "stop",
+        "anropar": "t.time"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "getElapsed",
+        "anropar": "t.time"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "mve",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "clear",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "mvAdd",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "add",
+        "anropar": "npv.getSize, npv.mve, pv.mvAdd"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "getSize",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "toString",
+        "anropar": "move.ToString, pv.getSize, pv.mve"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "catenate",
+        "anropar": "pv.add, pv.clear, pv.mvAdd"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "getMove",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "sgAbort",
+        "anropar": "rootSP.updateRoot"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "initRoot",
+        "anropar": "todo.Clear"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "updateRoot",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "ClearHash",
+        "anropar": "evalHash.Clear, pawnHash.Clear"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "init",
+        "anropar": "new"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "init",
+        "anropar": "Trans.Alloc, Trans.InitTable, Trans.SetSize, tellGUI"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "clear",
+        "anropar": "pv.clear, timer.reset, timer.start"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "updateBest",
+        "anropar": "pv.getMove"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "slSetRoot",
+        "anropar": "Board.SetRoot"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "undo",
+        "anropar": "bd.Undo"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "NewSearch",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "SetHard",
+        "anropar": "bd.Stm, eval.Interpolation, float64, int64, math.Max, math.Min"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "SetMaxDepth",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "SetMaxNodes",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "SetMaxTime",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "SetPonder",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "StartSearch",
+        "anropar": "SetStop, fmt.Printf, fmt.Println, move.ToString, pv.getMove, pv.getSize, searchGo, writePV"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "searchGo",
+        "anropar": "clear, initSg, rootSP.initRoot, searchEnd, searchID, sgAbort, slInitEarly, slInitLate"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "initSg",
+        "anropar": "History.Clear, Trans.IncDate"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "searchID",
+        "anropar": "depthStart, genAndSortLegals, int64, ml.Move, ml.Score, ml.Size, searchAsp, slPop, slPush, slSetRoot, updateCurrent"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "searchAsp",
+        "anropar": "IsMateScore, searchRoot"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "searchRoot",
+        "anropar": "Trans.Store, bd.Key, bd.Ply, eval.IsCheck, eval.IsInCheck, eval.IsPawnPush, extension, failHighFalse, failHighTrue, hash.Key, initMvSearch, ml.Move, ml.MoveToFront, ml.Size, move.IsCastling, move.IsTactical, pv.catenate, reduction, scoreType, search, slMove, undo, updateBest, updateCurrent, writePV"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "search",
+        "anropar": "AddMatePly, IsMateScore, Qs, Trans.Retrieve, Trans.Store, bd.IsDraw, bd.Key, bd.MoveNull, bd.Ply, bd.Stm, bd.UndoNull, board.LoneKing, eval.InitAttacks, evalByColor, hash.Key, pv.clear"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "initMvSearch",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "failHighFalse",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "failHighTrue",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "evalByColor",
+        "anropar": "evalHash.Eval"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "Qs",
+        "anropar": "bd.Ply, bd.Stm, bit.BB, bit.IsOne, bit.Set, eval.InitAttacks, evalByColor, gl.Init, gl.Next, incNode, move.To, se.See"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "extension",
+        "anropar": "eval.IsCheck, eval.IsPawnPush, gen.IsRecapture, gen.IsWin, move.IsTactical"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "depthStart",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "updateCurrent",
+        "anropar": "int, int64, timer.getElapsed"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "SetStop",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "searchEnd",
+        "anropar": "infoToGUI, timer.stop, updateCurrent"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "incNode",
+        "anropar": "int64, poll, sgAbort, uint64, updateCurrent"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "poll",
+        "anropar": "maybeToGUI"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "slMove",
+        "anropar": "bd.Move, bd.Ply, incNode"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "genAndSortLegals",
+        "anropar": "Qs, bd.Stm, evalByColor, gen.LegalMoves, ml.Move, ml.SetScore, ml.Size, ml.Sort, slMove, undo"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "maybeToGUI",
+        "anropar": "infoToGUI"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "infoToGUI",
+        "anropar": "Trans.Used, fmt.Sprintf, move.ToString, tellGUI"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "mateWithSign",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "writePV",
+        "anropar": "IsMateScore, fmt.Sprintf, mateWithSign, pv.toString, tellGUI"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "slPush",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "slPop",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "slInitEarly",
+        "anropar": "sl.init"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "slInitLate",
+        "anropar": "evalHash.Clear, killer.Clear, pawnHash.Clear"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "StartPerft",
+        "anropar": "bd.Move, bd.Undo, fmt.Printf, fmt.Println, gen.LegalMoves, ml.Move, ml.Size, move.ToString, perft, uint64"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "search.go",
+        "funktionsnamn": "perft",
+        "anropar": "bd.Move, bd.Undo, gen.LegalMoves, ml.Move, ml.Size, uint64"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "scoreType",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "IncDate",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "sizeToBits",
+        "anropar": "uint64"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "InitTable",
+        "anropar": "fmt.Println"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "Clear",
+        "anropar": "clearEntry, uint64"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "Store",
+        "anropar": "RemMatePly, hash.Index, hash.Lock, int, int16, int64, int8, uint32, uint64, uint8"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "SetSize",
+        "anropar": "sizeToBits, uint64"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "Alloc",
+        "anropar": "make, t.Clear"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "Retrieve",
+        "anropar": "AddMatePly, IsMateScore, hash.Index, hash.Lock, int, uint64, uint8"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "Used",
+        "anropar": "int"
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "clearEntry",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "RemMatePly",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "AddMatePly",
+        "anropar": ""
+    },
+    {
+        "mapp": "search",
+        "go-fil": "trans.go",
+        "funktionsnamn": "IsMateScore",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "Update",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "Power",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "Score",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "FromChar",
+        "anropar": "strings.Index"
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "ToString",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "ToFen",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "FromFen",
+        "anropar": "strings.Index"
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "Piece",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "Color",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "MakeP12",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "Is_minor",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "Is_major",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "IsSlider",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "Valuation",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "piece.go",
+        "funktionsnamn": "Score",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "material.go",
+        "funktionsnamn": "Phase",
+        "anropar": ""
+    },
+    {
+        "mapp": "material",
+        "go-fil": "material.go",
+        "funktionsnamn": "init",
+        "anropar": "float64, fmt.Println, int, math.Exp"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "Set",
+        "anropar": "Bit"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "Bit",
+        "anropar": "BB, uint"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "Single",
+        "anropar": "Rest"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "Clear",
+        "anropar": "Bit"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "Count",
+        "anropar": "BB, int"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "CountLoop",
+        "anropar": "Rest"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "File",
+        "anropar": "BB, uint, uint64"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "AdjFiles",
+        "anropar": "File"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "Rank",
+        "anropar": "BB, uint, uint64"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "Front",
+        "anropar": ""
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "Rear",
+        "anropar": ""
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "FrontSd",
+        "anropar": "square.Rank"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "RearSd",
+        "anropar": "square.Rank"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "Rest",
+        "anropar": ""
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "init",
+        "anropar": "BB, File, Front, Rank, Rear, fmt.Println"
+    },
+    {
+        "mapp": "bit",
+        "go-fil": "bit.go",
+        "funktionsnamn": "IsOne",
+        "anropar": "Bit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "init",
+        "anropar": "AtkInit, PawnInit, PstInit, bit.Set, float64, fmt.Println, fmt.Sprintf, int, len, math.Exp, math.Floor, move.Iabs, panic, square.File, square.Rank"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "Update",
+        "anropar": "material.Update"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "Clear",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "Eval",
+        "anropar": "CompEval, bd.EvalKey, hash.Index, hash.Lock, uint32"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "Eval",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "CompEval",
+        "anropar": "Imax, Imin, Interpolation, PawnAttacksFrom, PseudoAttacksTo, Score, attackEgScore, attackMgScore, bd.Count, bd.Empty, bd.King, bd.Piece, bd.PieceSd, bd.SquareIs, bit.Count, bit.File, bit.First, bit.Front, bit.IsOne, bit.Rank, bit.Rear, bit.Rest, board.Opposit, calcDist, captureScore, checkNumber, compAttacks, drawMul, evalFiancetto, evalKBNK, evalOutpost, evalPassed, evalPawnCap, int, int8, kingScore, material.MakeP12, material.Power, material.Score, mobilityScore, move.Iabs, mulShift, passedScore, passerUnstoppable, pawnHash.getEntry, pawnMovesFrom, shelterScore, square.Distance, square.File, square.Rank, square.RankSd, square.SameColor, square.Stop"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "evalKBNK",
+        "anropar": "bd.All, bd.Count, bit.Count"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "kingScore",
+        "anropar": "int, mulShift, uint"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "mobilityScore",
+        "anropar": "bit.Count, mulShift"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "attackMgScore",
+        "anropar": "bit.Count, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "attackEgScore",
+        "anropar": "bit.Count"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "drawMul",
+        "anropar": "bd.Count, bd.King, bd.PieceSd, bit.File, bit.First, board.LoneBishop, board.LoneKingOrBishop, board.LoneKingOrMinor, board.Opposit, board.TwoKnights, force, hasMinor, move.Iabs, square.Distance, square.RankSd, square.SameColor, square.Stop"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "captureScore",
+        "anropar": "bd.Pieces, bd.Square, bit.First, bit.IsOne, bit.Rest, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "checkNumber",
+        "anropar": "LineIsEmpty, PseudoAttacksTo, bd.Side, bit.CountLoop, bit.First, bit.Rest, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "force",
+        "anropar": "bd.Count, material.Power"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "hasMinor",
+        "anropar": "bd.Count"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "Interpolation",
+        "anropar": "Imin, bd.Phase"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "evalFiancetto",
+        "anropar": "bd.SquareIs"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "evalOutpost",
+        "anropar": "IsAttacked, bd.SquareIs, bit.IsOne, board.Opposit, square.Stop"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "evalPawnCap",
+        "anropar": "PawnAttacksFrom, bd.Pieces, bd.Square, bit.First, bit.IsOne, bit.Rest, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "evalPassed",
+        "anropar": "LineIsEmpty, bd.All, bd.PieceSd, bd.Square, bit.File, bit.First, bit.FrontSd, bit.RearSd, bit.Rest, board.Opposit, square.File, square.Stop"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "compAttacks",
+        "anropar": "PawnAttacksFrom, PieceAttacksFrom, PinnedBy, PseudoAttacksFrom, bd.King, bd.PieceSd, bd.Side, bit.BB, bit.First, bit.Rest, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "shelterScore",
+        "anropar": "Imax, bd.Flags, board.CastleFlag, board.CastleIndex, int, square.File, square.RankSd, uint"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "calcDist",
+        "anropar": "mulShift, square.Distance"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "mulShift",
+        "anropar": "uint"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "passedScore",
+        "anropar": "mulShift"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "Imax",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "eval.go",
+        "funktionsnamn": "Imin",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pst.go",
+        "funktionsnamn": "Score",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pst.go",
+        "funktionsnamn": "PstInit",
+        "anropar": "fmt.Println, material.MakeP12, square.File, square.OppositRank, square.Rank"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "AtkInit",
+        "anropar": "attacksThrough, computeBetween, computePawnAttacks, computePawnMoves, computePieceAttacks, fmt.Println, getBlockers"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "deltaInc",
+        "anropar": "square.IsValid88"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "pawnMovesFrom",
+        "anropar": "bd.PieceSd"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "computePawnMoves",
+        "anropar": "bit.Set, square.From88, square.IsValid88, square.RankSd, square.To88"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "computePawnAttacks",
+        "anropar": "bit.Set, square.From88, square.IsValid88, square.To88"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "computePieceAttacks",
+        "anropar": "bit.Set, square.From88, square.IsValid88, square.To88"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "attackBehind",
+        "anropar": "bd.All, bit.First, bit.Rest, bit.Single, sliderPseudoAttacksTo"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "getBlockers",
+        "anropar": "attacksThrough, bit.First, bit.Rest, bit.Set, computePieceAttacks"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "PseudoAttacksTo",
+        "anropar": "PseudoAttacksFrom, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "pawnAttacksTo",
+        "anropar": "board.Opposit, pawnAttacksFrom"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "PawnAttacksFrom",
+        "anropar": "bd.PieceSd"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "pawnAttacksFrom",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "PinnedBy",
+        "anropar": "bd.All, bit.First, bit.Rest, bit.Single, sliderPseudoAttacksTo"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "computeBetween",
+        "anropar": "bit.BB, bit.Set, deltaInc, square.From88, square.To88"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "attacksThrough",
+        "anropar": "bit.BB, bit.Set, deltaInc, square.From88, square.IsValid88, square.To88"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "IsInCheck",
+        "anropar": "IsAttacked, bd.King, bd.Stm, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "IsLegal",
+        "anropar": "IsAttacked, bd.King, bd.Stm, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "isPawnAtk",
+        "anropar": "bit.IsOne"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "PieceAttack",
+        "anropar": "LineIsEmpty, bit.IsOne"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "Ray",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "AttacksTo",
+        "anropar": "attacksFrom, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "PieceAttacksFrom",
+        "anropar": "bd.All, bit.First, bit.Rest"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "attacksFrom",
+        "anropar": "PieceAttacksFrom"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "PseudoAttacksFrom",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "attack",
+        "anropar": "PieceAttack, isPawnAtk"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "sliderPseudoAttacksTo",
+        "anropar": "bd.PieceSd, bit.BB"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "IsAttacked",
+        "anropar": "bd.All, bd.PieceSd, bit.First, bit.Rest, board.Opposit, sliderPseudoAttacksTo"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "LineIsEmpty",
+        "anropar": "bd.All"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "IsCheck",
+        "anropar": "IsEnPassant, Ray, attack, attackBehind, bd.King, bd.SquareSide, bit.IsOne, board.Opposit, inCheckAfterMove, move.From, move.IsCastling, move.IsPromotion, move.Piece, move.Prom, move.To"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "inCheckAfterMove",
+        "anropar": "IsInCheck, bd.Move, bd.Undo"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "attacks.go",
+        "funktionsnamn": "InitAttacks",
+        "anropar": "Ray, bd.All, bd.King, bd.PieceSd, bit.BB, bit.First, bit.Rest, bit.Single, board.Opposit, sliderPseudoAttacksTo"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "init",
+        "anropar": "AtkInit, PawnInit, PstInit, bit.Set, float64, fmt.Println, fmt.Sprintf, int, len, math.Exp, math.Floor, move.Iabs, panic, square.File, square.Rank"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "Update",
+        "anropar": "material.Update"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "Clear",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "Eval",
+        "anropar": "CompEval"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "Eval",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "CompEval",
+        "anropar": "Imax, Imin, Interpolation, PawnAttacksFrom, PseudoAttacksTo, Score, attackEgScore, attackMgScore, bd.Count, bd.Empty, bd.King, bd.Piece, bd.PieceSd, bd.SquareIs, bit.Count, bit.File, bit.First, bit.Front, bit.IsOne, bit.Rank, bit.Rear, bit.Rest, board.Opposit, calcDist, captureScore, checkNumber, compAttacks, drawMul, evalFiancetto, evalKBNK, evalOutpost, evalPassed, evalPawnCap, int, int8, kingScore, material.MakeP12, material.Power, material.Score, mobilityScore, move.Iabs, mulShift, passedScore, passerUnstoppable, pawnHash.getEntry, pawnMovesFrom, shelterScore, square.Distance, square.File, square.Rank, square.RankSd, square.SameColor, square.Stop"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "CompEvalGP",
+        "anropar": "Imax, Imin, Interpolation, PawnAttacksFrom, PseudoAttacksTo, Score, attackEgScore, attackMgScore, bd.Count, bd.Empty, bd.King, bd.Piece, bd.PieceSd, bd.SquareIs, bit.Count, bit.File, bit.First, bit.Front, bit.IsOne, bit.Rank, bit.Rear, bit.Rest, board.Opposit, calcDist, captureScore, checkNumber, compAttacks, drawMul, evalFiancetto, evalKBNK, evalOutpost, evalPassed, evalPawnCap, fmt.Println, fmt.Sprintf, int, int8, kingScore, len, material.MakeP12, material.Power, material.Score, mobilityScore, move.Iabs, mulShift, panic, passedScore, passerUnstoppable, pawnHash.getEntry, pawnMovesFrom, shelterScore, square.Distance, square.File, square.Rank, square.RankSd, square.SameColor, square.Stop"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "evalKBNK",
+        "anropar": "bd.All, bd.Count, bit.Count"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "kingScore",
+        "anropar": "int, mulShift, uint"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "mobilityScore",
+        "anropar": "bit.Count, mulShift"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "attackMgScore",
+        "anropar": "bit.Count, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "attackEgScore",
+        "anropar": "bit.Count"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "drawMul",
+        "anropar": "bd.Count, bd.King, bd.PieceSd, bit.File, bit.First, board.LoneBishop, board.LoneKingOrBishop, board.LoneKingOrMinor, board.Opposit, board.TwoKnights, force, hasMinor, move.Iabs, square.Distance, square.RankSd, square.SameColor, square.Stop"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "captureScore",
+        "anropar": "bd.Pieces, bd.Square, bit.First, bit.IsOne, bit.Rest, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "checkNumber",
+        "anropar": "LineIsEmpty, PseudoAttacksTo, bd.Side, bit.CountLoop, bit.First, bit.Rest, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "force",
+        "anropar": "bd.Count, material.Power"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "hasMinor",
+        "anropar": "bd.Count"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "Interpolation",
+        "anropar": "Imin, bd.Phase"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "evalFiancetto",
+        "anropar": "bd.SquareIs"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "evalOutpost",
+        "anropar": "IsAttacked, bd.SquareIs, bit.IsOne, board.Opposit, square.Stop"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "evalPawnCap",
+        "anropar": "PawnAttacksFrom, bd.Pieces, bd.Square, bit.First, bit.IsOne, bit.Rest, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "evalPassed",
+        "anropar": "LineIsEmpty, bd.All, bd.PieceSd, bd.Square, bit.File, bit.First, bit.FrontSd, bit.RearSd, bit.Rest, board.Opposit, square.File, square.Stop"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "compAttacks",
+        "anropar": "PawnAttacksFrom, PieceAttacksFrom, PinnedBy, PseudoAttacksFrom, bd.King, bd.PieceSd, bd.Side, bit.BB, bit.First, bit.Rest, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "shelterScore",
+        "anropar": "Imax, bd.Flags, board.CastleFlag, board.CastleIndex, int, square.File, square.RankSd, uint"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "calcDist",
+        "anropar": "mulShift, square.Distance"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "mulShift",
+        "anropar": "uint"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "passedScore",
+        "anropar": "mulShift"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "Imax",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "evalGP.go",
+        "funktionsnamn": "Imin",
+        "anropar": ""
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "ShelterFile",
+        "anropar": "bd.SquareIs, square.MakeSd"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "shelterFiles",
+        "anropar": "ShelterFile"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "isEmpty",
+        "anropar": "bd.Square"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "isControlled",
+        "anropar": "bd.PieceSd, bit.CountLoop, board.Opposit, pawnAttacksTo"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "PawnInit",
+        "anropar": "bit.AdjFiles, bit.BB, bit.File, bit.Front, bit.Rear, bit.Set, fmt.Println, square.File, square.Rank"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "getEntry",
+        "anropar": "bd.PawnKey, compPawnHash, hash.Index, hash.Lock, uint32"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "isPassed",
+        "anropar": "bd.PieceSd, board.Opposit"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "passerUnstoppable",
+        "anropar": "PseudoAttacksFrom, bd.All, bd.King, bit.File, bit.FrontSd, board.LoneKing, board.Opposit, square.File, squareDistance"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "squareDistance",
+        "anropar": "square.Distance, square.Promotion"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "IsEnPassant",
+        "anropar": "bd.EpSq, move.Piece, move.To"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "IsPawnPush",
+        "anropar": "bd.Square, bd.SquareSide, isPassed, move.From, move.IsCapture, move.IsTactical, move.To, square.RankSd"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "possibleAttacks",
+        "anropar": "isSafe, pawnAttacksFrom, square.IsPromotion, square.PawnInc"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "clearEntry",
+        "anropar": "bit.BB, int16, int8, uint32, uint8"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "Clear",
+        "anropar": "clearEntry"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "isIsolated",
+        "anropar": "bd.PieceSd, bit.AdjFiles, bit.File, square.File"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "isPawnPair",
+        "anropar": "bd.PieceSd"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "isSafe",
+        "anropar": "board.Opposit, isControlled, isEmpty"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "isWeak",
+        "anropar": "IsAttacked, bd.PieceSd, bd.SquareIs, isSafe, square.File, square.PawnInc, square.RankSd"
+    },
+    {
+        "mapp": "eval",
+        "go-fil": "pawn.go",
+        "funktionsnamn": "isDoubled",
+        "anropar": "bd.PieceSd, bit.File, bit.RearSd, square.File"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "HandleInput",
+        "anropar": "Bd.PrintBBInfo, Bd.PrintBoard, Bd.Stm, HandleGo, History.Clear, PrintFens, PrintMoves, SetPosition, Trans.Clear, endianCheck, err.Error, eval, eval.CompEval, eval.Update, fmt.Println, fmt.Sprintf, initGame, len, mirror, pawnHash.Clear, qs, search.Qs, search.SetStop, search.StartPerft, setOption, sl.ClearHash, strconv.Atoi, strings.Split, strings.ToLower, strings.TrimSpace, tellGUI"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "runGetParms",
+        "anropar": "SetPosition, eval.CompEval, eval.Update, fmt.Printf, fmt.Println, len, log.Fatalf, mirror, pawnHash.Clear, strconv.Atoi, strings.Fields"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "scanEpd",
+        "anropar": "append, bufio.NewScanner, fscanner.Scan, fscanner.Text, len, log.Fatalln, os.Open, panic, strings.Index"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "mirror",
+        "anropar": "fmt.Println, len, strconv.Atoi, strconv.Itoa, strings.Contains, strings.Fields, strings.Join, strings.Replace, strings.Split"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "HandleGo",
+        "anropar": "int, pickNumber, search.NewSearch, search.SetHard, search.SetMaxDepth, search.SetMaxNodes, search.SetMaxTime, search.SetPonder, strings.HasSuffix, strings.Index, strings.ToLower, strings.TrimSpace, tellGUI, uint64"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "pickNumber",
+        "anropar": "int64, len, strconv.Atoi, strings.Index, strings.Split, trim"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "setOption",
+        "anropar": "Trans.Alloc, Trans.InitTable, Trans.SetSize, fmt.Println, int, len, strconv.ParseBool, strconv.ParseInt, strings.ToLower, strings.TrimSpace"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "SetPosition",
+        "anropar": "Bd.MakeFenMve, board.FenMoves, board.FromString, board.SetFen, gen.LegalMoves, isLegal, ml.Clear, strings.Index, strings.Join, strings.Split, strings.ToLower, strings.TrimSpace"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "isLegal",
+        "anropar": "ml.Move, ml.Size, move.ToString, strings.ToLower, strings.TrimSpace"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "initGame",
+        "anropar": "History.Clear, SetPosition, Trans.Clear"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "PrintMoves",
+        "anropar": "gen.LegalMoves, gen.PrintAllMoves"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "PrintFens",
+        "anropar": "Bd.CreateFen, Bd.Move, Bd.Undo, fmt.Println, gen.LegalMoves, ml.Move, ml.Size, move.ToString"
+    },
+    {
+        "mapp": "uci",
+        "go-fil": "uci.go",
+        "funktionsnamn": "endianCheck",
+        "anropar": "TellGUI, fmt.Println"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "FromFen",
+        "anropar": "Make"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "Make",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "MakeSd",
+        "anropar": "Make"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "SameColor",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "Rank",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "RankSd",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "File",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "fileDistance",
+        "anropar": "File, float64, int, math.Abs"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "rankDistance",
+        "anropar": "Rank, float64, int, math.Abs"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "Distance",
+        "anropar": "fileDistance, float64, int, math.Max, rankDistance"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "Opposit_file",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "OppositRank",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "Promotion",
+        "anropar": "File, MakeSd"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "PawnInc",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "Stop",
+        "anropar": "PawnInc"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "FromString",
+        "anropar": "Make, int"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "IsPromotion",
+        "anropar": "Rank"
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "IsValid88",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "To88",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "From88",
+        "anropar": ""
+    },
+    {
+        "mapp": "square",
+        "go-fil": "square.go",
+        "funktionsnamn": "ToString",
+        "anropar": "File, Rank, strconv.Itoa"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "rand64",
+        "anropar": "Key, RandInt, int"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "randKey",
+        "anropar": ""
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "StmKey",
+        "anropar": "randKey"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "FlagKey",
+        "anropar": "int, randKey"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "PieceKey",
+        "anropar": "randKey"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "StmFlip",
+        "anropar": "randKey"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "init",
+        "anropar": "fmt.Println, rand64"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "EnPassantKey",
+        "anropar": "randKey, square.File"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "Index",
+        "anropar": "int64"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "Lock",
+        "anropar": "uint32"
+    },
+    {
+        "mapp": "hash",
+        "go-fil": "hash.go",
+        "funktionsnamn": "RandInt",
+        "anropar": "r1.Intn"
+    }
+]

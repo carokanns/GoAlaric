@@ -2,8 +2,8 @@
 package main
 
 import (
-	"GoAlaric/search"
-	"GoAlaric/uci"
+	"goalaric/search"
+	"goalaric/uci"
 	"bufio"
 	"fmt"
 	"io"

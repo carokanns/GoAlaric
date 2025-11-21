@@ -1,12 +1,13 @@
 package eval
 
 import (
-	"GoAlaric/bit"
-	"GoAlaric/board"
-	"GoAlaric/material"
-	"GoAlaric/move"
-	"GoAlaric/square"
 	"fmt"
+
+	"goalaric/bit"
+	"goalaric/board"
+	"goalaric/material"
+	"goalaric/move"
+	"goalaric/square"
 )
 
 // bitboards with various attack patterns
@@ -198,7 +199,7 @@ func getBlockers(pc, fr int) bit.BB {
 	return b
 }
 
-//PseudoAttacksTo returns a bitboard with all pseudoattacks to to-sq from piece=pc
+// PseudoAttacksTo returns a bitboard with all pseudoattacks to to-sq from piece=pc
 func PseudoAttacksTo(pc, sd, to int) bit.BB {
 	return PseudoAttacksFrom(pc, board.Opposit(sd), to) // HACK for pawns
 }

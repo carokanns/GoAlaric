@@ -2,9 +2,10 @@
 package bit
 
 import (
-	"GoAlaric/square"
 	"fmt"
 	"testing"
+
+	"goalaric/square"
 )
 
 func TestCount(t *testing.T) {

@@ -3,17 +3,17 @@ package gen
 //namespace gen_sort {
 //   // HACK: outside of List class because of C++ "static const" limitations :(
 import (
-	"GoAlaric/bit"
-	"GoAlaric/board"
-	"GoAlaric/eval"
-	"GoAlaric/material"
-	"GoAlaric/move"
-	"GoAlaric/square"
 	"fmt"
 	"math"
+
+	"goalaric/bit"
+	"goalaric/board"
+	"goalaric/eval"
+	"goalaric/material"
+	"goalaric/move"
+	"goalaric/square"
 )
 
-//
 const (
 	genEvasion = iota
 	genTrans
@@ -246,9 +246,10 @@ func (l *List) post(mv int) bool {
 }
 
 // Next move from list
-//   gen adds to Size for each generated move.
-//   l.pos adds one for each used move.
-//   l.idx is the index to the next phase (SV=Status Variable) of moves (checks, tatical etc)
+//
+//	gen adds to Size for each generated move.
+//	l.pos adds one for each used move.
+//	l.idx is the index to the next phase (SV=Status Variable) of moves (checks, tatical etc)
 func (l *List) Next() int {
 	// 	progMain    = genSV{ genTrans, postKiller, genTactical, postMoveSEE, genKiller, postKillerSEE, genQuiet, postMoveSEE, genBad, postBad, genEnd, genEnd}
 

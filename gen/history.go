@@ -1,10 +1,10 @@
 package gen
 
 import (
-	"GoAlaric/board"
-	"GoAlaric/material"
-	"GoAlaric/move"
-	"GoAlaric/square"
+	"goalaric/board"
+	"goalaric/material"
+	"goalaric/move"
+	"goalaric/square"
 )
 
 // History tab bits

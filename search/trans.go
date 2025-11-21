@@ -1,9 +1,10 @@
 package search
 
 import (
-	"GoAlaric/hash"
-	"GoAlaric/move"
 	"fmt"
+
+	"goalaric/hash"
+	"goalaric/move"
 )
 
 // score limits
@@ -12,7 +13,6 @@ const (
 	EvalMAX = +8999
 )
 
-//
 // score types
 const (
 	//no scoretype = 0

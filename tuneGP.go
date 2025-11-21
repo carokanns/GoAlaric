@@ -1,54 +1,128 @@
+//go:build tunegp
 // +build tunegp
 
 package main
 
-//////////////////////////////////////////////////////////
-// COMPILE WITH go build -tags tunegp   (små bokstäver)	//
-//////////////////////////////////////////////////////////
-// Buid a file to GPTune.go  use for tuning with GP 	//
-// Will read in the epd-lines and run 1.qs and       	//
-// 2.search(). It create a new epd-file with the same  	//
-//  fen and the Qs-eval in c0 and searchEval in c1.    	//
-//////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////
+// COMPILE WITH go build -tags tunegp   (små bokstäver)	  //
+////////////////////////////////////////////////////////////
+// Buid a file for the GPTune project use to tune with GP //
+// Will read in the epd-lines and 1. compute rooteval and //
+// 2.search(). It create a new epd-file with the same  	  //
+//  fen and the rooteval in c0 and searchEval in c1.  	  //
+////////////////////////////////////////////////////////////
+///////////////////////////////////////////
+// start with 'goalaric parms'     		 //
+// in order to save eval-parameters		 //
+// otherwise use goalaric  in order		 //
+// to generate epd-file with c0-eval and //
+// c1-search.							 //
+///////////////////////////////////////////
 
 import (
-	"GoAlaric/board"
-	"GoAlaric/eval"
-	"GoAlaric/search"
-	"GoAlaric/uci"
 	"bufio"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"time"
+
+	"goalaric/board"
+	"goalaric/eval"
+	"goalaric/search"
+	"goalaric/uci"
 )
 
 ////////////////// dont forget +build tunegp
 
-var inputFile = "tune/verifyTune.epd"
-var outputFile = "gpVerify.epd"
+//var inputFile = "tune/cleanForGP.epd"
+var fullGPFile = "fullGP2.epd"
+var parmGPFile = "parmsGP.epd"
 var epd []string
 
 //var nParms = len(parms.Parms)
 
 func init() {
 	fmt.Println("\nstarting GP tuner")
-	f, err := os.Create(outputFile)
+	fmt.Println(os.Args)
+	useParms := false
+	if len(os.Args) > 1 {
+		if os.Args[1] == "parms" {
+			fmt.Println("Parameter: parms")
+			useParms = true
+		} else {
+			fmt.Println("Parameter not known:", os.Args[1:])
+		}
+	} else {
+		fmt.Println("No Parameter")
+	}
+
+	time.Sleep(time.Second * 2)
+
+	fmt.Println("Use file", inputFile)
+	scanEpd(&epd) // läs in alla epd-positioner
+	if useParms {
+		runGetParms()
+	} else {
+		runGetEval()
+	}
+
+	fmt.Println("tune will finish here")
+	os.Exit(2)
+}
+
+// Create a file where c0 is qs value and c1 is a list of parm-values
+func runGetParms() {
+	f, err := os.Create(parmGPFile)
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
+	//startTime := time.Now()
+	nPositions := len(epd)
+	chInput := make(chan string)
+	chSearch := make(chan int)
+	chBestmove := make(chan string)
 
-	scanEpd(&epd) // läs in alla epd-positioner
-	run()
-	/////////////////testRun()
-	log.Fatalln("tune finished")
+	go getInput(chInput)
+	go search.StartSearch(chSearch, chBestmove, &uci.Bd)
+
+	fmt.Println("starting get parms")
+	for pos := 0; pos < nPositions; pos++ {
+		fields := strings.Fields(epd[pos])
+		if fields[1] == "b" {
+			epd[pos] = mirror(epd[pos])
+		}
+
+		fen := strings.Split(epd[pos], "c0")
+
+		_ = uci.HandleInput("ucinewgame", &chSearch)
+		_ = uci.HandleInput("position fen "+fen[0], &chSearch)
+
+		var ph eval.PawnHash
+		ph.Clear()
+
+		evRoot, vector := eval.CompEvalGP(&uci.Bd, &ph)
+
+		if pos%1000 == 0 {
+			fmt.Println("\nPOS", pos, "====================== rootEv", evRoot)
+			time.Sleep(time.Millisecond * 500)
+		}
+		strVector := fmt.Sprintf("%v", vector)
+		strVector = strings.Replace(strVector, "]", "", -1)
+		strVector = strings.Replace(strVector, "[", "", -1)
+		_, err = f.WriteString(fmt.Sprintf("%v c0 %v c1 %v\n", fen[0], evRoot, strVector))
+		if err != nil {
+			panic(err)
+		}
+	}
+	fmt.Println("no of positions", nPositions)
 }
 
-// cerate a file where c0 is qs value and c1 is eval after xs
-func run() {
-	f, err := os.Create(outputFile)
+// Create a file where c0 is qs value and c1 is eval after xs
+func runGetEval() {
+	f, err := os.Create(fullGPFile)
 	if err != nil {
 		panic(err)
 	}
@@ -64,10 +138,6 @@ func run() {
 	go search.StartSearch(chSearch, chBestmove, &uci.Bd)
 
 	for pos := 0; pos < nPositions; pos++ {
-		/* 	if pos < 725 {
-			continue
-		}
-		*/
 		fields := strings.Fields(epd[pos])
 		if fields[1] == "b" {
 			epd[pos] = mirror(epd[pos])
@@ -81,44 +151,46 @@ func run() {
 
 		var ph eval.PawnHash
 		ph.Clear()
-		re := eval.CompEval(&uci.Bd, &ph)
-		
+		evRoot, _ := eval.CompEvalGP(&uci.Bd, &ph)
+
 		//////////////////////////
 		var sl search.Local
 		sl.ID = 0
 		sl.Board = uci.Bd
 		sl.ClearHash()
 		eval.Update()
-		qs := search.Qs(&sl, search.EvalMAX, 0)
-		///////////////////////
+		/* 		qs := search.Qs(&sl, search.EvalMAX, 0)
+		   		///////////////////////
 
-		_ = uci.HandleInput("ucinewgame", &chSearch)
-		_ = uci.HandleInput("position fen "+fen[0], &chSearch)
-		eval.Update()
-		_ = uci.HandleInput("go depth 1", &chSearch)
-		_ = <-chBestmove
-		e1 := search.Best.Score
-		//		q := getQs()
-		if abs(qs-re) > 75 {
-			diffHigh++
-		}
-		if uci.Bd.Stm() == board.BLACK {
-			e1 = -e1
-			panic("NOOOOOOOOOOOOOOOOOOOOOOO")
-		}
-
-		//		uci.HandleGo("go movetime 10000", &chSearch)
+		   		_ = uci.HandleInput("ucinewgame", &chSearch)
+		   		_ = uci.HandleInput("position fen "+fen[0], &chSearch)
+		   		eval.Update()
+		   		_ = uci.HandleInput("go depth 1", &chSearch)
+		   		_ = <-chBestmove
+		   		e1 := search.Best.Score
+		   		//		q := getQs()
+		   		if abs(qs-evRoot) > 75 {
+		   			diffHigh++
+		   		}
+		   		if uci.Bd.Stm() == board.BLACK {
+		   			e1 = -e1
+		   			panic("NOOOOOOOOOOOOOOOOOOOOOOO")
+		   		}
+		*/
+		//uci.HandleGo("go movetime 10000", &chSearch)
 		uci.HandleGo("go movetime 100", &chSearch)
 		_ = <-chBestmove
 
-		es := search.Best.Score
+		evSearch := search.Best.Score
 		if uci.Bd.Stm() == board.BLACK {
-			es = -es
+			evSearch = -evSearch
 			panic("NOOOOOOOOOOOOOOOOOOOOOOO")
 		}
 
-		fmt.Println("POS ====== rootEv",re,  "qs", qs, "e1", e1 ,"ev", es, pos)
-		_, err = f.WriteString(fmt.Sprintf("%v c0 %v c1 %v\n", fen[0], re , es))
+		if pos%1000 == 0 {
+			fmt.Println("\n\n\nPOS", pos, "====== rootEv", evRoot, "ev100", evSearch)
+		}
+		_, err = f.WriteString(fmt.Sprintf("%v c0 %v c1 %v\n", fen[0], evRoot, evSearch))
 		if err != nil {
 			panic(err)
 		}
@@ -126,6 +198,7 @@ func run() {
 	fmt.Println("no of diffHigh", diffHigh, "of", nPositions)
 }
 
+// ///
 func abs(a int) int {
 	if a < 0 {
 		return -a
@@ -222,7 +295,7 @@ func mirror(epd string) string {
 	return newEpd
 }
 
-//byt ut run() mot denna
+// byt ut run() mot denna
 func testRun() {
 	tests := []struct {
 		name string

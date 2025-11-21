@@ -1,8 +1,9 @@
 package material
 
 import (
-	"GoAlaric/parms"
 	"strings"
+
+	"goalaric/parms"
 )
 
 // Parms is an array with evaluation values
@@ -15,7 +16,7 @@ const (
 )
 const stageSize int = 2 // NOTE: declared elsewhere to
 
-//var score = [Size][stageSize]int{{85, 95}, {325, 325}, {325, 325}, {460, 540}, {975, 975}, {0, 0}, {0, 0}}
+// var score = [Size][stageSize]int{{85, 95}, {325, 325}, {325, 325}, {460, 540}, {975, 975}, {0, 0}, {0, 0}}
 var score = [Size][stageSize]int{{Parms[21], Parms[22]}, {Parms[23], Parms[24]}, {Parms[25], Parms[26]}, {Parms[27], Parms[28]}, {Parms[29], Parms[30]}, {0, 0}, {0, 0}}
 var powerVal = [Size]int{0, Parms[47], Parms[48], Parms[49], Parms[50], 0, 0} // in capture situation  //1, 1, 2, 4,
 
@@ -73,10 +74,10 @@ const (
 	fenChar = "PpNnBbRrQqKk"
 )
 
-// Update is for tuning. See tune.go 
-func Update(){
- score = [Size][stageSize]int{{Parms[21], Parms[22]}, {Parms[23], Parms[24]}, {Parms[25], Parms[26]}, {Parms[27], Parms[28]}, {Parms[29], Parms[30]}, {0, 0}, {0, 0}}
- powerVal = [Size]int{0, Parms[47], Parms[48], Parms[49], Parms[50], 0, 0} // in capture situation  //1, 1, 2, 4,
+// Update is for tuning. See tune.go
+func Update() {
+	score = [Size][stageSize]int{{Parms[21], Parms[22]}, {Parms[23], Parms[24]}, {Parms[25], Parms[26]}, {Parms[27], Parms[28]}, {Parms[29], Parms[30]}, {0, 0}, {0, 0}}
+	powerVal = [Size]int{0, Parms[47], Parms[48], Parms[49], Parms[50], 0, 0} // in capture situation  //1, 1, 2, 4,
 }
 
 // Power returns the power of a piece in capture situations

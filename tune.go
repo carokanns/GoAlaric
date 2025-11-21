@@ -1,19 +1,21 @@
+//go:build tune
 // +build tune
 
 package main
 
 import (
-	"GoAlaric/board"
-	"GoAlaric/eval"
-	"GoAlaric/parms"
-	"GoAlaric/search"
-	"GoAlaric/uci"
 	"bufio"
 	"fmt"
 	"log"
 	"math"
 	"os"
 	"strings"
+
+	"goalaric/board"
+	"goalaric/eval"
+	"goalaric/parms"
+	"goalaric/search"
+	"goalaric/uci"
 )
 
 // Parms is an array with evaluation values
@@ -41,8 +43,8 @@ func init() {
 	defer f.Close()
 
 	scanEpd(&res, &fen)
-	fmt.Println("both lengths should be the same", len(res), len(fen))
 	if len(res) != len(fen) {
+		fmt.Println("both lengths should be the same", len(res), len(fen))
 		panic("Not the same length")
 	}
 	bestParms := localOptimize(parms.Parms)
@@ -204,14 +206,14 @@ func getQs() int {
 // ASSERT is asserting message f cond is false
 func ASSERT(cond bool, msg ...interface{}) {
 
-	//	if !cond {
-	//		if len(msg) > 0 {
-	//			panic("assert failed. ")
-	//		} else {
-	//			panic("assert failed. ")
-	//		}
-	//	}
-}
+		//	if !cond {
+		//		if len(msg) > 0 {
+		//			panic("assert failed. ")
+		//		} else {
+		//			panic("assert failed. ")
+		//		}
+		//	}
+	}
 */
 func testQs(newParms [parms.Nparms]int) {
 	/*

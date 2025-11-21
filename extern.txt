@@ -1,0 +1,196 @@
+mapp: Root
+  GoAlaric.go:
+    main -> search, uci
+
+mapp: bit
+  bit.go:
+    FrontSd -> square
+    RearSd -> square
+
+mapp: board
+  board.go:
+    Count -> material
+    CreateFen -> material, square
+    EvalKey -> hash
+    FromString -> material, square
+    IsMove -> move
+    Key -> hash
+    MakeFenMve -> move, square
+    Move -> move, square
+    PrintBB -> bit, square
+    PrintBBInfo -> material
+    PrintBoard -> material, square
+    SetFen -> hash, material, square
+    Undo -> move
+    clearSquare -> bit, hash, material
+    flipStm -> hash
+    make -> move, square
+    pawnIsAttacked -> square
+    setSquare -> bit, hash, material
+  castling.go:
+    computeFlagsKey -> hash
+
+mapp: eval
+  attacks.go:
+    AttacksTo -> board
+    InitAttacks -> bit, board
+    IsAttacked -> bit, board
+    IsCheck -> bit, board, move
+    IsInCheck -> board
+    IsLegal -> board
+    PieceAttack -> bit
+    PieceAttacksFrom -> bit
+    PinnedBy -> bit
+    PseudoAttacksTo -> board
+    attackBehind -> bit
+    attacksThrough -> bit, square
+    computeBetween -> bit, square
+    computePawnAttacks -> bit, square
+    computePawnMoves -> bit, square
+    computePieceAttacks -> bit, square
+    deltaInc -> square
+    getBlockers -> bit
+    isPawnAtk -> bit
+    pawnAttacksTo -> board
+    sliderPseudoAttacksTo -> bit
+  eval.go:
+    CompEval -> bit, board, material, move, square
+    Eval -> hash
+    Update -> material
+    attackEgScore -> bit
+    attackMgScore -> bit, board
+    calcDist -> square
+    captureScore -> bit, board
+    checkNumber -> bit, board
+    compAttacks -> bit, board
+    drawMul -> bit, board, move, square
+    evalKBNK -> bit
+    evalOutpost -> bit, board, square
+    evalPassed -> bit, board, square
+    evalPawnCap -> bit, board
+    force -> material
+    init -> bit, math, move, square
+    mobilityScore -> bit
+    shelterScore -> board, square
+  evalGP.go:
+    CompEval -> bit, board, material, move, square
+    CompEvalGP -> bit, board, material, move, square
+    Update -> material
+    attackEgScore -> bit
+    attackMgScore -> bit, board
+    calcDist -> square
+    captureScore -> bit, board
+    checkNumber -> bit, board
+    compAttacks -> bit, board
+    drawMul -> bit, board, move, square
+    evalKBNK -> bit
+    evalOutpost -> bit, board, square
+    evalPassed -> bit, board, square
+    evalPawnCap -> bit, board
+    force -> material
+    init -> bit, math, move, square
+    mobilityScore -> bit
+    shelterScore -> board, square
+  pawn.go:
+    IsEnPassant -> move
+    IsPawnPush -> move, square
+    PawnInit -> bit, square
+    ShelterFile -> square
+    clearEntry -> bit
+    getEntry -> hash
+    isControlled -> bit, board
+    isDoubled -> bit, square
+    isIsolated -> bit, square
+    isPassed -> board
+    isSafe -> board
+    isWeak -> square
+    passerUnstoppable -> bit, board, square
+    possibleAttacks -> square
+    squareDistance -> square
+  pst.go:
+    PstInit -> material, square
+
+mapp: gen
+  fastgen.go:
+    AddCaptures -> board
+    AddCastling -> board
+    AddChecks -> bit, eval
+    AddProms -> bit
+    IsLegalMv -> eval
+    IsQuiet -> eval, move, square
+    IsRecapture -> move
+    IsWin -> move
+    NoSacrifice -> move
+    PawnPushes -> bit, eval
+    PrintAllMoves -> move
+    See -> board, move, square
+    Tacticals -> move
+    addEnPassant -> bit, board, move
+    addEvasionCaptures -> bit, eval
+    addPawnCaptures -> bit, board
+    addPawnMv -> move, square
+    addPawnQuiets -> bit
+    addPieceCaptures -> bit, eval
+    addPieceMoves -> bit
+    addPieceMv -> move
+    canCastle -> board, eval
+    evasionScore -> move
+    gen -> board
+    genPseudos -> eval
+    init -> board
+    isLegal -> bit, board, eval, move
+    moveVal -> bit, board, square
+    pickLva -> bit, board, eval
+    pieceEvasionMoves -> bit
+    pieceMovesFr -> bit, eval
+    seeRec -> math
+  history.go:
+    bad -> move
+    good -> move
+    index -> material, move
+
+mapp: hash
+  hash.go:
+    EnPassantKey -> square
+
+mapp: material
+  material.go:
+    init -> math
+
+mapp: move
+  move.go:
+    ToString -> material, square
+
+mapp: search
+  search.go:
+    Qs -> bit, eval, move
+    SetHard -> eval, math
+    StartPerft -> gen, move
+    StartSearch -> move
+    extension -> eval, gen, move
+    genAndSortLegals -> gen
+    infoToGUI -> move
+    perft -> gen
+    search -> board, eval, hash
+    searchRoot -> eval, hash, move
+    toString -> move
+  trans.go:
+    Retrieve -> hash
+    Store -> hash
+
+mapp: square
+  square.go:
+    Distance -> math
+    fileDistance -> math
+    rankDistance -> math
+
+mapp: uci
+  uci.go:
+    HandleGo -> search
+    HandleInput -> eval, search
+    PrintFens -> gen, move
+    PrintMoves -> gen
+    SetPosition -> board, gen
+    isLegal -> move
+    runGetParms -> eval
+

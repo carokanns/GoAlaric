@@ -1,7 +1,7 @@
 package gen
 
 import (
-	"GoAlaric/move"
+	"goalaric/move"
 )
 
 const maxPly = 100

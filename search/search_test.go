@@ -2,16 +2,17 @@
 package search
 
 import (
-	"GoAlaric/board"
-	"GoAlaric/eval"
-	"GoAlaric/gen"
-	"GoAlaric/material"
-	"GoAlaric/move"
 	"fmt"
 	"log"
 	"strings"
 	"testing"
 	"time"
+
+	"goalaric/board"
+	"goalaric/eval"
+	"goalaric/gen"
+	"goalaric/material"
+	"goalaric/move"
 )
 
 var bd board.Board

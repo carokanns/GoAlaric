@@ -1,8 +1,9 @@
 package gen
 
 import (
-	"GoAlaric/board"
 	"testing"
+
+	"goalaric/board"
 )
 
 func Test_genLegals(t *testing.T) {
