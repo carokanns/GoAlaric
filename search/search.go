@@ -1241,7 +1241,6 @@ func incNode(sl *Local, cnt int) {
 	//	if sl_stop(sl) {   // split logik
 	//		Abort()
 	//	}
-	return
 }
 
 func poll() bool {

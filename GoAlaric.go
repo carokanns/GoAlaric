@@ -2,10 +2,10 @@
 package main
 
 import (
-	"goalaric/search"
-	"goalaric/uci"
 	"bufio"
 	"fmt"
+	"goalaric/search"
+	"goalaric/uci"
 	"io"
 	"os"
 	// Följande 3 imports samt "go func" först i main() för pprof
@@ -52,8 +52,8 @@ func main() {
 			}
 		case line = <-chInput:
 			s = uci.HandleInput(line, &chSearch)
-			if search.Infinite && s == "stop" || //we are waiting for "stop" in order to send bestmove
-				s == "s" {
+			if search.Infinite && (s == "stop" || //we are waiting for "stop" in order to send bestmove
+				s == "s") {
 				tellGUI(savedBm)
 				search.Infinite = false
 			}

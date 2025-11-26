@@ -32,10 +32,10 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI("id name GoAlaric")
 			tellGUI("id author Peter Fendrich")
 
-			tellGUI(fmt.Sprintf("option name Hash type spin default %v  min 16 max 16384\n", search.Engine.Hash))
-			tellGUI(fmt.Sprintf("option name Ponder type check default %v\n", search.Engine.Ponder))
-			tellGUI(fmt.Sprintf("option name Threads type spin default %v min 1 max 16\n", search.Engine.Threads))
-			tellGUI(fmt.Sprintf("option name LogFile type check default %v\n", search.Engine.Log))
+			tellGUI(fmt.Sprintf("option name Hash type spin default %v  min 16 max 16384", search.Engine.Hash))
+			tellGUI(fmt.Sprintf("option name Ponder type check default %v", search.Engine.Ponder))
+			tellGUI(fmt.Sprintf("option name Threads type spin default %v min 1 max 16", search.Engine.Threads))
+			tellGUI(fmt.Sprintf("option name LogFile type check default %v", search.Engine.Log))
 
 			tellGUI("uciok")
 		case "isready":
@@ -117,7 +117,7 @@ func HandleInput(line string, chSearch *chan int) string {
 			PrintFens() // one fen per legal move in current position
 		case "pn":
 			endianCheck()
-		case "help":			
+		case "help":
 			tellGUI("case uci: Alltid vid start. Svarar med tellGUI(uciok)")
 			tellGUI("case isready: Synkar med GUI:t som skall svarar med tellGUI(readyok)")
 
@@ -143,7 +143,6 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI("case pm: // all valid moves")
 			tellGUI("case pf: // one fen per legal move in current position")
 			tellGUI("case pn: endianCheck()")
-		
 
 		default:
 			if len(words) > 1 {
@@ -409,14 +408,22 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 
 // SetPosition sets up a position from the GUI position command (see UCI spec)
 func SetPosition(str string) {
-	words := strings.Split(str, " ")[1:]
+	parts := strings.Split(str, " ")
+	if len(parts) < 2 {
+		return // nothing to do on bare "position"
+	}
+	words := parts[1:]
 	word1 := strings.ToLower(strings.TrimSpace(words[0]))
 	mpos := strings.Index(strings.TrimSpace(str), "moves")
+
 	switch word1 {
 	case "startpos":
 		board.SetFen(board.StartFen, &Bd)
 	case "fen":
 		if mpos == -1 {
+			if len(words) < 2 { // missing fen payload
+				return
+			}
 			board.SetFen(strings.Join(words[1:], " "), &Bd)
 		} else {
 			fpos := strings.Index(str, "fen") + 4
@@ -425,6 +432,7 @@ func SetPosition(str string) {
 	default:
 		return
 	}
+
 	if mpos >= 0 {
 
 		moves := strings.Split(str[mpos+5:], " ")
