@@ -1,3 +1,5 @@
+// Package board contains the core board representation, hashing and move
+// make/undo routines used by the engine.
 package board
 
 import (
@@ -30,8 +32,10 @@ const (
 	WingKING  int = iota // Kungsflygeln
 	WingQUEEN            // Damflygeln
 )
-const scoreNONE int = -10000 // HACK because "score.None" is defined later
 
+//const scoreNONE int = -10000 // HACK because "score.None" is defined later
+
+// copyStruct keeps the incremental hash and state flags needed for undo/redo.
 type copyStruct struct {
 	key     hash.Key
 	pawnKey hash.Key
@@ -50,7 +54,7 @@ type Undo struct {
 	castling bool
 }
 
-// Board struct is holding a position and all its varables
+// Board represents a chess position and provides make/undo operations.
 type Board struct {
 	piece [material.Size]bit.BB // bb per piece
 	side  [2]bit.BB             // bb per side
@@ -68,12 +72,12 @@ type Board struct {
 	stack   [1024]Undo
 }
 
-// Opposit color - either side to move or piece color
-func Opposit(sd int) int {
+// Opposite returns the opposite color (white -> black or black -> white).
+func Opposite(sd int) int {
 	return sd ^ 1
 }
 
-// SetFen makes en internal board position from the fen-string
+// SetFen builds an internal board position from a FEN string.
 func SetFen(fen string, bd *Board) {
 
 	bd.clear()
@@ -385,7 +389,7 @@ func (bd *Board) Key() hash.Key {
 	return key
 }
 
-// PawnKey returns the Pawn hahs key
+// PawnKey returns the pawn hash key.
 func (bd *Board) PawnKey() hash.Key {
 	return bd.copyStr.pawnKey
 }
@@ -460,7 +464,7 @@ func (bd *Board) MakeFenMve(mv int) {
 	// util.ASSERT(mv != move.NULL_);
 
 	sd := bd.stm
-	xd := Opposit(sd)
+	xd := Opposite(sd)
 
 	fr := move.From(mv)
 	to := move.To(mv)
@@ -473,11 +477,12 @@ func (bd *Board) MakeFenMve(mv int) {
 	// util.ASSERT(square_side(fr) == sd);
 
 	// util.ASSERT(p_sp < 1024);
-	undo := bd.stack[bd.stackIx] //&Undo
+	undo := &bd.stack[bd.stackIx] // store undo data so we can reverse if needed
 	bd.stackIx++
 	undo.copyS = bd.copyStr
 	undo.move = mv
 	undo.castling = false
+	undo.capSq = square.None
 
 	bd.copyStr.moves++
 	bd.copyStr.recap = square.None
@@ -617,7 +622,7 @@ func (bd *Board) Ply() int {
 	return bd.stackIx - bd.rootIx
 }
 func (bd *Board) flipStm() {
-	bd.stm = Opposit(bd.stm)
+	bd.stm = Opposite(bd.stm)
 	bd.copyStr.key ^= hash.StmFlip()
 }
 func (bd *Board) moveSquare(pc, sd, fr, to int, updateCopy bool) {
@@ -640,7 +645,7 @@ func (bd *Board) Move(mv int) {
 	//bd.Print_board()
 	//fmt.Println(move.To_can(mv))
 	sd := bd.stm
-	xd := Opposit(sd)
+	xd := Opposite(sd)
 
 	fr := move.From(mv)
 	to := move.To(mv)
@@ -777,7 +782,7 @@ func (bd *Board) Undo() {
 	pp := move.Prom(mv)
 
 	xd := bd.stm
-	sd := Opposit(xd)
+	sd := Opposite(xd)
 
 	// util.ASSERT(p_square[to] == pc || p_square[to] == pp);
 	// util.ASSERT(square_side(to) == sd);
@@ -828,7 +833,7 @@ func (bd *Board) Recap() int {
 // IsDraw returns true if the 50-move rule is passed or if it is 3-move repetition
 func (bd *Board) IsDraw() bool {
 
-	if bd.copyStr.moves > 100 { // TODO: check for mate
+	if bd.copyStr.moves >= 100 { // TODO: check for mate
 		return true
 	}
 
@@ -952,11 +957,12 @@ func (bd *Board) PrintBoard() {
 		}
 	}
 	strturn := ""
-	if bd.stm == 0 {
+	switch bd.stm {
+	case 0:
 		strturn = "Vit"
-	} else if bd.stm == 1 {
+	case 1:
 		strturn = "Svart"
-	} else {
+	default:
 		strturn = strconv.Itoa(bd.stm) + " okänd"
 	}
 

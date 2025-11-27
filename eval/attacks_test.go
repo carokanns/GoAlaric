@@ -11,9 +11,9 @@ import (
 )
 
 func TestPawnAttacksFrom(t *testing.T) {
-	type args struct {
-		bd *board.Board
-	}
+	//type args struct {
+	//	bd *board.Board
+	//}
 	tests := []struct {
 		name string
 		sd   int

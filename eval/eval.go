@@ -1,3 +1,4 @@
+// Package eval beräknar statiska ställningsvärden för GoAlaric.
 //go:build !tunegp
 // +build !tunegp
 
@@ -55,10 +56,10 @@ var attackedWeight = [material.Size]int{0, Parms[40], Parms[41], Parms[42], Parm
 var mobWeight [32]int
 var distWeight [8]int // for king-passer distance
 
-// Init inits eval values
+// init förbereder tabeller och vikter som används i evalueringen.
 func init() {
 	if len(Parms) != Nparms {
-		panic(fmt.Sprintf("constant Nparms is not equal len(Parms)"))
+		panic("constant Nparms is not equal len(Parms)")
 	}
 	PstInit()
 	PawnInit()
@@ -138,7 +139,7 @@ func init() {
 	AtkInit()
 }
 
-// Update is for tuning. See tune.go
+// Update används vid parameter-tuning av SEE()(se tune.go).
 func Update() {
 	attackWeight = [material.Size]int{0, Parms[35], Parms[36], Parms[37], Parms[38], Parms[39], 0}   // 4, 4, 2, 1, 4,
 	attackedWeight = [material.Size]int{0, Parms[40], Parms[41], Parms[42], Parms[43], Parms[44], 0} //1, 1, 2, 4, 8,
@@ -166,7 +167,7 @@ type entry struct {
 	eval int
 }
 
-// Hash struct for Eval
+// Hash håller evalueringshashen.
 type Hash struct { // Eval
 	// private:
 
@@ -175,7 +176,7 @@ type Hash struct { // Eval
 	// public:
 }
 
-// Clear sets lock and eval to 0 for all indexes
+// Clear nollställer alla eval-hashposter.
 func (t *Hash) Clear() {
 	for index := 0; index < SIZE; index++ {
 		t.entries[index].lock = 0
@@ -183,8 +184,7 @@ func (t *Hash) Clear() {
 	}
 }
 
-// Eval is called by evalWithSign (search) and if it cannot use eval-hash-table it calls comp_eval.
-// it returns score for white
+// Eval hämtar eller beräknar värdet för ställningen (sett från vit).
 func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score for white
 	//fmt.Println("i hash.Eval", parms.Parms[23], Parms[24])
 	key := bd.EvalKey()
@@ -206,12 +206,7 @@ func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score f
 	return eval
 }
 
-// Eval is called by evalWithSign (in search). It calls table.eval and returns the stm evaluation
-//func Eval(bd *board.Board, table *Table, pawn_table *PawnTable) int {
-//	return score.Side_score(table.Eval(bd, pawn_table), bd.Turn())
-//}
-
-// CompEval makes a complete evaluation for white in current position
+// CompEval gör en fullständig statisk utvärdering för vit i aktuell ställning.
 func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for white
 	//fmt.Println("i CompEval", parms.Parms[23], Parms[24])
 	var ai attackInfo
@@ -231,7 +226,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 	for sd = 0; sd < 2; sd++ {
 
-		xd := board.Opposit(sd)
+		xd := board.Opposite(sd)
 
 		myKing := bd.King(sd)
 		opKing := bd.King(xd)
@@ -490,7 +485,7 @@ func attackMgScore(pc, sd int, ts bit.BB) int {
 	c1 := bit.Count(ts & centre1)
 	sc := c1*2 + c0
 
-	sc += bit.Count(ts & sideArea[board.Opposit(sd)])
+	sc += bit.Count(ts & sideArea[board.Opposite(sd)])
 
 	return (sc - Parms[33]) * attackWeight[pc] / Parms[34] //4 2
 }
@@ -502,7 +497,7 @@ func attackEgScore(pc, sd int, ts bit.BB, pi *pawnEntry) int {
 
 func drawMul(sd int, bd *board.Board, pi *pawnEntry) int {
 
-	xd := board.Opposit(sd)
+	xd := board.Opposite(sd)
 
 	var pawn [2]int
 	pawn[WHITE] = bd.Count(material.Pawn, WHITE)
@@ -597,7 +592,7 @@ func captureScore(pc, sd int, ts bit.BB, bd *board.Board, ai *attackInfo) int {
 
 	sc := 0
 
-	for b := ts & bd.Pieces(board.Opposit(sd)); b != 0; b = bit.Rest(b) {
+	for b := ts & bd.Pieces(board.Opposite(sd)); b != 0; b = bit.Rest(b) {
 
 		t := bit.First(b)
 
@@ -612,7 +607,7 @@ func captureScore(pc, sd int, ts bit.BB, bd *board.Board, ai *attackInfo) int {
 }
 
 func checkNumber(pc, sd int, ts bit.BB, king int, bd *board.Board) int {
-	xd := board.Opposit(sd)
+	xd := board.Opposite(sd)
 	checks := ts & ^bd.Side(sd) & PseudoAttacksTo(pc, sd, king)
 
 	if !(pc >= material.Bishop && pc <= material.Queen) { // not slider
@@ -699,7 +694,7 @@ func evalOutpost(sq, sd int, bd *board.Board, pi *pawnEntry) int {
 
 	//util.ASSERT(square.RankSd(sq, sd) >= square.Rank5)
 
-	xd := board.Opposit(sd)
+	xd := board.Opposite(sd)
 
 	weight := 0
 
@@ -723,7 +718,7 @@ func evalPawnCap(sd int, bd *board.Board, ai *attackInfo) int {
 
 	sc := 0
 
-	for b := ts & bd.Pieces(board.Opposit(sd)); b != 0; b = bit.Rest(b) {
+	for b := ts & bd.Pieces(board.Opposite(sd)); b != 0; b = bit.Rest(b) {
 
 		t := bit.First(b)
 
@@ -744,7 +739,7 @@ func evalPawnCap(sd int, bd *board.Board, ai *attackInfo) int {
 func evalPassed(sq, sd int, bd *board.Board, ai *attackInfo) int {
 
 	fl := square.File(sq)
-	xd := board.Opposit(sd)
+	xd := board.Opposite(sd)
 
 	weight := Parms[10] //4
 
@@ -848,7 +843,7 @@ func compAttacks(ai *attackInfo, bd *board.Board) {
 	for sd = 0; sd < 2; sd++ {
 		king := bd.King(sd)
 		ts := PseudoAttacksFrom(material.King, sd, king)
-		ai.kingEvasions[sd] = ts & ^bd.Side(sd) & ^ai.allAtks[board.Opposit(sd)]
+		ai.kingEvasions[sd] = ts & ^bd.Side(sd) & ^ai.allAtks[board.Opposite(sd)]
 	}
 
 	// pinned pieces
@@ -857,7 +852,7 @@ func compAttacks(ai *attackInfo, bd *board.Board) {
 
 	for sd = 0; sd < 2; sd++ {
 		sq := bd.King(sd)
-		ai.pinned |= bd.Side(sd) & PinnedBy(sq, board.Opposit(sd), bd)
+		ai.pinned |= bd.Side(sd) & PinnedBy(sq, board.Opposite(sd), bd)
 	}
 }
 

@@ -1,3 +1,4 @@
+// Castling utilities: precomputed square mappings, masks, and Zobrist keys.
 package board
 
 import (
@@ -7,6 +8,7 @@ import (
 	"goalaric/square"
 )
 
+// info holds the from/to squares for king and rook in a castling move.
 type info struct {
 	KingFr,
 	KingTo,
@@ -14,43 +16,43 @@ type info struct {
 	RokTo int
 }
 
-// CastleInfo is the castling Info
-var CastleInfo = [...]info{{square.E1, square.G1, square.H1, square.F1},
+// CastleInfo describes the square mappings for each of the four castling options.
+var CastleInfo = [...]info{
+	{square.E1, square.G1, square.H1, square.F1},
 	{square.E1, square.C1, square.A1, square.D1},
 	{square.E8, square.G8, square.H8, square.F8},
 	{square.E8, square.C8, square.A8, square.D8},
 }
 
-// flags for castling
+// Castling helpers: mask tracks which moves reset flags; castleKey holds Zobrist keys per flag set.
 var (
 	castleMask [square.BoardSize]int
 	castleKey  [1 << 4]hash.Key
 )
 
-// CastleIndex of the castling
-// sd: side to move, wg: castle side - short or long (that is king side or queen side)
+// CastleIndex returns the index in CastleInfo for side sd and wing wg (king/queen side).
 func CastleIndex(sd, wg int) int {
 	return sd*2 + wg
 }
 
-// castleSide returns which side(s) can be castled to
+// castleSide returns which side(s) can be castled to for a given CastleInfo index.
 func castleSide(index int) int {
 	return index / 2
 }
 
-// CastleFlag returns one of the castling flags
+// CastleFlag reports whether a specific castling right (0..3) is set in flags.
 func CastleFlag(flags int, index uint) bool {
 	//assert(index < 4);
 	return ((flags >> index) & 1) != 0
 }
 
-// setFlag sets one of the castling flags
+// setFlag sets a specific castling right bit in flags.
 func setFlag(flags *int, index uint) {
 	//assert(index < 4);
 	*flags |= (1 << index)
 }
 
-// Init the castling flags
+// init precomputes castling masks and Zobrist keys used by Board hashing.
 func init() {
 	fmt.Println("info string Castling init startar")
 	for sq := 0; sq < square.BoardSize; sq++ {
@@ -71,6 +73,8 @@ func init() {
 		castleKey[flags] = computeFlagsKey(flags)
 	}
 }
+
+// computeFlagsKey builds the Zobrist key for the current castling flags.
 func computeFlagsKey(flags int) hash.Key {
 
 	key := hash.Key(0)

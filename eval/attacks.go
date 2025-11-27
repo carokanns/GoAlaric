@@ -1,3 +1,4 @@
+// Package eval innehåller även hjälpfunktioner för attacktabeller och slagkontroll.
 package eval
 
 import (
@@ -30,7 +31,7 @@ var queenInc = []int{-17, -16, -15, -1, +1, +15, +16, +17, 0}
 var null = []int{0} //HACK
 var pieceInc = [material.Size][]int{null, knightInc, bishopInc, rookInc, queenInc, queenInc, null}
 
-// AtkInit is run when the program starts. It sets up various tables for moves and attacks etc
+// AtkInit bygger attack- och hjälptabeller för flyttar/attacker.
 func AtkInit() {
 	fmt.Println("info string AtkInit startar")
 	var sq int // NOTE: Will be reused
@@ -199,16 +200,16 @@ func getBlockers(pc, fr int) bit.BB {
 	return b
 }
 
-// PseudoAttacksTo returns a bitboard with all pseudoattacks to to-sq from piece=pc
+// PseudoAttacksTo returnerar alla pseudoattacker mot en ruta från en pjäs-typ.
 func PseudoAttacksTo(pc, sd, to int) bit.BB {
-	return PseudoAttacksFrom(pc, board.Opposit(sd), to) // HACK for pawns
+	return PseudoAttacksFrom(pc, board.Opposite(sd), to) // HACK for pawns
 }
 
 func pawnAttacksTo(sd, to int) bit.BB {
-	return pawnAttacksFrom(board.Opposit(sd), to)
+	return pawnAttacksFrom(board.Opposite(sd), to)
 }
 
-// PawnAttacksFrom returns a bitboard with all pawn attacks from side=sd
+// PawnAttacksFrom returnerar ett bitboard med alla bondeattacker från sidan sd.
 func PawnAttacksFrom(sd int, bd *board.Board) bit.BB {
 
 	fs := bd.PieceSd(material.Pawn, sd)
@@ -226,7 +227,7 @@ func pawnAttacksFrom(sd, fr int) bit.BB {
 	return PawnAttacks[sd][fr]
 }
 
-// PinnedBy returns a bitboard with attackers to to-sq but with one piece in between
+// PinnedBy returnerar rutor där en pjäs är pinnad mot 'to' av en slidande pjäs.
 func PinnedBy(to, sd int, bd *board.Board) bit.BB {
 
 	var pinned bit.BB
@@ -264,7 +265,7 @@ func computeBetween(fr, to int) bit.BB {
 	return b
 }
 
-// returns attacks on sq beyond to-sq
+// attacksThrough ger attacker som fortsätter bortom en given 'to'-ruta.
 func attacksThrough(fr, to int) bit.BB {
 
 	fr = square.To88(fr)
@@ -283,20 +284,20 @@ func attacksThrough(fr, to int) bit.BB {
 	return b
 }
 
-// IsInCheck returns true if the stm is in cehck
+// IsInCheck returnerar true om side-to-move står i schack.
 func IsInCheck(bd *board.Board) bool {
 
 	atk := bd.Stm()
-	def := board.Opposit(atk)
+	def := board.Opposite(atk)
 
 	return IsAttacked(bd.King(atk), def, bd)
 }
 
-// IsLegal returns true if the one who moved is not in check
+// IsLegal returnerar true om senaste draget inte lämnar spelaren i schack.
 func IsLegal(bd *board.Board) bool { // Ej Flyttad från move
 
 	atk := bd.Stm()
-	def := board.Opposit(atk)
+	def := board.Opposite(atk)
 
 	return !IsAttacked(bd.King(def), atk, bd)
 }
@@ -312,17 +313,17 @@ func PieceAttack(pc, fr, to int, bd *board.Board) bool {
 	return bit.IsOne(pieceAttacks[pc][fr], to) && LineIsEmpty(fr, to, bd)
 }
 
-// Ray returns a bitboard with squaresd btween fr and to
+// Ray returnerar alla rutor mellan fr och to samt bakom to.
 func Ray(fr, to int) bit.BB {
 	return Between[fr][to] | Behind[fr][to] // HACK: to should be included
 }
 
-// AttacksTo returns a bitboad with all attacks (opposite sd) to to-square
+// AttacksTo returnerar alla attacker från motsatt färg mot en ruta.
 func AttacksTo(pc int, sd int, to int, bd *board.Board) bit.BB {
-	return attacksFrom(pc, board.Opposit(sd), to, bd) // HACK for pawns
+	return attacksFrom(pc, board.Opposite(sd), to, bd) // HACK for pawns
 }
 
-// PieceAttacksFrom returns a bitboard with all attacks from a piece (not pawn) on fr-sq
+// PieceAttacksFrom returnerar alla attacker från en given pjäs (ej bonde).
 func PieceAttacksFrom(pc int, fr int, bd *board.Board) bit.BB {
 
 	// assert(pc != piece::PAWN);
@@ -342,7 +343,7 @@ func attacksFrom(pc, sd, fr int, bd *board.Board) bit.BB {
 
 }
 
-// PseudoAttacksFrom square fr
+// PseudoAttacksFrom ger pseudoattacker från en ruta utan hänsyn till andra pjäser.
 func PseudoAttacksFrom(pc, sd, fr int) bit.BB {
 	if pc == material.Pawn {
 		return PawnAttacks[sd][fr]
@@ -369,12 +370,12 @@ func sliderPseudoAttacksTo(sd, to int, bd *board.Board) bit.BB {
 	return b
 }
 
-// IsAttacked if a to sq is attacked by opposite color pieces
+// IsAttacked kontrollerar om en ruta angrips av angiven färg.
 func IsAttacked(to, sd int, bd *board.Board) bool {
 
 	// non-sliders
 
-	if (bd.PieceSd(material.Pawn, sd) & PawnAttacks[board.Opposit(sd)][to]) != 0 { // HACK
+	if (bd.PieceSd(material.Pawn, sd) & PawnAttacks[board.Opposite(sd)][to]) != 0 { // HACK
 		return true
 	}
 
@@ -400,12 +401,12 @@ func IsAttacked(to, sd int, bd *board.Board) bool {
 	return false
 }
 
-// LineIsEmpty tells if there are nothing between fr and to squares
+// LineIsEmpty returnerar true om det inte finns några pjäser mellan fr och to.
 func LineIsEmpty(fr int, to int, bd *board.Board) bool {
 	return (bd.All() & Between[fr][to]) == 0
 }
 
-// IsCheck returns true
+// IsCheck kontrollerar om ett drag ger schack.
 func IsCheck(mv int, bd *board.Board) bool { //////flyttad från move
 
 	if move.IsPromotion(mv) || IsEnPassant(mv, bd) || move.IsCastling(mv) {
@@ -421,7 +422,7 @@ func IsCheck(mv int, bd *board.Board) bool { //////flyttad från move
 
 	sd := bd.SquareSide(fr) // ie if fr-piece is white...:
 
-	kingSq := bd.King(board.Opposit(sd)) // ... then look for black kingSq and viceversa
+	kingSq := bd.King(board.Opposite(sd)) // ... then look for black kingSq and viceversa
 
 	if attack(pc, sd, to, kingSq, bd) {
 		return true
@@ -451,10 +452,10 @@ type Attacks struct {
 	Pinned bit.BB
 }
 
-// InitAttacks is finding attacks and pins towards the king before starting a search node
+// InitAttacks räknar ut attacker och pinningar mot kungen inför nodexpansion.
 func InitAttacks(attacks *Attacks, sd int, bd *board.Board) {
 
-	opp := board.Opposit(sd)
+	opp := board.Opposite(sd)
 	def := sd
 
 	kingSq := bd.King(def)

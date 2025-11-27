@@ -164,7 +164,8 @@ func Test_RootSearch(t *testing.T) {
 	for ix := 0; ix < 5; ix++ {
 		select {
 		case bm = <-chBestmove:
-			break
+			fmt.Println(bm)
+			return
 		default:
 			SetStop(true)
 			time.Sleep(time.Millisecond * 100)
@@ -212,10 +213,11 @@ func BenchmarkSearch(b *testing.B) {
 	Infinite = true
 	chSearch <- Simple
 	var bm = "     "
+	l:
 	for i := 0; i < b.N; i++ {
 		select {
 		case bm = <-chBestmove:
-			break
+			break l
 		default:
 			time.Sleep(time.Millisecond * 100)
 		}

@@ -73,7 +73,7 @@ func TestFenMove(t *testing.T) {
 		// ifylld to-ruta (sista draget)
 		if saveMove != "" {
 			sq := square.FromString(saveMove[2:4])
-			p12 := material.MakeP12(bd.Square(sq), Opposit(bd.Stm()))
+			p12 := material.MakeP12(bd.Square(sq), Opposite(bd.Stm()))
 			strPiece := material.ToFen(p12)
 			if strPiece != toTest[6] {
 				t.Errorf("Test=%v: Ruta %v borde innehålla %v men innehåller %v (kan bero på att p_turn är felaktig)", ix, sq, toTest[6], strPiece)
@@ -173,7 +173,7 @@ func KollaBoard(t *testing.T, ix int, caller string, turn string, rockader strin
 
 	// castling rights
 	for i, c := range "KQkq" {
-		if strings.Index(rockader, string(c)) >= 0 {
+		if strings.Contains(rockader, string(c)) {
 			if !CastleFlag(bd.copyStr.flags, uint(i)) {
 				t.Errorf("Test=%v %v: rockad %v ej satt ", caller, ix, string(c))
 			}
@@ -195,5 +195,35 @@ func KollaBoard(t *testing.T, ix int, caller string, turn string, rockader strin
 		if bd.copyStr.epSq != square.FromString(epSq) {
 			t.Errorf("Test=%v %v: e.p. på ruta %v borde vara satt", caller, ix, epSq)
 		}
+	}
+}
+
+func TestMakeFenMveUndoRestoresState(t *testing.T) {
+	var bd Board
+	SetFen(StartFen, &bd)
+
+	origKey := bd.Key()
+	origPawnKey := bd.PawnKey()
+	origStm := bd.Stm()
+	origPly := bd.Ply()
+	origCount := bd.count
+	origStackIx := bd.stackIx
+
+	mv := FromString("e2e4", &bd)
+
+	bd.MakeFenMve(mv)
+	bd.Undo()
+
+	if bd.Key() != origKey || bd.PawnKey() != origPawnKey {
+		t.Fatalf("hash mismatch after undo: key %v/%v pawn %v/%v", bd.Key(), origKey, bd.PawnKey(), origPawnKey)
+	}
+	if bd.Stm() != origStm || bd.Ply() != origPly {
+		t.Fatalf("state mismatch after undo: stm %v/%v ply %v/%v", bd.Stm(), origStm, bd.Ply(), origPly)
+	}
+	if bd.count != origCount {
+		t.Fatalf("piece counts changed after undo: got %v want %v", bd.count, origCount)
+	}
+	if bd.stackIx != origStackIx {
+		t.Fatalf("stack index not restored after undo: got %v want %v", bd.stackIx, origStackIx)
 	}
 }

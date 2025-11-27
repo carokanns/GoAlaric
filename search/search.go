@@ -72,7 +72,7 @@ var genSearched [maxThreads][maxPly]gen.ScMvList
 var genQS [maxThreads][maxQS]gen.SEE
 
 type timerStr struct {
-	timeT   time.Time
+	//timeT   time.Time
 	elapsed int
 	running bool
 	startT  time.Time
@@ -215,11 +215,11 @@ var current currStruct
 // Best is the best move after each search
 var Best bestStruct
 
-var pv pvStruct
+//var pv pvStruct
 
 var bPonderHit bool
 var bStop bool
-var bQuit bool
+//var bQuit bool
 
 // Status of the search middleGame/endGame
 // Infinite is true when we search until stop from the GUI
@@ -253,22 +253,22 @@ type splitPoint struct { ////////: public util::Lockable
 	master *Local
 	parent *splitPoint
 
-	board    board.Board
-	depth    int
-	oldAlpha int
-	alpha    int // vill vara volatile - kan ge smp problem utan
+	//board    board.Board
+	//depth    int
+	//oldAlpha int
+	//alpha    int // vill vara volatile - kan ge smp problem utan
 	beta     int
 
 	todo gen.ScMvList
-	done gen.ScMvList
+	//done gen.ScMvList
 
 	workers  int // vill vara volatile - kan ge smp problem utan
-	sent     int
+	//sent     int
 	received int
 
 	bestScore int // vill vara volatile - kan ge smp problem utan
-	bestMove  int // vill vara volatile - kan ge smp problem utan
-	pv        pvStruct
+	//bestMove  int // vill vara volatile - kan ge smp problem utan
+	//pv        pvStruct
 }
 
 func (sp *splitPoint) initRoot(master *Local) {
@@ -308,7 +308,7 @@ type Local struct {
 	node     int64 // vill vara volatile - kan ge smp problem utan
 	maxPly   int   // vill vara volatile - kan ge smp problem utan
 
-	mspStack     [16]splitPoint
+	//mspStack     [16]splitPoint
 	mspStackSize int
 
 	sspStack     [64]*splitPoint // 64? verkligen? Kanske 16*4
@@ -1130,6 +1130,10 @@ func extension(sl *Local, mv int, depth int, pvNode bool) int {
 }
 
 func reduction(sl *Local, mv int, depth int /* pvNode bool,*/, inCheck bool, searchedSize int, interesting bool) int {
+	_ = sl  // to avoid "unused" warning
+	_ = mv  // to avoid "unused" warning
+	_ = inCheck // to avoid "unused" warning
+	
 	//int reduction(Search_Local & /* sl , int /* mv , int depth, bool /* pv_node , bool /* in_check , int searched_size, bool dangerous) {
 
 	red := 0
@@ -1354,10 +1358,10 @@ func writePV(best *bestStruct) {
 	}
 
 	if best.scoreType == scoreTypeLower {
-		line += fmt.Sprintf("lowerbound ")
+		line += "lowerbound "
 	}
 	if best.scoreType == scoreTypeUpper {
-		line += fmt.Sprintf("upperbound ")
+		line += "upperbound "
 	}
 
 	line += fmt.Sprintf(" pv %v ", best.pv.toString())

@@ -378,10 +378,14 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 		if err != nil {
 			return
 		}
-		search.Engine.Hash = int(hashVal)
-		search.SG.Trans.InitTable()
-		search.SG.Trans.SetSize(search.Engine.Hash)
-		search.SG.Trans.Alloc()
+		newHash := int(hashVal)
+		if newHash == search.Engine.Hash {
+			// Same size requested: just bump generation to drop old entries fast
+			search.SG.Trans.IncDate()
+		} else {
+			search.Engine.Hash = newHash
+			search.SG.Trans.Resize(search.Engine.Hash)
+		}
 
 		fmt.Println("info string Hash after:", search.Engine.Hash)
 
@@ -438,7 +442,7 @@ func SetPosition(str string) {
 		moves := strings.Split(str[mpos+5:], " ")
 
 		var ml gen.ScMvList
-		strUse := ""
+		var movesUse []string
 
 		// check if the moves are legal. Need to actually update the board
 		for _, strMve := range moves {
@@ -449,7 +453,7 @@ func SetPosition(str string) {
 			ml.Clear()
 			gen.LegalMoves(&ml, &Bd)
 			if isLegal(strMve, &ml) {
-				strUse += strMve + " "
+				movesUse = append(movesUse, strings.TrimSpace(strMve))
 				mve := board.FromString(strMve, &Bd)
 				Bd.MakeFenMve(mve) // gör draget för att testa nästa
 			} else {
@@ -458,7 +462,6 @@ func SetPosition(str string) {
 		}
 		SetPosition(str[:mpos]) // Återställ brädet utan 'moves'
 
-		movesUse := strings.Split(strUse, " ")
 		board.FenMoves(movesUse, &Bd)
 	}
 }

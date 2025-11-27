@@ -87,7 +87,7 @@ func ExampleAdjFiles() {
 }
 
 // copy of board function
-func printBB(bb BB) {
+/*func printBB(bb BB) {
 
 	for rank := 7; rank >= 0; rank-- {
 		fmt.Println(" ")
@@ -101,4 +101,4 @@ func printBB(bb BB) {
 		}
 	}
 	fmt.Printf("\n\n")
-}
+}*/

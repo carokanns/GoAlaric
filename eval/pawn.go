@@ -1,3 +1,4 @@
+// Package eval innehåller också bonde-evaluering och relaterade tabeller.
 package eval
 
 //namespace pawn { // HACK: early declaration for pawn-pushes move type
@@ -27,10 +28,7 @@ var passedMe [square.BoardSize][2]bit.BB
 var passedOpp [square.BoardSize][2]bit.BB
 var pair [square.BoardSize]bit.BB
 
-// ShelterFile returns 1 if a pawn is on file=fl on rank 1
-//
-//	returns 2 if a pawn is on file=fl on rank 2
-//	return 0 in alla other cases
+// ShelterFile returnerar 2 om en bonde står på filen fl rad 2, 1 om den står på rad 3, annars 0.
 func ShelterFile(fl, sd int, bd *board.Board) int {
 	if bd.SquareIs(square.MakeSd(fl, square.Rank2, sd), material.Pawn, sd) {
 		return 2
@@ -63,12 +61,12 @@ func isEmpty(sq int, bd *board.Board) bool {
 func isControlled(sq, sd int, bd *board.Board) bool {
 
 	attackers := bd.PieceSd(material.Pawn, sd) & pawnAttacksTo(sd, sq)
-	defenders := bd.PieceSd(material.Pawn, board.Opposit(sd)) & pawnAttacksTo(board.Opposit(sd), sq)
+	defenders := bd.PieceSd(material.Pawn, board.Opposite(sd)) & pawnAttacksTo(board.Opposite(sd), sq)
 
 	return bit.CountLoop(attackers) > bit.CountLoop(defenders)
 }
 
-// PawnInit is done once per session to set bits used to detect passed and isolated pawns
+// PawnInit bygger tabeller för passerade/isolerade bönder och angränsande filer.
 func PawnInit() {
 	fmt.Println("info string PawnInit startar")
 	for sq := 0; sq < square.BoardSize; sq++ {
@@ -124,13 +122,13 @@ func (pawnHash *PawnHash) getEntry(bd *board.Board) *pawnEntry {
 
 // //// flyttat från  pawn ///////////
 func isPassed(sq, sd int, bd *board.Board) bool {
-	return (bd.PieceSd(material.Pawn, board.Opposit(sd))&passedOpp[sq][sd]) == 0 &&
+	return (bd.PieceSd(material.Pawn, board.Opposite(sd))&passedOpp[sq][sd]) == 0 &&
 		(bd.PieceSd(material.Pawn, sd)&passedMe[sq][sd]) == 0
 }
 
 func passerUnstoppable(sq, sd int, bd *board.Board) bool {
 
-	if !board.LoneKing(board.Opposit(sd), bd) {
+	if !board.LoneKing(board.Opposite(sd), bd) {
 		return false
 	}
 
@@ -141,7 +139,7 @@ func passerUnstoppable(sq, sd int, bd *board.Board) bool {
 		return false
 	}
 
-	if squareDistance(bd.King(board.Opposit(sd)), sq, sd) >= 2 { // opponent king outside square
+	if squareDistance(bd.King(board.Opposite(sd)), sq, sd) >= 2 { // opponent king outside square
 		return true
 	}
 
@@ -290,11 +288,11 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 					if isPawnPair(sq, sd, bd) && rk <= int8(square.Rank6) {
 						stop += square.PawnInc(sd)
 					} // stop one line "later" for duos
-					bit.Set(&entry.target[board.Opposit(sd)], stop)
+					bit.Set(&entry.target[board.Opposite(sd)], stop)
 				}
 			}
 
-			safe[board.Opposit(sd)] &= ^possibleAttacks(sq, sd, bd)
+			safe[board.Opposite(sd)] &= ^possibleAttacks(sq, sd, bd)
 		}
 
 		for fl := 0; fl < square.FileSize; fl++ {
@@ -331,7 +329,7 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 			// if false {
 			//} else if ((bd.piece(piece::PAWN, sd) & file) != 0) {
 			//   open = 0;
-			if (bd.PieceSd(material.Pawn, board.Opposit(sd)) & file) == 0 {
+			if (bd.PieceSd(material.Pawn, board.Opposite(sd)) & file) == 0 {
 				open = 4
 			} else if (strong & file) != 0 {
 				open = 1
@@ -351,7 +349,7 @@ type PawnHash struct {
 	entries [pawnSIZE]pawnEntry
 }
 
-// Clear all pawnhash entries
+// Clear nollställer alla poster i bondehashtabellen.
 func (pawnHash *PawnHash) Clear() {
 
 	var info pawnEntry
@@ -376,7 +374,7 @@ func isPawnPair(sq, sd int, bd *board.Board) bool {
 }
 
 func isSafe(sq, sd int, bd *board.Board) bool {
-	return isEmpty(sq, bd) && !isControlled(sq, board.Opposit(sd), bd)
+	return isEmpty(sq, bd) && !isControlled(sq, board.Opposite(sd), bd)
 }
 
 func isWeak(sq, sd int, bd *board.Board) bool {

@@ -1,4 +1,4 @@
-// trans_test.go
+// trans_test.go testar transpositionstabellen.
 package search
 
 import (
@@ -8,10 +8,7 @@ import (
 	"goalaric/hash"
 )
 
-//var bd board.Board
-
-//var sl Search_Local
-
+// initAll är en stub för att spegla initSession i main när det behövs i tester.
 func initAll() { // copy of main initSession()
 	//	input.Init()
 	//engine.Init()
@@ -26,7 +23,8 @@ func initAll() { // copy of main initSession()
 	//eval.AtkInit()
 }
 
-func Test_Trans(t *testing.T) {
+func TestTrans(t *testing.T) {
+	// Verifierar lagring, ersättning och återläsning av TT-poster.
 	initAll()
 	board.SetFen("8/6kp/5p2/3n2pq/3N1n1R/1P3P2/P6P/4QK2 w - - 2 2", &bd)
 	var hashTab transTable

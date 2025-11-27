@@ -1,4 +1,4 @@
-// GoAlaric project GoAlaric.go
+// Package main kör UCI-loopen för GoAlaric-motorn.
 package main
 
 import (
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"goalaric/search"
 	"goalaric/uci"
-	"io"
+	//"io"
 	"os"
 	// Följande 3 imports samt "go func" först i main() för pprof
 	// "log"
@@ -14,8 +14,8 @@ import (
 	// _ "net/http/pprof"
 )
 
-// main är yttre loopen
-// Den avbryts av uci-kommandot "quit" (som avslutar programmet)
+// main är yttre loopen som hanterar UCI-kommandon.
+// Den avbryts av uci-kommandot "quit" (som avslutar programmet).
 func main() {
 	// Följande för pprof
 	/*	go func() {
@@ -63,20 +63,22 @@ func main() {
 	fmt.Println("info string program exits")
 }
 
-var reader = bufio.NewReader(os.Stdin)
-
-// getInput gets the next input from stdin (the GUI)
+// getInput läser nästa rad från stdin (GUI) och skickar den på kanalen.
 func getInput(line chan<- string) {
-	//reader = bufio.NewReader(os.Stdin)
+	reader := bufio.NewReader(os.Stdin)
 	for {
 		text, err := reader.ReadString('\n')
-		if err != io.EOF && len(text) > 0 {
+		if len(text) > 0 {
 			line <- text
+		}
+		if err != nil {
+			// Break on EOF or any read error to avoid a tight loop
+			return
 		}
 	}
 }
 
-// initSession görs endast en gång; när programmet startas
+// initSession gör engångsinitiering vid programstart.
 func initSession() {
 	//engine.Init()
 
@@ -91,11 +93,12 @@ func initSession() {
 	//eval.AtkInit()
 }
 
-// TellGUI prints a line to stdout (to the GUI)
+// tellGUI skriver en rad till stdout (GUI:t).
 func tellGUI(line string) {
 	fmt.Println(line)
 }
 
+// printTODO skickar en placeholder för TODO-listan till GUI:t.
 func printTODO() {
 	tellGUI(":")
 	tellGUI("TODO-list is currently outcommented")

@@ -321,7 +321,7 @@ func (se *SEE) moveVal(fr int) int {
 		se.bbAlll = 0 // HACK: erase all attackers
 	}
 
-	se.color = board.Opposit(se.color)
+	se.color = board.Opposite(se.color)
 
 	return val
 }
@@ -436,7 +436,7 @@ func isLegal(mv int, bd *board.Board, attacks *eval.Attacks) bool {
 	}
 
 	if move.Piece(mv) == material.King {
-		return !eval.IsAttacked(to, board.Opposit(sd), bd)
+		return !eval.IsAttacked(to, board.Opposite(sd), bd)
 	}
 
 	if !bit.IsOne(attacks.Pinned, fr) {
@@ -735,7 +735,7 @@ func AddEvasions(ml *ScMvList, sd int, bd *board.Board, attacks *eval.Attacks) {
 // AddCaptures is adding captures to the Score/Move list
 func AddCaptures(ml *ScMvList, sd int, bd *board.Board) {
 
-	ts := bd.Side(board.Opposit(sd))
+	ts := bd.Side(board.Opposite(sd))
 
 	addPawnCaptures(ml, sd, ts, bd)
 	addPieceCaptures(ml, sd, ts, bd)
@@ -785,7 +785,7 @@ func canCastle(sd int, wg int, bd *board.Board) bool {
 		// assert(bd.square_is(kf, material.King, sd))
 		// assert(bd.square_is(rf, material.Rook, sd))
 
-		return eval.LineIsEmpty(kf, rf, bd) && !eval.IsAttacked(rt, board.Opposit(sd), bd)
+		return eval.LineIsEmpty(kf, rf, bd) && !eval.IsAttacked(rt, board.Opposite(sd), bd)
 	}
 
 	return false
@@ -1008,7 +1008,7 @@ func addEnPassant(ml *ScMvList, sd int, bd *board.Board) {
 
 	if to != square.None {
 
-		fs := bd.PieceSd(material.Pawn, sd) & eval.PawnAttacks[board.Opposit(sd)][to]
+		fs := bd.PieceSd(material.Pawn, sd) & eval.PawnAttacks[board.Opposite(sd)][to]
 
 		for b := fs; b != 0; b = bit.Rest(b) {
 			fr := bit.First(b)
@@ -1067,7 +1067,7 @@ func addPawnQuiets(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 func addPawnCaptures(ml *ScMvList, sd int, ts bit.BB, bd *board.Board) {
 
 	pawns := bd.PieceSd(material.Pawn, sd)
-	ts &= bd.Side(board.Opposit(sd)) // not needed
+	ts &= bd.Side(board.Opposite(sd)) // not needed
 
 	if sd == board.WHITE {
 
