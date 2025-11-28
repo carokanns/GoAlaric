@@ -192,7 +192,7 @@ func Promotion(sq, sd int) int {
 	return MakeSd(File(sq), rank8, sd)
 }
 
-// PawnInc returns the increment fro a pawn with color
+// PawnInc returns the increment from a pawn with WHITE or BLACK color
 func PawnInc(col int) int {
 	if col == WHITE {
 		return +1

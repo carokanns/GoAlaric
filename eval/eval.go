@@ -586,6 +586,7 @@ func drawMul(sd int, bd *board.Board, pi *pawnEntry) int {
 	return 16
 }
 
+// captureScore computes pressure on target squares weighted by piece type and pins.
 func captureScore(pc, sd int, ts bit.BB, bd *board.Board, ai *attackInfo) int {
 
 	//util.ASSERT(pc < material.SIZE)
@@ -606,6 +607,7 @@ func captureScore(pc, sd int, ts bit.BB, bd *board.Board, ai *attackInfo) int {
 	return attackWeight[pc] * sc * Parms[46] //4
 }
 
+// checkNumber counts potential checking moves for a given piece toward the enemy king.
 func checkNumber(pc, sd int, ts bit.BB, king int, bd *board.Board) int {
 	xd := board.Opposite(sd)
 	checks := ts & ^bd.Side(sd) & PseudoAttacksTo(pc, sd, king)
@@ -632,6 +634,7 @@ func checkNumber(pc, sd int, ts bit.BB, king int, bd *board.Board) int {
 	return n
 }
 
+// force estimates material power for one side, used in draw detection heuristics.
 func force(sd int, bd *board.Board) int { // for draw eval
 
 	force := 0
@@ -642,6 +645,8 @@ func force(sd int, bd *board.Board) int { // for draw eval
 
 	return force
 }
+
+// hasMinor reports if a side has at least one bishop or knight.
 func hasMinor(sd int, bd *board.Board) bool {
 	return bd.Count(material.Knight, sd)+bd.Count(material.Bishop, sd) != 0
 }
@@ -657,6 +662,7 @@ func Interpolation(mg, eg int, bd *board.Board) int {
 	return (mg*weight + eg*(256-weight) + 128) >> 8
 }
 
+// evalFiancetto gives bonuses for completed fianchetto structures on either side.
 func evalFiancetto(bd *board.Board) int {
 
 	eval := 0
@@ -690,6 +696,7 @@ func evalFiancetto(bd *board.Board) int {
 	return eval
 }
 
+// evalOutpost scores minor-piece outposts and supporting conditions.
 func evalOutpost(sq, sd int, bd *board.Board, pi *pawnEntry) int {
 
 	//util.ASSERT(square.RankSd(sq, sd) >= square.Rank5)
@@ -712,6 +719,8 @@ func evalOutpost(sq, sd int, bd *board.Board, pi *pawnEntry) int {
 
 	return weight - Parms[56] //2
 }
+
+// evalPawnCap scores pawn captures on opposing pieces, with extra for pinned targets.
 func evalPawnCap(sd int, bd *board.Board, ai *attackInfo) int {
 
 	ts := PawnAttacksFrom(sd, bd)
@@ -736,6 +745,7 @@ func evalPawnCap(sd int, bd *board.Board, ai *attackInfo) int {
 	return sc / Parms[9]
 }
 
+// evalPassed evaluates passed-pawn features such as blockers, clear paths and opponent attacks.
 func evalPassed(sq, sd int, bd *board.Board, ai *attackInfo) int {
 
 	fl := square.File(sq)
@@ -775,6 +785,8 @@ func evalPassed(sq, sd int, bd *board.Board, ai *attackInfo) int {
 
 	return weight
 }
+
+// compAttacks builds attack maps and related helpers for both sides.
 func compAttacks(ai *attackInfo, bd *board.Board) {
 
 	// prepare for adding defended opponent pieces
@@ -856,6 +868,7 @@ func compAttacks(ai *attackInfo, bd *board.Board) {
 	}
 }
 
+// shelterScore bedömer bondeskölden runt kungen och möjliga rockader
 func shelterScore(sq int, sd int, bd *board.Board, pi *pawnEntry) int {
 
 	if square.RankSd(sq, sd) > square.Rank2 {
@@ -882,15 +895,20 @@ func shelterScore(sq int, sd int, bd *board.Board, pi *pawnEntry) int {
 	return int(s0)
 
 }
+
+// calcDist beräknar ett viktat avstånd mellan två rutor.
 func calcDist(f, t, weight int) int {
 	dist := square.Distance(f, t)
 	return mulShift(distWeight[dist], weight, Parms[12]) //8
 }
+
+// mulShift multiplicerar två värden och skiftar med bias för avrundning.
 func mulShift(a, b, c int) int {
 	bias := 1 << uint(c-1)
 	return (a*b + bias) >> uint(c)
 }
 
+// passedScore returnerar fribondsbonus baserat på styrka och rank.
 func passedScore(sc, rk int) int {
 	passedWeight := []int{0, 0, 0, Parms[16], Parms[17], Parms[18], Parms[19], 0} //{0, 0, 0, 2, 6, 12, 20, 0}
 	return mulShift(sc, passedWeight[rk], Parms[20])                              // 4

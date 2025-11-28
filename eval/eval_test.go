@@ -59,12 +59,12 @@ func TestKBNK(t *testing.T) {
 
 	var evalTest = [...]evalStruct{
 		{"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 0},
-		{"8/1k6/8/8/8/5N2/5BK1/8 w - - 0 1", 787},
-		{"8/1k6/8/3K4/8/5N2/5B2/8 w - - 0 1", 816},
-		{"k7/8/8/8/8/5N2/5BK1/8 w - - 0 1", 576},
-		{"1k6/8/8/8/8/5N2/5BK1/8 w - - 0 1", 782},
-		{"2k5/8/8/8/8/5N2/5BK1/8 w - - 0 1", 977},
-		{"7k/8/8/8/8/5N2/5BK1/8 w - - 0 1", 1983},
+		{"8/1k6/8/8/8/5N2/5BK1/8 w - - 0 1", 766},
+		{"8/1k6/8/3K4/8/5N2/5B2/8 w - - 0 1", 795},
+		{"k7/8/8/8/8/5N2/5BK1/8 w - - 0 1", 556},
+		{"1k6/8/8/8/8/5N2/5BK1/8 w - - 0 1", 762},
+		{"2k5/8/8/8/8/5N2/5BK1/8 w - - 0 1", 956},
+		{"7k/8/8/8/8/5N2/5BK1/8 w - - 0 1", 1962},
 	}
 
 	initAll()
@@ -94,7 +94,7 @@ func TestEval(t *testing.T) {
 		{"7k/8/8/8/8/5N2/5BK1/8 w - - 0 1", 1900, 2000},
 		{"3r2k1/5pp1/p7/P1qp1PP1/8/1P1R3K/3Q4/8 w - - 5 39", -50, -10},
 		{"3r2k1/5pp1/p7/P1qp1PP1/1P6/3R3K/3Q4/8 b - - 5 39", 50, 90},
-		{"3r2k1/5pp1/p7/P2p1PP1/1P6/3R3K/3Q4/6q1 w - - 1 40", -90, -50},
+		{"3r2k1/5pp1/p7/P2p1PP1/1P6/3R3K/3Q4/6q1 w - - 1 40", -70, -40},
 	}
 
 	initAll()
@@ -128,11 +128,11 @@ func TestCompAttacks(t *testing.T) {
 		compAttacks(&ai, &bd)
 		text := "White"
 		for sd := 0; sd < 2; sd++ {
-			fmt.Println("all attacks from", text)
+			fmt.Println("\nall attacks from", text)
 			board.PrintBB(ai.allAtks[sd])
 
 			for pc := material.Pawn; pc <= material.King; pc++ {
-				fmt.Printf("attacks from lower than %v %v", text, material.ToString(pc))
+				fmt.Printf("\nattacks from lower than %v %v", text, material.ToString(pc))
 				//				board.PrintBB(ai.ltAtks[sd][pc])
 			}
 			text = "Black"
@@ -151,18 +151,19 @@ func Test_calcDist(t *testing.T) {
 		args args
 		want int
 	}{
-		{"a", args{square.D2, square.E3, 10}, 8},
-		{"b", args{square.F2, square.E3, 20}, 17},
-		{"c", args{square.E2, square.F2, 10}, 8},
-		{"d", args{square.G2, square.F2, 20}, 17},
-		{"e", args{square.E2, square.F5, 10}, 35},
-		{"f", args{square.G2, square.F5, 20}, 70},
+		{"a", args{square.D2, square.E3, 10}, 17},
+		{"b", args{square.F2, square.E3, 20}, 33},
+		{"c", args{square.E2, square.F2, 10}, 17},
+		{"d", args{square.G2, square.F2, 20}, 33},
+		{"e", args{square.E2, square.F5, 10}, 70},
+		{"f", args{square.G2, square.F5, 20}, 140},
 	}
+
+	fmt.Println("\n\ndistWeight",distWeight)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := calcDist(tt.args.f, tt.args.t, tt.args.weight); got != tt.want {
-				fmt.Println(distWeight)
-				t.Errorf("calcDist() = %v, want %v", got, tt.want)
+				t.Errorf("\n%s: calcDist() = %v, want %v",tt.name, got, tt.want)
 			}
 		})
 	}

@@ -1,3 +1,4 @@
+// Package hash genererar deterministiska Zobrist-nycklar för brädehashning.
 package hash
 
 import (
@@ -23,15 +24,16 @@ const size int = enPassant + 8
 
 var randVal [size]Key
 
+// rand64 bygger en 64-bitars pseudo-random nyckel.
 func rand64() Key {
 
-	rand := Key(0)
+	var k Key
 
 	for i := 0; i < 4; i++ {
-		rand = Key(int(rand<<16) | RandInt(1<<16))
+		k = (k << 16) | Key(RandInt(1<<16))
 	}
 
-	return rand
+	return k
 }
 
 func randKey(index int) Key {
@@ -89,8 +91,7 @@ func Lock(key Key) uint32 {
 	return uint32(key >> 32)
 }
 
-// RandInt returns a random integer number
-var r1 = (*rand.Rand)(rand.New(rand.NewSource(42)))
+var r1 = rand.New(rand.NewSource(42))
 
 // RandInt returns an random integer < n
 func RandInt(n int) int {

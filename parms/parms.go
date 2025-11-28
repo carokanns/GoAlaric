@@ -1,3 +1,4 @@
+// Package parms innehåller konfigurerbara evalueringsparametrar för motorn.
 package parms
 
 // Parms is an array with all evaluation values
@@ -98,5 +99,5 @@ var Parms = [...]int{
 	17, //	   17, // 17, 	  //20,		// Fiancetto bonus G2 or G7
 }
 
-//Nparms is the number of evaluation parameters. It is used by tuner and should be len(Parma)
+// Nparms är antalet evalueringsparametrar och ska motsvara len(Parms).
 const Nparms = 78
