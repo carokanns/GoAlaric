@@ -1427,6 +1427,7 @@ func StartPerft(depth int, bd *board.Board) uint64 {
 		return 0
 	}
 
+	start := time.Now()
 	var ml gen.ScMvList
 
 	gen.LegalMoves(&ml, bd)
@@ -1444,6 +1445,7 @@ func StartPerft(depth int, bd *board.Board) uint64 {
 	fmt.Println("------------------")
 	fmt.Println()
 	fmt.Printf("Total:\t%v\n", totCount)
+	fmt.Printf("Time:\t%v\n", time.Since(start))
 	return totCount
 }
 
