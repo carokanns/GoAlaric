@@ -253,7 +253,7 @@ func (l *List) post(mv int) bool {
 func (l *List) Next() int {
 	// 	progMain    = genSV{ genTrans, postKiller, genTactical, postMoveSEE, genKiller, postKillerSEE, genQuiet, postMoveSEE, genBad, postBad, genEnd, genEnd}
 
-	for true {
+	for {
 		for l.pos >= l.todoList.Size() { // we have no unused generated moves
 			l.genSV = (*l.progPointer)[l.idx] // set next SV
 			l.idx++
@@ -271,7 +271,7 @@ func (l *List) Next() int {
 		}
 	}
 	//panic("skall inte komma hit")
-	return move.None
+	//return move.None
 }
 
 // Candidate returns true if we are in SV for moves that candidates to be good

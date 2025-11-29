@@ -7,8 +7,11 @@
 tune/cleanRaw.epd
 tune/results.pgn
 tune/results.epd
+# Local build artifact
+goalaric
 # Ignore generated/train/test datasets
 *.epd
 tune/cleanRaw.epd
 tune/results.pgn
 tune/results.epd
+goalaric

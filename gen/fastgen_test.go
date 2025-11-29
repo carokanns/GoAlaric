@@ -9,7 +9,7 @@ import (
 	"goalaric/square"
 )
 
-var bd board.Board
+//var bd board.Board
 
 // var See SEE
 func initAll() { // copy of main initSession()
