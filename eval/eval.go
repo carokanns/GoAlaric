@@ -208,9 +208,10 @@ func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score f
 
 // CompEval gör en fullständig statisk utvärdering för vit i aktuell ställning.
 func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for white
-	//fmt.Println("i CompEval", parms.Parms[23], Parms[24])
+	// fmt.Println("i CompEval", parms.Parms[23], Parms[24])
 	var ai attackInfo
 	compAttacks(&ai, bd)
+	state := newEvalState(bd)
 	pEntry := pawnHash.getEntry(bd)
 
 	eval := 0
@@ -221,24 +222,24 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 	sd := 0
 	for ; sd < 2; sd++ {
-		shelter[sd] = shelterScore(bd.King(sd), sd, bd, pEntry)
+		shelter[sd] = shelterScore(state.kings[sd], sd, bd, pEntry)
 	}
 
 	for sd = 0; sd < 2; sd++ {
 
 		xd := board.Opposite(sd)
 
-		myKing := bd.King(sd)
-		opKing := bd.King(xd)
+		myKing := state.kings[sd]
+		opKing := state.kings[xd]
 
-		target := ^(bd.PieceSd(material.Pawn, sd) | PawnAttacksFrom(xd, bd))
+		target := ^(state.pieceBB[sd][material.Pawn] | state.pawnAttacks[xd])
 
 		kingN := 0
 		kingPower := 0
 
 		// pawns
 
-		myPawns := bd.PieceSd(material.Pawn, sd)
+		myPawns := state.pieceBB[sd][material.Pawn]
 		front := bit.Front(square.Rank3)
 		if sd == BLACK {
 			front = bit.Rear(square.Rank6)
@@ -269,7 +270,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 			}
 		}
 
-		eval += bit.Count(pawnMovesFrom(sd, bd)&bd.Empty())*Parms[5] - bd.Count(material.Pawn, sd)*Parms[6] //4 och 2
+		eval += bit.Count(pawnMovesFrom(sd, myPawns)&state.empty)*Parms[5] - state.counts[sd][material.Pawn]*Parms[6] //4 och 2
 
 		eval += evalPawnCap(sd, bd, &ai)
 		// --- end pawns ----
@@ -280,11 +281,11 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 			p12 := material.MakeP12(pc, sd) // for PST
 
-			n := bd.Count(pc, sd)
+			n := state.counts[sd][pc]
 			mg += n * material.Score(pc, MG)
 			eg += n * material.Score(pc, EG)
 
-			for b := bd.PieceSd(pc, sd); b != 0; b = bit.Rest(b) {
+			for b := state.pieceBB[sd][pc]; b != 0; b = bit.Rest(b) {
 
 				sq := bit.First(b)
 
@@ -299,8 +300,8 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 				if pc >= material.Bishop && pc <= material.Queen { // battery (slider) support
 
-					bishops := bd.PieceSd(material.Bishop, sd) | bd.PieceSd(material.Queen, sd)
-					rooks := bd.PieceSd(material.Rook, sd) | bd.PieceSd(material.Queen, sd)
+					bishops := state.pieceBB[sd][material.Bishop] | state.pieceBB[sd][material.Queen]
+					rooks := state.pieceBB[sd][material.Rook] | state.pieceBB[sd][material.Queen]
 
 					support := bishops & PseudoAttacksTo(material.Bishop, sd, sq)
 					support |= rooks & PseudoAttacksTo(material.Rook, sd, sq)
@@ -361,7 +362,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 					sc := pEntry.Open[fl][sd]
 
 					// Rook blocked by minor
-					minors := bd.PieceSd(material.Knight, xd) | bd.PieceSd(material.Bishop, xd)
+					minors := state.pieceBB[xd][material.Knight] | state.pieceBB[xd][material.Bishop]
 					if sc >= int8(Parms[59]) && (minors&bit.File(fl) & ^target) != 0 { //10 // blocked by minor
 						sc = int8(Parms[60]) //5
 					}
@@ -380,7 +381,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 					if rk == square.Rank7 { // 7th rank
 
-						pawns := bd.PieceSd(material.Pawn, xd) & bit.Rank(square.Rank(sq))
+						pawns := state.pieceBB[xd][material.Pawn] & bit.Rank(square.Rank(sq))
 
 						if square.RankSd(opKing, sd) >= square.Rank7 || pawns != 0 {
 							mg += Parms[66] //10
@@ -404,7 +405,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 			}
 		} // end pieces
 
-		if bd.Count(material.Bishop, sd) >= 2 { // bishop pair bonus
+		if state.counts[sd][material.Bishop] >= 2 { // bishop pair bonus
 			mg += Parms[69] //30
 			eg += Parms[70] //50
 		}
