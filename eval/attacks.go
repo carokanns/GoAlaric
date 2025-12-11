@@ -72,15 +72,11 @@ func deltaInc(fr, to int) int {
 
 	return 0
 }
-func pawnMovesFrom(sd int, bd *board.Board) bit.BB { // for pawn mobility
-
-	bbFr := bd.PieceSd(material.Pawn, sd)
-
+func pawnMovesFrom(sd int, pawns bit.BB) bit.BB { // for pawn mobility
 	if sd == WHITE {
-		return bbFr << 1
+		return pawns << 1
 	}
-	return bbFr >> 1
-
+	return pawns >> 1
 }
 
 // computePawnMoves (not captures)

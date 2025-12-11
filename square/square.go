@@ -5,7 +5,6 @@ import (
 	"strconv"
 )
 
-//
 const (
 	FileSize  int = 8
 	rankSize  int = 8

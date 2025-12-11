@@ -1,3 +1,4 @@
+//go:build util
 // +build util
 
 package main
