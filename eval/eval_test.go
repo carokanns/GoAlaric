@@ -159,11 +159,11 @@ func Test_calcDist(t *testing.T) {
 		{"f", args{square.G2, square.F5, 20}, 140},
 	}
 
-	fmt.Println("\n\ndistWeight",distWeight)
+	fmt.Println("\n\ndistWeight", distWeight)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := calcDist(tt.args.f, tt.args.t, tt.args.weight); got != tt.want {
-				t.Errorf("\n%s: calcDist() = %v, want %v",tt.name, got, tt.want)
+				t.Errorf("\n%s: calcDist() = %v, want %v", tt.name, got, tt.want)
 			}
 		})
 	}

@@ -36,7 +36,7 @@ import (
 
 ////////////////// dont forget +build tunegp
 
-//var inputFile = "tune/cleanForGP.epd"
+// var inputFile = "tune/cleanForGP.epd"
 var fullGPFile = "fullGP2.epd"
 var parmGPFile = "parmsGP.epd"
 var epd []string
