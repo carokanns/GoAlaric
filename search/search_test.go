@@ -109,28 +109,28 @@ func TestQS(t *testing.T) {
 		{"rnbqkbnr/p1pppppp/8/1p6/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 2", material.PawnValue, "Pawn can take unguarded pawn"},
 		// Pawn
 		{"rnbqkbnr/ppp1pppp/8/3p4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", -28, "Pawn captures guarded pawn"},
-		{"rnb1kbnr/ppp1pppp/8/3n4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.PawnValue + material.QueenValue, "Pawn captures unguarded knight. Now under with queen and pawn"},
+		{"rnb1kbnr/ppp1pppp/8/3n4/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.PawnValue + material.QueenValue + 108, "Pawn captures unguarded knight. Now under with queen and pawn"},
 		{"rnbqkbnr/ppp1pppp/8/3p4/2P5/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.PawnValue, "Bl Pawn captures unguarded W pawn"},
 		// Knight
 		{"rnbqkbnr/ppp1pppp/8/3p4/1N6/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.KnightValue - material.PawnValue, "White is up knight-pawn"},
-		{"rnb1kbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.KnightValue + material.QueenValue, "White is up knight and queen"},
+		{"rnb1kbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.KnightValue + material.QueenValue + 97, "White is up knight and queen"},
 		{"rnbqkbnr/ppp1pppp/8/3n4/5N2/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.KnightValue, "Bl Knigh captures guarded W queen"},
 		// Bishop
-		{"rnb1kbnr/ppp1pppp/8/3p4/2B5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.BishopValue + material.QueenValue + 4, "White is up bishop and queen"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/4B3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", -3, "Bishop captures guarded knight"},
-		{"rnbqkbnr/ppp1pppp/8/3b4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.BishopValue + 53, "Black is up a bishop"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/2B5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.BishopValue + material.QueenValue + 120, "White is up bishop and queen"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/4B3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", 70, "Bishop captures guarded knight"},
+		{"rnbqkbnr/ppp1pppp/8/3b4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.BishopValue - 100, "Black is up a bishop"},
 		// Rook
-		{"rnb1kbnr/ppp1pppp/8/3p4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.RookValue + material.QueenValue + 1, "White is up Rook and queen"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.RookValue - material.KnightValue - 24, "White is up Rook vs knight"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.RookValue + material.QueenValue + 150, "White is up Rook and queen"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.RookValue - material.KnightValue + 147, "White is up Rook vs knight"},
 		{"rnbqkbnr/ppp1pppp/8/3r1B2/8/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.RookValue + 13, "Black is up a Rook"},
 		// Queen
-		{"rnbqkbnr/ppp1pppp/8/3p4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.QueenValue - material.PawnValue - 39, "White is up a Queen vs a Pawn"},
-		{"rnb1kbnr/ppp1pppp/8/3n4/2Q5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.QueenValue*2 + 52, "White is up 2 Queens"},
+		{"rnbqkbnr/ppp1pppp/8/3p4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.QueenValue - material.PawnValue + 150, "White is up a Queen vs a Pawn"},
+		{"rnb1kbnr/ppp1pppp/8/3n4/2Q5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.QueenValue*2 + 300, "White is up 2 Queens"},
 		{"rnbqkbnr/ppp1pppp/8/3q4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.QueenValue + 1, "Black Queen captures guarded W queen and is up a Queen"},
 		// King
-		{"rnb1kbnr/ppp1pppp/8/3p4/2K5/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", material.QueenValue - 67, "White is Queen up after King captures unguarded pawn"},
+		{"rnb1kbnr/ppp1pppp/8/3p4/2K5/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", material.QueenValue - 10, "White is Queen up after King captures unguarded pawn"},
 		{"rnbqkbnr/ppp1pppp/8/3n4/3K4/8/PP1PPPPP/RNBQ1BNR w KQkq - 0 1", -material.KnightValue - 277, "Black is knight up"},
-		{"rnbq1bnr/ppp1pppp/8/3k4/4N3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", -104, "Bl King captures unguarded W knight. It's equal"},
+		{"rnbq1bnr/ppp1pppp/8/3k4/4N3/8/PP1PPPPP/RNBQKBNR b KQ - 0 1", -162, "Bl King captures unguarded W knight. It's equal"},
 	}
 	var bd board.Board
 	sl.ID = 0

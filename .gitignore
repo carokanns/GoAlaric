@@ -4,6 +4,7 @@
 *.png
 *.gif
 *.svg
+*.gocache
 tune/cleanRaw.epd
 tune/results.pgn
 tune/results.epd
@@ -15,3 +16,7 @@ tune/cleanRaw.epd
 tune/results.pgn
 tune/results.epd
 goalaric
+movetime_results.txt
+perft_results.txt
+temp.txt
+bin/*

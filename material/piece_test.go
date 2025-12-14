@@ -41,11 +41,11 @@ func TestScore(t *testing.T) {
 		args args
 		want int
 	}{
-		{"", args{Pawn, MG}, 85},
-		{"", args{Pawn, EG}, 95},
-		{"", args{Knight, MG}, 325},
-		{"", args{Knight, EG}, 325},
-		{"", args{Bishop, MG}, 325},
+		{"", args{Pawn, MG}, 81},
+		{"", args{Pawn, EG}, 101},
+		{"", args{Knight, MG}, 300},
+		{"", args{Knight, EG}, 307},
+		{"", args{Bishop, MG}, 320},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

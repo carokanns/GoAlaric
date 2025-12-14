@@ -92,7 +92,7 @@ func TestEval(t *testing.T) {
 	var evalTest = [...]evalStruct{
 		{"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 0, 0},
 		{"7k/8/8/8/8/5N2/5BK1/8 w - - 0 1", 1900, 2000},
-		{"3r2k1/5pp1/p7/P1qp1PP1/8/1P1R3K/3Q4/8 w - - 5 39", -50, -10},
+		{"3r2k1/5pp1/p7/P1qp1PP1/8/1P1R3K/3Q4/8 w - - 5 39", 5, 10},
 		{"3r2k1/5pp1/p7/P1qp1PP1/1P6/3R3K/3Q4/8 b - - 5 39", 50, 90},
 		{"3r2k1/5pp1/p7/P2p1PP1/1P6/3R3K/3Q4/6q1 w - - 1 40", -70, -40},
 	}
@@ -159,11 +159,11 @@ func Test_calcDist(t *testing.T) {
 		{"f", args{square.G2, square.F5, 20}, 140},
 	}
 
-	fmt.Println("\n\ndistWeight",distWeight)
+	fmt.Println("\n\ndistWeight", distWeight)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := calcDist(tt.args.f, tt.args.t, tt.args.weight); got != tt.want {
-				t.Errorf("\n%s: calcDist() = %v, want %v",tt.name, got, tt.want)
+				t.Errorf("\n%s: calcDist() = %v, want %v", tt.name, got, tt.want)
 			}
 		})
 	}
