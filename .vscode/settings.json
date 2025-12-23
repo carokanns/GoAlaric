@@ -9,5 +9,12 @@
     "**.xlsx": true,
     "**.cmd": true,
     "**/*.db": true
+  },
+  "go.goroot": "/usr/local/go",
+  "go.alternateTools": {
+    "go": "/usr/local/go/bin/go"
+  },
+  "gopls": {
+    "ui.diagnostic.staticcheck": false
   }
 }

@@ -20,3 +20,4 @@ movetime_results.txt
 perft_results.txt
 temp.txt
 bin/*
+search.log

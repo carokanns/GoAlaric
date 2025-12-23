@@ -50,6 +50,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   while read -r init_line <&"$fd_in"; do
     [[ $init_line == uciok ]] && break
   done
+  printf "setoption name LogFile value true\n" >&"$fd_out"
   printf "isready\n" >&"$fd_out"
   while read -r init_line <&"$fd_in"; do
     [[ $init_line == readyok ]] && break

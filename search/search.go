@@ -3,6 +3,7 @@ package search
 import (
 	"fmt"
 	"math"
+	"os"
 	"time"
 
 	"goalaric/bit"
@@ -1188,6 +1189,7 @@ func searchEnd() {
 	limit.timer.stop()
 	updateCurrent()
 	infoToGUI()
+	logSearchSummary()
 }
 
 // incNode increments the node counter and checks if it's time to update
@@ -1331,6 +1333,45 @@ func infoToGUI() {
 	line += fmt.Sprintf("hashfull %v ", SG.Trans.Used())
 
 	tellGUI(line)
+}
+
+func formatScore(sc int) string {
+	if IsMateScore(sc) {
+		return fmt.Sprintf("mate %v", mateWithSign(sc))
+	}
+	return fmt.Sprintf("cp %v", sc)
+}
+
+func logSearchSummary() {
+	if !Engine.Log {
+		return
+	}
+
+	const logFile = "search.log"
+	header := "timestamp\tdepth\tseldepth\tnodes\ttime_ms\tnps\tbestmove\tscore\n"
+
+	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	if info, err := file.Stat(); err == nil && info.Size() == 0 {
+		_, _ = file.WriteString(header)
+	}
+
+	line := fmt.Sprintf(
+		"%s\t%d\t%d\t%d\t%d\t%d\t%s\t%s\n",
+		time.Now().Format(time.RFC3339),
+		Best.depth,
+		current.maxPly,
+		current.node,
+		current.time,
+		current.speed,
+		move.ToString(Best.move),
+		formatScore(Best.Score),
+	)
+	_, _ = file.WriteString(line)
 }
 
 // MateWithSign put +/- to a mate score

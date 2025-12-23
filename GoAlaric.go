@@ -80,17 +80,12 @@ func getInput(line chan<- string) {
 
 // initSession gör engångsinitiering vid programstart.
 func initSession() {
-	//engine.Init()
-
-	//bit.InitBits()
-	//material.Init()
-	//eval.PstInit()
-	//eval.PawnInit()
-	//eval.Init()
-	//search.Init()
-	//hash.Init()
-	//castling.Init()
-	//eval.AtkInit()
+	// Core tables are initialized via package init functions:
+	// bit, hash, board/castling, material, eval, search.
+	// Reset per-session search state so a new GUI session starts clean.
+	search.NewSearch()
+	search.SetStop(false)
+	search.Infinite = false
 }
 
 // tellGUI skriver en rad till stdout (GUI:t).
