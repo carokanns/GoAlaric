@@ -1,4 +1,4 @@
-//go:build tune
+//go:build tunegp
 // +build tunegp
 
 package main
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 )
+
 func Test_mirror(t *testing.T) {
 
 	tests := []struct {
@@ -22,7 +23,7 @@ func Test_mirror(t *testing.T) {
 			got := mirror(tt.epd)
 			x := strings.Fields(got)[1]
 
-			if x = tt.want {
+			if x != tt.want {
 				t.Errorf("mirror() = %v, want %v", got, tt.want)
 			}
 		})

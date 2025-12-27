@@ -4,15 +4,24 @@
 
 set -euo pipefail
 
-if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 <movetime_ms> <epd-file> [output-file] [threshold]" >&2
-  exit 1
+if [[ $# -lt 1 ]]; then
+  movetime="5000"
+  epd_file="scripts/movetime_epd"
+  output_file="movetime_results.txt"
+  threshold="60"
+else
+  if [[ $# -eq 1 ]]; then
+    movetime="5000"
+    epd_file="$1"
+    output_file="movetime_results.txt"
+    threshold="60"
+  else
+    movetime="$1"
+    epd_file="$2"
+    output_file="${3:-movetime_results.txt}"
+    threshold="${4:-60}"
+  fi
 fi
-
-movetime="$1"
-epd_file="$2"
-output_file="${3:-movetime_results.txt}"
-threshold="${4:-60}"
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 bin_dir="$repo_root/bin"

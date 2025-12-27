@@ -1,4 +1,4 @@
-// Perft tests from perft_tests.txt.
+// Perft tests from scripts/perft_tests.txt.
 package search
 
 import (
@@ -34,6 +34,8 @@ func perftMaxDepth(t *testing.T) int {
 
 func findPerftFile() (string, error) {
 	candidates := []string{
+		filepath.Join("..", "scripts", "perft_tests.txt"),
+		"scripts/perft_tests.txt",
 		"perft_tests.txt",
 		filepath.Join("..", "perft_tests.txt"),
 	}
@@ -42,7 +44,7 @@ func findPerftFile() (string, error) {
 			return path, nil
 		}
 	}
-	return "", errors.New("perft_tests.txt not found")
+	return "", errors.New("perft_tests.txt not found (expected in scripts/perft_tests.txt)")
 }
 
 func loadPerftCases(t *testing.T) []perftCase {
