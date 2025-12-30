@@ -32,7 +32,11 @@ mkdir -p "$bin_dir"
 # Bygg motorbinären (inte perft-bygget) för UCI-sök.
 GO111MODULE=on go build -o "$engine_bin" "$repo_root/GoAlaric.go"
 
-printf "%-12s %12s %12s %12s %3s\n" "move" "nodes" "score" "expected" "Δ" >"$output_file"
+if [[ -s "$output_file" ]]; then
+  printf "\n" >>"$output_file"
+fi
+printf "==== %s ====\n" "$(date '+%Y-%m-%d %H:%M:%S')" >>"$output_file"
+printf "%-12s %12s %12s %12s %3s\n" "move" "nodes" "score" "expected" "Δ" >>"$output_file"
 
 while IFS= read -r line || [[ -n "$line" ]]; do
   # Hoppa över tomma rader och kommentarer.

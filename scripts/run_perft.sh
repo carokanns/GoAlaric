@@ -29,7 +29,11 @@ mkdir -p "$bin_dir"
 # Bygg binären en gång så vi slipper starta via go run för varje rad.
 GO111MODULE=on go build -o "$engine_bin" "$repo_root"
 
-printf "%-4s %20s %10s %14s %20s %5s\n" "row" "nodes" "ms" "nps" "expected" "stat" >"$output_file"
+if [[ -s "$output_file" ]]; then
+  printf "\n" >>"$output_file"
+fi
+printf "==== %s ====\n" "$(date '+%Y-%m-%d %H:%M:%S')" >>"$output_file"
+printf "%-4s %20s %10s %14s %20s %5s\n" "row" "nodes" "ms" "nps" "expected" "stat" >>"$output_file"
 
 fens=()
 expecteds=()
