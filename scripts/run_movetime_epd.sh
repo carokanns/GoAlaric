@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Kör "go movetime <ms>" för varje FEN-rad i en EPD-fil.
-# Utskrift: bestmove, nodes och score (cp eller mate) för varje rad.
+# Syntax: ./scripts/run_movetime_epd.sh [movetime_ms] [epd_file] [output_file] [threshold för avvikelse]
+# Utskrift: bestmove, nodes, score (cp/mate), expected och avvikelse (Δ) per rad.
 
 set -euo pipefail
 
@@ -35,7 +36,7 @@ GO111MODULE=on go build -o "$engine_bin" "$repo_root/GoAlaric.go"
 if [[ -s "$output_file" ]]; then
   printf "\n" >>"$output_file"
 fi
-printf "==== %s ====\n" "$(date '+%Y-%m-%d %H:%M:%S')" >>"$output_file"
+printf "==== %s ====  Movetime: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$movetime" >>"$output_file"
 printf "%-12s %12s %12s %12s %3s\n" "move" "nodes" "score" "expected" "Δ" >>"$output_file"
 
 while IFS= read -r line || [[ -n "$line" ]]; do
