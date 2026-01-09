@@ -37,8 +37,9 @@ if [[ -s "$output_file" ]]; then
   printf "\n" >>"$output_file"
 fi
 printf "==== %s ====  Movetime: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$movetime" >>"$output_file"
-printf "%-12s %12s %12s %12s %3s\n" "move" "nodes" "score" "expected" "Δ" >>"$output_file"
+printf "%-4s %-12s %12s %12s %12s %3s\n" "row" "move" "nodes" "score" "expected" "Δ" >>"$output_file"
 
+row_count=0
 while IFS= read -r line || [[ -n "$line" ]]; do
   # Hoppa över tomma rader och kommentarer.
   [[ -z "${line// }" ]] && continue
@@ -116,7 +117,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     mark=$(awk -v d="$diff" -v t="$threshold" 'BEGIN { if(d>t) print "X" }')
   fi
 
-  printf "%-12s %12s %12s %12s %3s\n" "$bestmove" "$nodes" "$score" "${expected:-}" "$mark" >>"$output_file"
+  row_count=$((row_count + 1))
+  printf "%-4s %-12s %12s %12s %12s %3s\n" "$row_count" "$bestmove" "$nodes" "$score" "${expected:-}" "$mark" >>"$output_file"
 done <"$epd_file"
 
 echo "Resultat sparat i $output_file"

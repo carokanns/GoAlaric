@@ -6,7 +6,7 @@ set -euo pipefail
 
 perft_depth="${1:-4}"
 perft_epd="${2:-scripts/perft_tests.txt}"
-movetime_ms="${3:-200}"
+movetime_ms="${3:-2000}"
 movetime_epd="${4:-scripts/movetime_epd}"
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
