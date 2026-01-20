@@ -11,7 +11,6 @@ import (
 	"goalaric/eval"
 	"goalaric/gen"
 	"goalaric/hash"
-	"goalaric/material"
 	"goalaric/move"
 )
 
@@ -1291,43 +1290,22 @@ func genAndSortLegals(sl *Local, ml *gen.ScMvList) {
 
 	gen.LegalMoves(ml, bd)
 
+	v := evalByColor(bd.Stm(), sl)
 	for pos := 0; pos < ml.Size(); pos++ {
+
 		mv := ml.Move(pos)
-		ml.SetScore(pos, rootMoveScore(mv, bd))
+		slMove(sl, mv)
+		sc := -Qs(sl, maxScore, 0)
+
+		undo(sl)
+
+		sc = ((sc - v) / 4) + 1024 // HACK for unsigned 11-bit move-list scores
+		//util.ASSERT(sc >= 0 && sc < move.SCORE_SIZE)
+
+		ml.SetScore(pos, sc)
 	}
 
 	ml.Sort()
-}
-
-func rootMoveScore(mv int, bd *board.Board) int {
-	const tacticalBase = 1500
-	const castlingBonus = 200
-
-	if move.IsTactical(mv) {
-		pc := move.Piece(mv)
-		cp := move.Capt(mv)
-		pp := move.Prom(mv)
-		sc := tacticalBase
-		if cp != material.None {
-			sc += cp*6 + (5 - pc) + 4
-		} else if pp != material.None {
-			switch pp {
-			case material.Queen:
-				sc += 3
-			case material.Knight:
-				sc += 2
-			case material.Rook:
-				sc += 1
-			}
-		}
-		return sc
-	}
-
-	sc := SG.History.Score(mv, bd)
-	if move.IsCastling(mv) {
-		sc += castlingBonus
-	}
-	return sc
 }
 
 func maybeToGUI() {
