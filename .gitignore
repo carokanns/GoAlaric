@@ -12,10 +12,6 @@ tune/results.epd
 goalaric
 # Ignore generated/train/test datasets
 *.epd
-tune/cleanRaw.epd
-tune/results.pgn
-tune/results.epd
-goalaric
 movetime_results.txt
 perft_results.txt
 temp.txt
