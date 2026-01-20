@@ -220,6 +220,7 @@ var Best bestStruct
 
 var bPonderHit bool
 var bStop bool
+
 //var bQuit bool
 
 // Status of the search middleGame/endGame
@@ -258,12 +259,12 @@ type splitPoint struct { ////////: public util::Lockable
 	//depth    int
 	//oldAlpha int
 	//alpha    int // vill vara volatile - kan ge smp problem utan
-	beta     int
+	beta int
 
 	todo gen.ScMvList
 	//done gen.ScMvList
 
-	workers  int // vill vara volatile - kan ge smp problem utan
+	workers int // vill vara volatile - kan ge smp problem utan
 	//sent     int
 	received int
 
@@ -699,7 +700,10 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 		ext := extension(sl, mv, depth, pvNode)
 		red := 0
 		if ext == 0 {
-			dangerous := inCheck || move.IsTactical(mv) || eval.IsCheck(mv, bd) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd)
+			dangerous := inCheck || move.IsTactical(mv) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd)
+			if !dangerous {
+				dangerous = eval.IsCheck(mv, bd)
+			}
 			red = reduction(sl, mv, depth /* pv_node,*/, inCheck, searchedSize, dangerous) // LMR
 		}
 
@@ -941,7 +945,10 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			}
 		}
 
-		dangerous := inCheck || move.IsTactical(mv) || eval.IsCheck(mv, bd) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd) || gl.Candidate()
+		dangerous := inCheck || move.IsTactical(mv) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd) || gl.Candidate()
+		if !dangerous {
+			dangerous = eval.IsCheck(mv, bd)
+		}
 
 		if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(bs) && searched.Size() >= depth*4 && !dangerous { // late-move pruning
 			continue
@@ -1131,10 +1138,10 @@ func extension(sl *Local, mv int, depth int, pvNode bool) int {
 }
 
 func reduction(sl *Local, mv int, depth int /* pvNode bool,*/, inCheck bool, searchedSize int, interesting bool) int {
-	_ = sl  // to avoid "unused" warning
-	_ = mv  // to avoid "unused" warning
+	_ = sl      // to avoid "unused" warning
+	_ = mv      // to avoid "unused" warning
 	_ = inCheck // to avoid "unused" warning
-	
+
 	//int reduction(Search_Local & /* sl , int /* mv , int depth, bool /* pv_node , bool /* in_check , int searched_size, bool dangerous) {
 
 	red := 0
