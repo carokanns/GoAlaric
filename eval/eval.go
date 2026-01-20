@@ -202,6 +202,7 @@ func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score f
 
 	entry.lock = lock
 	entry.eval = eval
+	t.entries[index] = entry
 
 	return eval
 }
