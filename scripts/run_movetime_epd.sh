@@ -40,6 +40,7 @@ printf "==== %s ====  Movetime: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$movetime"
 printf "%-4s %-12s %12s %12s %12s %3s\n" "row" "move" "nodes" "score" "expected" "Δ" >>"$output_file"
 
 row_count=0
+nodes_sum=0
 while IFS= read -r line || [[ -n "$line" ]]; do
   # Hoppa över tomma rader och kommentarer.
   [[ -z "${line// }" ]] && continue
@@ -118,7 +119,14 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   fi
 
   row_count=$((row_count + 1))
+  nodes_sum=$((nodes_sum + nodes))
   printf "%-4s %-12s %12s %12s %12s %3s\n" "$row_count" "$bestmove" "$nodes" "$score" "${expected:-}" "$mark" >>"$output_file"
 done <"$epd_file"
+
+if [ "$row_count" -gt 0 ]; then
+  avg_nodes=$((nodes_sum / row_count))
+  avg_nps=$(awk -v n="$avg_nodes" -v ms="$movetime" 'BEGIN { if (ms == 0) { print "0.0"; exit }; printf "%.1f", n / (ms / 1000) }')
+  printf "%-4s %26s   n/s=%s\n" "avg" "$avg_nodes" "$avg_nps" >>"$output_file"
+fi
 
 echo "Resultat sparat i $output_file"
