@@ -17,3 +17,6 @@ perft_results.txt
 temp.txt
 bin/*
 search.log
+# Local test runners and generated benchmark/match artifacts
+.tools/
+artifacts/
