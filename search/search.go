@@ -999,7 +999,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 				if sc >= beta {
 					if depth > 0 && !inCheck && !move.IsTactical(mv) {
 						sl.killer.Add(mv, bd.Ply())
-						SG.History.Add(mv, searched, bd)
+						SG.History.Add(mv, searched, depth, bd)
 					}
 					return sc
 				}

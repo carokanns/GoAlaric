@@ -9,10 +9,11 @@ import (
 
 // History tab bits
 const (
-	histBits  = 11
-	histOne   = 1 << histBits
-	histHalf  = 1 << (histBits - 1)
-	histShift = 5
+	histBits     = 11
+	histOne      = 1 << histBits
+	histMax      = histOne - 1
+	histHalf     = 1 << (histBits - 1)
+	histBonusMax = 400
 )
 
 // HistoryTab holds history tab entries
@@ -30,15 +31,33 @@ func (h *HistoryTab) index(mv int, bd *board.Board) int {
 	return p12*square.BoardSize + move.To(mv)
 }
 
-func (h *HistoryTab) good(mv int, bd *board.Board) {
+func historyBonus(depth int) int {
+	if depth <= 0 {
+		return 0
+	}
+	if depth >= 20 {
+		return histBonusMax
+	}
+	return depth * depth
+}
+
+func (h *HistoryTab) good(mv int, depth int, bd *board.Board) {
 	if !move.IsTactical(mv) {
-		h.entry[h.index(mv, bd)] += (histOne - h.entry[h.index(mv, bd)]) >> histShift
+		ix := h.index(mv, bd)
+		h.entry[ix] += historyBonus(depth)
+		if h.entry[ix] > histMax {
+			h.entry[ix] = histMax
+		}
 	}
 }
 
-func (h *HistoryTab) bad(mv int, bd *board.Board) {
+func (h *HistoryTab) bad(mv int, depth int, bd *board.Board) {
 	if !move.IsTactical(mv) {
-		h.entry[h.index(mv, bd)] -= h.entry[h.index(mv, bd)] >> histShift
+		ix := h.index(mv, bd)
+		h.entry[ix] -= historyBonus(depth)
+		if h.entry[ix] < 0 {
+			h.entry[ix] = 0
+		}
 	}
 }
 
@@ -59,13 +78,13 @@ func (h *HistoryTab) Clear() {
 }
 
 // Add score into history table
-func (h *HistoryTab) Add(bm int, searched *ScMvList, bd *board.Board) {
-	h.good(bm, bd)
+func (h *HistoryTab) Add(bm int, searched *ScMvList, depth int, bd *board.Board) {
+	h.good(bm, depth, bd)
 
 	for pos := 0; pos < searched.Size(); pos++ {
 		mv := searched.Move(pos)
 		if mv != bm {
-			h.bad(mv, bd)
+			h.bad(mv, depth, bd)
 		}
 	}
 }
