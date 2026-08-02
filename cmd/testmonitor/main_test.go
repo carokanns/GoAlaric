@@ -3,11 +3,52 @@ package main
 import (
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestStopHelper(t *testing.T) {
+	if os.Getenv("GOALARIC_STOP_HELPER") != "1" {
+		return
+	}
+	for {
+		time.Sleep(time.Second)
+	}
+}
+
+func TestStopCommandTerminatesMonitor(t *testing.T) {
+	dir := t.TempDir()
+	cmd := exec.Command(os.Args[0], "-test.run=TestStopHelper", "--", "run-match", "--run-dir", dir)
+	cmd.Env = append(os.Environ(), "GOALARIC_STOP_HELPER=1")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waitDone := make(chan error, 1)
+	go func() { waitDone <- cmd.Wait() }()
+	status := matchStatus{RunID: "stop-test", State: "running", Stage: "fastchess", PID: cmd.Process.Pid, RunDir: dir, StartedAt: time.Now()}
+	if err := saveStatus(dir, &status); err != nil {
+		t.Fatal(err)
+	}
+	if err := stopCommand([]string{"--run-dir", dir, "--timeout", "5s"}); err != nil {
+		t.Fatal(err)
+	}
+	stopped, err := loadStatus(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.State != "stopped" || stopped.Decision != "stopped_by_user" {
+		t.Fatalf("unexpected stopped status: %+v", stopped)
+	}
+	select {
+	case <-waitDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("helper process was not reaped")
+	}
+}
 
 func TestParseScoreLine(t *testing.T) {
 	line := "Score of Candidate vs Baseline: 12 - 8 - 20  [0.550] 40"

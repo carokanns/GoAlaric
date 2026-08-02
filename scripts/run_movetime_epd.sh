@@ -41,6 +41,7 @@ printf "%-4s %-12s %12s %12s %12s %3s\n" "row" "move" "nodes" "score" "expected"
 
 row_count=0
 nodes_sum=0
+failed_rows=0
 while IFS= read -r line || [[ -n "$line" ]]; do
   # Hoppa över tomma rader och kommentarer.
   [[ -z "${line// }" ]] && continue
@@ -116,6 +117,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     diff=$(awk -v a="$score" -v b="$expected" 'BEGIN {d=a-b; if(d<0)d=-d; print d}')
     # Om diff > threshold sätt mark till X.
     mark=$(awk -v d="$diff" -v t="$threshold" 'BEGIN { if(d>t) print "X" }')
+    if [[ "$mark" == "X" ]]; then
+      failed_rows=$((failed_rows + 1))
+    fi
   fi
 
   row_count=$((row_count + 1))
@@ -130,3 +134,7 @@ if [ "$row_count" -gt 0 ]; then
 fi
 
 echo "Resultat sparat i $output_file"
+if [ "$failed_rows" -gt 0 ]; then
+  echo "Movetime failed: $failed_rows position(er) överskred tröskeln" >&2
+  exit 1
+fi

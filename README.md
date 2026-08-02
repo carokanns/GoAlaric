@@ -9,6 +9,10 @@ Trying to restore an old chesspogram in Go
 - `./scripts/setup_match_book.sh` (installs the pinned 34,700-opening CC0 book)
 - `./scripts/run_match.sh <baseline> <candidate>` (monitored Fastchess match)
 - `./scripts/run_sprt_match.sh <baseline> <candidate>` (decisive SPRT match)
+- `go run ./cmd/testmonitor stop [--run-dir <match-directory>]` (stoppa en screening- eller SPRT-match säkert)
+- `go run ./cmd/testmonitor pipeline --baseline <bin> --candidate <bin> --candidate-id <id>` (LLM-oberoende experimentkedja)
+- `go run ./cmd/testmonitor snapshot --candidate-id <id>` (kompakt LLM-underlag)
+- `go run ./cmd/testmonitor record-decision --candidate-id <id> --decision decision.json` (validera och dokumentera beslut)
 
 Long match status is persisted under `artifacts/matches/` and can be read with
 `go run ./cmd/testmonitor status`. See `optimeringar/testmonitor.md` for the

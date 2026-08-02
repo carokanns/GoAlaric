@@ -16,6 +16,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -151,6 +152,14 @@ func main() {
 		err = statusCommand(os.Args[2:])
 	case "wait":
 		err = waitCommand(os.Args[2:])
+	case "stop":
+		err = stopCommand(os.Args[2:])
+	case "pipeline":
+		err = pipelineCommand(os.Args[2:])
+	case "snapshot":
+		err = snapshotCommand(os.Args[2:])
+	case "record-decision":
+		err = recordDecisionCommand(os.Args[2:])
 	default:
 		usage()
 		err = fmt.Errorf("unknown command %q", os.Args[1])
@@ -162,7 +171,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|wait> [options]")
+	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|wait|stop|pipeline|snapshot|record-decision> [options]")
 }
 
 func auditPGNCommand(args []string) error {
@@ -389,7 +398,30 @@ func runMatchCommand(args []string) error {
 	cmd.Dir = cfg.RunDir
 	cmd.Stdout = parser
 	cmd.Stderr = parser
-	err = cmd.Run()
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signalCh)
+	stopped := false
+	if err = cmd.Start(); err == nil {
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }()
+		select {
+		case err = <-done:
+		case received := <-signalCh:
+			stopped = true
+			status.State = "stopping"
+			status.Error = "stop requested: " + received.String()
+			_ = saveStatus(cfg.RunDir, &status)
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+			select {
+			case err = <-done:
+			case <-time.After(10 * time.Second):
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+				err = <-done
+			}
+		}
+	}
 	parser.flush()
 	audit, auditErr := auditPGN(filepath.Join(cfg.RunDir, "games.pgn"))
 	if auditErr == nil {
@@ -397,12 +429,17 @@ func runMatchCommand(args []string) error {
 		if writeErr := writeJSON(filepath.Join(cfg.RunDir, "pgn-audit.json"), audit); writeErr != nil && err == nil {
 			err = writeErr
 		}
-	} else if err == nil {
+	} else if err == nil && !stopped {
 		err = fmt.Errorf("audit completed PGN: %w", auditErr)
 	}
 	status.UpdatedAt = time.Now()
 	status.FinishedAt = status.UpdatedAt
-	if err != nil {
+	if stopped {
+		status.State = "stopped"
+		status.Stage = "finished"
+		status.Error = "stopped by user"
+		status.Decision = "stopped_by_user"
+	} else if err != nil {
 		status.State = "failed"
 		status.Stage = "finished"
 		status.Error = err.Error()
@@ -416,6 +453,9 @@ func runMatchCommand(args []string) error {
 	}
 	if saveErr := saveStatus(cfg.RunDir, &status); saveErr != nil {
 		return saveErr
+	}
+	if stopped {
+		return nil
 	}
 	return err
 }
@@ -457,13 +497,116 @@ func waitCommand(args []string) error {
 		}
 		fmt.Printf("%s state=%s games=%d/%d W-D-L=%d-%d-%d score=%.2f%%\n", time.Now().Format(time.RFC3339), status.State, status.Games, status.TargetGames, status.Wins, status.Draws, status.Losses, status.Score)
 		if status.State == "completed" || status.State == "failed" || status.State == "stopped" {
-			if status.State == "failed" || status.State == "stopped" {
+			if status.State == "failed" {
 				return fmt.Errorf("match failed: %s", status.Error)
 			}
 			return nil
 		}
 		time.Sleep(*interval)
 	}
+}
+
+func stopCommand(args []string) error {
+	fs := flag.NewFlagSet("stop", flag.ContinueOnError)
+	runDir := fs.String("run-dir", "", "match run directory; defaults to latest")
+	timeout := fs.Duration("timeout", 15*time.Second, "time allowed for graceful shutdown")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	dir, err := resolveRunDir(*runDir)
+	if err != nil {
+		return err
+	}
+	status, err := loadStatus(dir)
+	if err != nil {
+		return err
+	}
+	if status.State == "completed" || status.State == "failed" || status.State == "stopped" {
+		fmt.Printf("match already finished: state=%s run_dir=%s\n", status.State, dir)
+		return nil
+	}
+	if status.PID <= 0 {
+		return errors.New("match status has no monitor PID")
+	}
+	if !processExists(status.PID) {
+		status.State = "stopped"
+		status.Stage = "finished"
+		status.FinishedAt = time.Now()
+		status.Error = "monitor process was already gone"
+		status.Decision = "stopped_by_user"
+		if err := saveStatus(dir, &status); err != nil {
+			return err
+		}
+		fmt.Printf("match stopped: monitor already exited run_dir=%s\n", dir)
+		return nil
+	}
+	expected, err := expectedMonitorProcess(status.PID, dir)
+	if err != nil {
+		return err
+	}
+	if !expected {
+		return fmt.Errorf("refusing to signal PID %d: it is not the monitor for %s", status.PID, dir)
+	}
+	status.State = "stopping"
+	status.Error = "stop requested by user"
+	if err := saveStatus(dir, &status); err != nil {
+		return err
+	}
+	process, err := os.FindProcess(status.PID)
+	if err != nil {
+		return err
+	}
+	if err := process.Signal(syscall.SIGTERM); err != nil && processExists(status.PID) {
+		return err
+	}
+	deadline := time.NewTimer(*timeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			latest, loadErr := loadStatus(dir)
+			if loadErr != nil {
+				return loadErr
+			}
+			if latest.State == "stopped" || latest.State == "completed" || latest.State == "failed" {
+				fmt.Printf("match stopped: state=%s games=%d run_dir=%s\n", latest.State, latest.Games, dir)
+				return nil
+			}
+			if !processExists(status.PID) {
+				latest.State = "stopped"
+				latest.Stage = "finished"
+				latest.FinishedAt = time.Now()
+				latest.Error = "stopped by user"
+				latest.Decision = "stopped_by_user"
+				if err := saveStatus(dir, &latest); err != nil {
+					return err
+				}
+				fmt.Printf("match stopped: games=%d run_dir=%s\n", latest.Games, dir)
+				return nil
+			}
+		case <-deadline.C:
+			return fmt.Errorf("monitor PID %d did not stop within %s", status.PID, *timeout)
+		}
+	}
+}
+
+func processExists(pid int) bool {
+	err := syscall.Kill(pid, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
+}
+
+func expectedMonitorProcess(pid int, runDir string) (bool, error) {
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "cmdline"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	commandLine := strings.ReplaceAll(string(data), "\x00", " ")
+	return strings.Contains(commandLine, "run-match") && strings.Contains(commandLine, runDir), nil
 }
 
 func parseMatchConfig(name string, args []string) (matchConfig, error) {

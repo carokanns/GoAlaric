@@ -41,6 +41,25 @@ go run ./cmd/testmonitor status
 go run ./cmd/testmonitor wait
 ```
 
+Avbryt den senaste pågående screening- eller SPRT-matchen:
+
+```bash
+go run ./cmd/testmonitor stop
+```
+
+För att välja en bestämd körning:
+
+```bash
+go run ./cmd/testmonitor stop \
+  --run-dir artifacts/matches/<körning>
+```
+
+Monitorprocessen skickar först en mjuk stoppsignal till Fastchess och samtliga
+motorprocesser och använder en hård stoppsignal efter tio sekunder om de inte
+avslutas. Färdiga partier, PGN och loggar bevaras. `status.json` får status
+`stopped` och beslutet `stopped_by_user`; avbrottet räknas inte som en
+SPRT-acceptans eller som ett motorfel.
+
 Kontrollera hela konfigurationen utan att starta en match:
 
 ```bash

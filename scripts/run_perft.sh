@@ -66,6 +66,7 @@ done <"$epd_file"
 nodes_sum=0
 ms_sum=0
 row_count=0
+failed_rows=0
 
 for i in "${!fens[@]}"; do
   fen="${fens[$i]}"
@@ -118,6 +119,7 @@ for i in "${!fens[@]}"; do
       status="ok"
     else
       status="fel"
+      failed_rows=$((failed_rows + 1))
     fi
   fi
 
@@ -142,3 +144,7 @@ if [ "$row_count" -gt 0 ]; then
 fi
 
 echo "Resultat sparat i $output_file"
+if [ "$failed_rows" -gt 0 ]; then
+  echo "Perft failed: $failed_rows position(er) avvek" >&2
+  exit 1
+fi
