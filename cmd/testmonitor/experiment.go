@@ -203,7 +203,7 @@ func pipelineCommand(args []string) error {
 	fs.StringVar(&fastchess, "fastchess", defaultFastchess, "Fastchess executable")
 	fs.StringVar(&openings, "openings", defaultOpenings, "opening book for screening")
 	fs.IntVar(&screeningGames, "screening-games", 400, "screening game count")
-	fs.StringVar(&screeningTC, "screening-tc", "30+0.3", "screening time control")
+	fs.StringVar(&screeningTC, "screening-tc", defaultScreeningTC, "screening time control")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

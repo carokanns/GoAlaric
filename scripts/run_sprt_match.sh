@@ -11,6 +11,7 @@ games="${4:-10000}"
 cd "$repo_root"
 args=(
   start
+  --follow
   --fastchess .tools/fastchess/bin/fastchess
   --baseline "$baseline"
   --candidate "$candidate"

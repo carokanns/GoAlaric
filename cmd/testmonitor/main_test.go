@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"math"
 	"os"
 	"os/exec"
@@ -10,6 +12,107 @@ import (
 	"testing"
 	"time"
 )
+
+func TestScreeningProgressEveryTenGames(t *testing.T) {
+	dir := t.TempDir()
+	status := matchStatus{RunID: "screening", State: "running", Stage: "fastchess", TargetGames: 400, RunDir: dir}
+	var output bytes.Buffer
+	parser := matchOutput{status: &status, runDir: dir, dst: &output, progressEvery: 10, nextProgress: 10}
+	parser.process("Score of Candidate vs Baseline: 3 - 2 - 4  [0.556] 9")
+	if _, err := os.Stat(filepath.Join(dir, "progress.jsonl")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("progress written before ten games: %v", err)
+	}
+	parser.process("Score of Candidate vs Baseline: 3 - 2 - 5  [0.550] 10")
+	snapshots, err := readProgressSnapshots(filepath.Join(dir, "progress.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshots) != 1 || snapshots[0].Games != 10 || snapshots[0].ScorePercent != 55 {
+		t.Fatalf("unexpected progress snapshots: %+v", snapshots)
+	}
+}
+
+func TestSPRTProgressWaitsForLLR(t *testing.T) {
+	dir := t.TempDir()
+	status := matchStatus{RunID: "sprt", State: "running", Stage: "fastchess", TargetGames: 10000, RunDir: dir}
+	var output bytes.Buffer
+	parser := matchOutput{status: &status, runDir: dir, dst: &output, progressEvery: 50, nextProgress: 50, sprt: true}
+	parser.process("Score of Candidate vs Baseline: 10 - 12 - 28  [0.480] 50")
+	if _, err := os.Stat(filepath.Join(dir, "progress.jsonl")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("SPRT progress written before LLR: %v", err)
+	}
+	parser.process("SPRT: llr -0.25 (1.0%), lbound -2.94, ubound 2.94")
+	snapshots, err := readProgressSnapshots(filepath.Join(dir, "progress.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshots) != 1 || snapshots[0].Games != 50 || snapshots[0].SPRTLLR != -0.25 {
+		t.Fatalf("unexpected SPRT progress snapshots: %+v", snapshots)
+	}
+}
+
+func TestProgressIntervalDefaults(t *testing.T) {
+	dir := t.TempDir()
+	fastchess := filepath.Join(dir, "fastchess")
+	baseline := filepath.Join(dir, "baseline")
+	candidate := filepath.Join(dir, "candidate")
+	for _, path := range []string{fastchess, baseline, candidate} {
+		if err := os.WriteFile(path, []byte("test"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	book := filepath.Join(dir, "book.epd")
+	lines := make([]string, 100)
+	for ix := range lines {
+		lines[ix] = "8/8/8/8/8/8/8/8 w - - id " + strconv.Itoa(ix)
+	}
+	if err := os.WriteFile(book, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	base := matchConfig{Fastchess: fastchess, Baseline: baseline, Candidate: candidate, Openings: book, Games: 100, Concurrency: 1, RunDir: filepath.Join(dir, "run")}
+	screening, err := normalizeConfig(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if screening.ProgressEvery != 10 {
+		t.Fatalf("screening progress interval = %d, want 10", screening.ProgressEvery)
+	}
+	if screening.TC != defaultScreeningTC {
+		t.Fatalf("screening time control = %q, want %q", screening.TC, defaultScreeningTC)
+	}
+	if screening.ProgressTime != defaultProgressInterval {
+		t.Fatalf("screening progress interval = %q, want %q", screening.ProgressTime, defaultProgressInterval)
+	}
+	base.SPRT = true
+	base.TC = ""
+	sprt, err := normalizeConfig(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sprt.ProgressEvery != 50 {
+		t.Fatalf("SPRT progress interval = %d, want 50", sprt.ProgressEvery)
+	}
+	if sprt.TC != defaultSPRTTC {
+		t.Fatalf("SPRT time control = %q, want %q", sprt.TC, defaultSPRTTC)
+	}
+}
+
+func TestFollowProgressReturnsAfterCompletedMatch(t *testing.T) {
+	dir := t.TempDir()
+	status := matchStatus{
+		RunID: "completed", State: "completed", Stage: "complete", TargetGames: 10,
+		Games: 10, Wins: 4, Draws: 4, Losses: 2, Score: 60, RunDir: dir,
+	}
+	if err := saveStatus(dir, &status); err != nil {
+		t.Fatal(err)
+	}
+	if err := appendProgressSnapshot(dir, status); err != nil {
+		t.Fatal(err)
+	}
+	if err := followProgress(dir, time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestStopHelper(t *testing.T) {
 	if os.Getenv("GOALARIC_STOP_HELPER") != "1" {

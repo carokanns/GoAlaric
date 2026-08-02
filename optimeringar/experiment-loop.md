@@ -32,6 +32,12 @@ En pågående SPRT kan alltid avbrytas med `go run ./cmd/testmonitor stop` eller
 med `--run-dir` för att välja en viss körning. Partiresultat och loggar fram
 till avbrottet bevaras.
 
+Pågående matcher rapporterar delresultat via `testmonitor progress`. Skripten
+`run_match.sh` och `run_sprt_match.sh` visar dem automatiskt i terminalen;
+`testmonitor follow` kan ansluta till en redan startad match.
+Standardintervallet är 10 partier för screening och 50 för SPRT; SPRT-raden
+innehåller även LLR och beslutsgränser. En extra statusrad skrivs varje minut.
+
 ## LLM-underlag och beslut
 
 ```bash

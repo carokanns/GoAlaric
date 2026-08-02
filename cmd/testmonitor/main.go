@@ -28,39 +28,46 @@ import (
 )
 
 const (
-	defaultFastchess = ".tools/fastchess/bin/fastchess"
-	defaultOpenings  = ".tools/books/8moves_v3.pgn"
-	minimumOpenings  = 100
+	defaultFastchess         = ".tools/fastchess/bin/fastchess"
+	defaultOpenings          = ".tools/books/8moves_v3.pgn"
+	minimumOpenings          = 100
+	defaultScreeningTC       = "20+0.2"
+	defaultSPRTTC            = "30+0.3"
+	defaultProgressInterval  = "1m"
+	defaultScreeningProgress = 10
+	defaultSPRTProgress      = 50
 )
 
 type matchStatus struct {
-	RunID        string    `json:"run_id"`
-	State        string    `json:"state"`
-	Stage        string    `json:"stage"`
-	PID          int       `json:"pid,omitempty"`
-	StartedAt    time.Time `json:"started_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	FinishedAt   time.Time `json:"finished_at,omitempty"`
-	Baseline     string    `json:"baseline"`
-	Candidate    string    `json:"candidate"`
-	TimeControl  string    `json:"time_control"`
-	TargetGames  int       `json:"target_games"`
-	OpeningFile  string    `json:"opening_file"`
-	OpeningCount int       `json:"opening_count"`
-	RandomSeed   int64     `json:"random_seed"`
-	Games        int       `json:"games"`
-	Wins         int       `json:"wins"`
-	Losses       int       `json:"losses"`
-	Draws        int       `json:"draws"`
-	Score        float64   `json:"score_percent"`
-	SPRTLLR      float64   `json:"sprt_llr,omitempty"`
-	SPRTLower    float64   `json:"sprt_lower,omitempty"`
-	SPRTUpper    float64   `json:"sprt_upper,omitempty"`
-	Decision     string    `json:"decision,omitempty"`
-	PGNAudit     *pgnAudit `json:"pgn_audit,omitempty"`
-	ExitCode     int       `json:"exit_code,omitempty"`
-	Error        string    `json:"error,omitempty"`
-	RunDir       string    `json:"run_dir"`
+	RunID         string    `json:"run_id"`
+	State         string    `json:"state"`
+	Stage         string    `json:"stage"`
+	PID           int       `json:"pid,omitempty"`
+	StartedAt     time.Time `json:"started_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	FinishedAt    time.Time `json:"finished_at,omitempty"`
+	Baseline      string    `json:"baseline"`
+	Candidate     string    `json:"candidate"`
+	TimeControl   string    `json:"time_control"`
+	TargetGames   int       `json:"target_games"`
+	ProgressEvery int       `json:"progress_every_games"`
+	ProgressTime  string    `json:"progress_interval"`
+	OpeningFile   string    `json:"opening_file"`
+	OpeningCount  int       `json:"opening_count"`
+	RandomSeed    int64     `json:"random_seed"`
+	Games         int       `json:"games"`
+	Wins          int       `json:"wins"`
+	Losses        int       `json:"losses"`
+	Draws         int       `json:"draws"`
+	Score         float64   `json:"score_percent"`
+	SPRTLLR       float64   `json:"sprt_llr,omitempty"`
+	SPRTLower     float64   `json:"sprt_lower,omitempty"`
+	SPRTUpper     float64   `json:"sprt_upper,omitempty"`
+	Decision      string    `json:"decision,omitempty"`
+	PGNAudit      *pgnAudit `json:"pgn_audit,omitempty"`
+	ExitCode      int       `json:"exit_code,omitempty"`
+	Error         string    `json:"error,omitempty"`
+	RunDir        string    `json:"run_dir"`
 }
 
 type pgnAudit struct {
@@ -83,18 +90,21 @@ type pgnGame struct {
 }
 
 type matchConfig struct {
-	Fastchess   string `json:"fastchess"`
-	Baseline    string `json:"baseline"`
-	Candidate   string `json:"candidate"`
-	Openings    string `json:"openings"`
-	BookFormat  string `json:"book_format"`
-	BookCount   int    `json:"book_count"`
-	Seed        int64  `json:"random_seed"`
-	Games       int    `json:"games"`
-	TC          string `json:"time_control"`
-	Concurrency int    `json:"concurrency"`
-	RunDir      string `json:"run_dir"`
-	SPRT        bool   `json:"sprt"`
+	Fastchess     string `json:"fastchess"`
+	Baseline      string `json:"baseline"`
+	Candidate     string `json:"candidate"`
+	Openings      string `json:"openings"`
+	BookFormat    string `json:"book_format"`
+	BookCount     int    `json:"book_count"`
+	Seed          int64  `json:"random_seed"`
+	Games         int    `json:"games"`
+	TC            string `json:"time_control"`
+	Concurrency   int    `json:"concurrency"`
+	RunDir        string `json:"run_dir"`
+	SPRT          bool   `json:"sprt"`
+	ProgressEvery int    `json:"progress_every_games"`
+	ProgressTime  string `json:"progress_interval"`
+	Follow        bool   `json:"-"`
 }
 
 type searchSample struct {
@@ -150,6 +160,10 @@ func main() {
 		err = runMatchCommand(os.Args[2:])
 	case "status":
 		err = statusCommand(os.Args[2:])
+	case "progress":
+		err = progressCommand(os.Args[2:])
+	case "follow":
+		err = followCommand(os.Args[2:])
 	case "wait":
 		err = waitCommand(os.Args[2:])
 	case "stop":
@@ -171,7 +185,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|wait|stop|pipeline|snapshot|record-decision> [options]")
+	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|progress|follow|wait|stop|pipeline|snapshot|record-decision> [options]")
 }
 
 func auditPGNCommand(args []string) error {
@@ -322,7 +336,7 @@ func startCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", cfg.Openings, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--run-dir", cfg.RunDir}
+	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", cfg.Openings, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--run-dir", cfg.RunDir}
 	if cfg.SPRT {
 		childArgs = append(childArgs, "--sprt")
 	}
@@ -343,6 +357,9 @@ func startCommand(args []string) error {
 	}
 	fmt.Printf("match started: pid=%d run_dir=%s\n", cmd.Process.Pid, cfg.RunDir)
 	fmt.Printf("status: go run ./cmd/testmonitor status --run-dir %s\n", cfg.RunDir)
+	if cfg.Follow {
+		return followProgress(cfg.RunDir, 500*time.Millisecond)
+	}
 	return nil
 }
 
@@ -369,6 +386,7 @@ func runMatchCommand(args []string) error {
 	if err := saveStatus(cfg.RunDir, &status); err != nil {
 		return err
 	}
+	_ = appendProgressSnapshot(cfg.RunDir, status)
 
 	rounds := cfg.Games / 2
 	fcArgs := []string{
@@ -393,7 +411,10 @@ func runMatchCommand(args []string) error {
 		return err
 	}
 	defer logFile.Close()
-	parser := &matchOutput{status: &status, runDir: cfg.RunDir, dst: logFile}
+	parser := &matchOutput{status: &status, runDir: cfg.RunDir, dst: logFile, progressEvery: cfg.ProgressEvery, nextProgress: cfg.ProgressEvery, sprt: cfg.SPRT}
+	progressInterval, _ := time.ParseDuration(cfg.ProgressTime)
+	stopPeriodicProgress := parser.startPeriodicProgress(progressInterval)
+	defer stopPeriodicProgress()
 	cmd := exec.Command(cfg.Fastchess, fcArgs...)
 	cmd.Dir = cfg.RunDir
 	cmd.Stdout = parser
@@ -409,6 +430,7 @@ func runMatchCommand(args []string) error {
 		select {
 		case err = <-done:
 		case received := <-signalCh:
+			stopPeriodicProgress()
 			stopped = true
 			status.State = "stopping"
 			status.Error = "stop requested: " + received.String()
@@ -422,6 +444,7 @@ func runMatchCommand(args []string) error {
 			}
 		}
 	}
+	stopPeriodicProgress()
 	parser.flush()
 	audit, auditErr := auditPGN(filepath.Join(cfg.RunDir, "games.pgn"))
 	if auditErr == nil {
@@ -454,6 +477,7 @@ func runMatchCommand(args []string) error {
 	if saveErr := saveStatus(cfg.RunDir, &status); saveErr != nil {
 		return saveErr
 	}
+	parser.finalProgress()
 	if stopped {
 		return nil
 	}
@@ -537,6 +561,7 @@ func stopCommand(args []string) error {
 		if err := saveStatus(dir, &status); err != nil {
 			return err
 		}
+		_ = appendProgressSnapshot(dir, status)
 		fmt.Printf("match stopped: monitor already exited run_dir=%s\n", dir)
 		return nil
 	}
@@ -583,6 +608,7 @@ func stopCommand(args []string) error {
 				if err := saveStatus(dir, &latest); err != nil {
 					return err
 				}
+				_ = appendProgressSnapshot(dir, latest)
 				fmt.Printf("match stopped: games=%d run_dir=%s\n", latest.Games, dir)
 				return nil
 			}
@@ -618,8 +644,11 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.Openings, "openings", "", "PGN or EPD opening book")
 	fs.Int64Var(&cfg.Seed, "seed", 0, "opening randomization seed; random and persisted when zero")
 	fs.IntVar(&cfg.Games, "games", 400, "even number of games")
-	fs.StringVar(&cfg.TC, "tc", "30+0.3", "Fastchess time control")
+	fs.StringVar(&cfg.TC, "tc", "", "Fastchess time control; defaults to 20+0.2 for screening and 30+0.3 for SPRT")
 	fs.IntVar(&cfg.Concurrency, "concurrency", 8, "concurrent games")
+	fs.IntVar(&cfg.ProgressEvery, "progress-games", 0, "games between progress snapshots; defaults to 10 for screening and 50 for SPRT")
+	fs.StringVar(&cfg.ProgressTime, "progress-interval", defaultProgressInterval, "time between progress snapshots; use 0 to disable")
+	fs.BoolVar(&cfg.Follow, "follow", false, "print progress live until the match finishes")
 	fs.StringVar(&cfg.RunDir, "run-dir", "", "artifact directory")
 	fs.BoolVar(&cfg.SPRT, "sprt", false, "enable SPRT 0/5 Elo")
 	if err := fs.Parse(args); err != nil {
@@ -634,11 +663,35 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	if cfg.Concurrency < 1 {
 		return cfg, errors.New("--concurrency must be positive")
 	}
+	if cfg.ProgressEvery < 0 {
+		return cfg, errors.New("--progress-games cannot be negative")
+	}
+	if cfg.ProgressTime != "0" {
+		interval, err := time.ParseDuration(cfg.ProgressTime)
+		if err != nil || interval <= 0 {
+			return cfg, errors.New("--progress-interval must be a positive duration or 0")
+		}
+	}
 	return cfg, nil
 }
 
 func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 	var err error
+	if cfg.TC == "" {
+		cfg.TC = defaultScreeningTC
+		if cfg.SPRT {
+			cfg.TC = defaultSPRTTC
+		}
+	}
+	if cfg.ProgressTime == "" {
+		cfg.ProgressTime = defaultProgressInterval
+	}
+	if cfg.ProgressEvery == 0 {
+		cfg.ProgressEvery = defaultScreeningProgress
+		if cfg.SPRT {
+			cfg.ProgressEvery = defaultSPRTProgress
+		}
+	}
 	if cfg.Fastchess, err = existingAbs(cfg.Fastchess); err != nil {
 		return cfg, err
 	}
@@ -678,7 +731,7 @@ func initialStatus(cfg matchConfig) matchStatus {
 	return matchStatus{
 		RunID: filepath.Base(cfg.RunDir), State: "starting", Stage: "setup", StartedAt: now, UpdatedAt: now,
 		Baseline: cfg.Baseline, Candidate: cfg.Candidate, TimeControl: cfg.TC, TargetGames: cfg.Games,
-		OpeningFile: cfg.Openings, OpeningCount: cfg.BookCount, RandomSeed: cfg.Seed, RunDir: cfg.RunDir,
+		ProgressEvery: cfg.ProgressEvery, ProgressTime: cfg.ProgressTime, OpeningFile: cfg.Openings, OpeningCount: cfg.BookCount, RandomSeed: cfg.Seed, RunDir: cfg.RunDir,
 	}
 }
 
@@ -741,11 +794,15 @@ func randomSeed() int64 {
 }
 
 type matchOutput struct {
-	mu     sync.Mutex
-	buf    bytes.Buffer
-	status *matchStatus
-	runDir string
-	dst    io.Writer
+	mu              sync.Mutex
+	buf             bytes.Buffer
+	status          *matchStatus
+	runDir          string
+	dst             io.Writer
+	progressEvery   int
+	nextProgress    int
+	sprt            bool
+	pendingProgress bool
 }
 
 func (m *matchOutput) Write(p []byte) (int, error) {
@@ -780,6 +837,10 @@ func (m *matchOutput) process(line string) {
 		m.status.SPRTUpper = upper
 		m.status.UpdatedAt = time.Now()
 		_ = saveStatus(m.runDir, m.status)
+		if m.pendingProgress {
+			m.emitProgressLocked()
+			m.pendingProgress = false
+		}
 		return
 	}
 	wins, losses, draws, games, score, ok := parseScoreLine(line)
@@ -793,6 +854,64 @@ func (m *matchOutput) process(line string) {
 	m.status.Score = score
 	m.status.UpdatedAt = time.Now()
 	_ = saveStatus(m.runDir, m.status)
+	if m.progressEvery > 0 && games >= m.nextProgress {
+		for m.nextProgress <= games {
+			m.nextProgress += m.progressEvery
+		}
+		if m.sprt {
+			m.pendingProgress = true
+		} else {
+			m.emitProgressLocked()
+		}
+	}
+}
+
+func (m *matchOutput) emitProgressLocked() {
+	if err := appendProgressSnapshot(m.runDir, *m.status); err != nil {
+		_, _ = fmt.Fprintf(m.dst, "[progress-error] %v\n", err)
+		fmt.Printf("[progress-error] %v\n", err)
+		return
+	}
+	line := formatProgress(*m.status)
+	_, _ = fmt.Fprintln(m.dst, line)
+	fmt.Println(line)
+}
+
+func (m *matchOutput) startPeriodicProgress(interval time.Duration) func() {
+	if interval <= 0 {
+		return func() {}
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	var once sync.Once
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				m.mu.Lock()
+				m.emitProgressLocked()
+				m.mu.Unlock()
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return func() {
+		once.Do(func() {
+			close(stop)
+			<-done
+		})
+	}
+}
+
+func (m *matchOutput) finalProgress() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pendingProgress = false
+	m.emitProgressLocked()
 }
 
 func parseScoreLine(line string) (wins, losses, draws, games int, score float64, ok bool) {

@@ -21,8 +21,9 @@ ny motorprocess med `Hash=128`, `Threads=1` och `Ponder=false`.
   artifacts/candidate/goalaric-ischeck-cache
 ```
 
-Kommandot startar screeningen i bakgrunden. Standardvärdena är 400 partier
-från 200 öppningar, `30+0.3`, åtta samtidiga enkeltrådade partier och parade
+Kommandot startar screeningen i bakgrunden och visar delresultat löpande i
+terminalen. Standardvärdena är 400 partier
+från 200 öppningar, `20+0.2`, åtta samtidiga enkeltrådade partier och parade
 färger. Den
 CC0-licensierade standardboken innehåller 34 700 åttadragsöppningar från
 `official-stockfish/books`. En ny slumpseed skapas för varje match och sparas
@@ -40,6 +41,37 @@ Läs status utan att störa matchen:
 go run ./cmd/testmonitor status
 go run ./cmd/testmonitor wait
 ```
+
+Visa de senaste periodiska delresultaten:
+
+```bash
+go run ./cmd/testmonitor progress
+go run ./cmd/testmonitor progress \
+  --run-dir artifacts/matches/<körning> --tail 5
+```
+
+Följ en redan startad match direkt i terminalen:
+
+```bash
+go run ./cmd/testmonitor follow \
+  --run-dir artifacts/matches/<körning>
+```
+
+`run_match.sh` och `run_sprt_match.sh` använder följningsläget automatiskt.
+Tryck `Ctrl+C` för att lämna visningen; den frikopplade matchprocessen fortsätter
+i bakgrunden. Använd `testmonitor stop` endast när själva matchen ska avbrytas.
+
+Screening skriver automatiskt ett snapshot efter vart tionde färdigt parti.
+SPRT skriver efter vart femtionde parti och inkluderar aktuell LLR samt nedre
+och övre beslutsgräns. Båda skriver alltid ett sista snapshot vid avslut eller
+avbrott. Dessutom skrivs aktuell ställning varje minut, även om färre än nästa
+antal partier har hunnit bli färdiga. Tidsintervallet kan ändras med
+`--progress-interval`, och partiintervallet med `--progress-games`, när
+`testmonitor start` anropas.
+
+Historiken sparas maskinläsbart i `progress.jsonl`; senaste snapshot finns i
+`progress.json`. En läsbar `[progress]`-rad skrivs också till `match.out` och
+`monitor.log`.
 
 Avbryt den senaste pågående screening- eller SPRT-matchen:
 
