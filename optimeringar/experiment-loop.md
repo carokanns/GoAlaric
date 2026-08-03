@@ -18,6 +18,9 @@ Pipelineordningen är `go test`, perft, UCI-smoke, fixed-depth benchmark och
 movetime. Ett korrekthetsfel stoppar senare steg. Fastdjupsresultat måste vara
 identiska som standard; använd `--semantic-preserving=false` för en kandidat
 som uttryckligen ändrar söksemantiken.
+Det kompakta modellunderlaget innehåller alltid denna flagga. `semantic_ok` är
+bara ett korrekthetskrav när `semantic_preserving` är `true`; annars är ändrade
+noder, scores och bestmoves diagnostik och förväntade effekter av kandidaten.
 
 Screening kan startas explicit:
 

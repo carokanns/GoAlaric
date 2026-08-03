@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	automationSchemaVersion = 1
+	automationSchemaVersion = 2
 	codexEvaluationTimeout  = 5 * time.Minute
 )
 
@@ -267,9 +267,7 @@ func invokeCodex(cfg matchConfig, event completionEvent, experimentDir, decision
 		return err
 	}
 	defer log.Close()
-	payload, _ := json.Marshal(event)
-	prompt := "Evaluate this completed GoAlaric match. Use only the supplied compact JSON; do not inspect files or run commands. " +
-		"For screening choose sprt only when justified, otherwise reject or propose_change. For SPRT choose promote only for accepted_h1; always provide the next proposed change. Return only schema-valid JSON.\n" + string(payload) + "\n"
+	prompt := evaluationPrompt(event)
 	args := []string{"-a", "never", "exec", "--ephemeral", "--skip-git-repo-check", "-C", workDir, "-s", "read-only", "--output-schema", schemaPath, "--output-last-message", tmpDecision, "-"}
 	cmd := exec.Command(cfg.Codex, args...)
 	cmd.Stdin = strings.NewReader(prompt)
@@ -299,6 +297,13 @@ func invokeCodex(cfg matchConfig, event completionEvent, experimentDir, decision
 		return err
 	}
 	return nil
+}
+
+func evaluationPrompt(event completionEvent) string {
+	payload, _ := json.Marshal(event)
+	return "Evaluate this completed GoAlaric match. Use only the supplied compact JSON; do not inspect files or run commands. " +
+		"semantic_ok is a required invariant only when semantic_preserving is true. When semantic_preserving is false, changed fixed-depth nodes, scores, or bestmoves are expected and must not be treated as correctness failures; NPS remains diagnostic only. " +
+		"Use hard_failures and stage statuses for correctness. For screening choose sprt only when justified, otherwise reject or propose_change. For SPRT choose promote only for accepted_h1; always provide the next proposed change. Return only schema-valid JSON.\n" + string(payload) + "\n"
 }
 
 func validateAutomationDecision(event completionEvent, d decision) error {

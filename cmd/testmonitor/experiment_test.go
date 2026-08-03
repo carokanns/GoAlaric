@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -68,5 +69,20 @@ func TestCompactDecisionInputOmitsStableCases(t *testing.T) {
 	data, err := json.Marshal(input)
 	if err != nil || len(data) == 0 {
 		t.Fatal("compact input did not marshal")
+	}
+	if !strings.Contains(string(data), `"semantic_preserving":false`) {
+		t.Fatalf("compact input omitted semantic-preserving policy: %s", data)
+	}
+}
+
+func TestCompactDecisionInputIncludesSemanticPreservingPolicy(t *testing.T) {
+	report := experimentReport{
+		CandidateID: "candidate-semantic",
+		Config:      experimentConfig{SemanticPreserve: true},
+		Benchmark:   &benchmarkComparison{SemanticOK: true},
+	}
+	input := compactDecisionInput(report, "/tmp/experiment")
+	if !input.SemanticPreserving || input.SemanticOK == nil || !*input.SemanticOK {
+		t.Fatalf("unexpected semantic policy: %+v", input)
 	}
 }

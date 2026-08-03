@@ -134,6 +134,26 @@ func TestPostSPRTDecisionRules(t *testing.T) {
 	}
 }
 
+func TestEvaluationPromptExplainsNonSemanticCandidate(t *testing.T) {
+	event := completionEvent{
+		CandidateID: "candidate-lmr",
+		MatchType:   "sprt",
+		Experiment: decisionInput{
+			SemanticPreserving: false,
+		},
+	}
+	prompt := evaluationPrompt(event)
+	for _, required := range []string{
+		`"semantic_preserving":false`,
+		"semantic_ok is a required invariant only when semantic_preserving is true",
+		"must not be treated as correctness failures",
+	} {
+		if !strings.Contains(prompt, required) {
+			t.Fatalf("prompt omitted %q: %s", required, prompt)
+		}
+	}
+}
+
 func TestPostSPRTPromotionCreatesApprovalPackage(t *testing.T) {
 	root, cfg, report := automationFixture(t)
 	cfg.SPRT = true

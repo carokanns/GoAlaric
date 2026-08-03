@@ -144,22 +144,23 @@ type compactCase struct {
 }
 
 type decisionInput struct {
-	SchemaVersion  int                `json:"schema_version"`
-	CandidateID    string             `json:"candidate_id"`
-	Status         string             `json:"status"`
-	Hypothesis     string             `json:"hypothesis,omitempty"`
-	ProposedChange string             `json:"proposed_change,omitempty"`
-	HardFailures   []string           `json:"hard_failures,omitempty"`
-	Baseline       experimentIdentity `json:"baseline"`
-	Candidate      experimentIdentity `json:"candidate"`
-	Stages         map[string]string  `json:"stages"`
-	NPSDelta       float64            `json:"nps_delta_percent,omitempty"`
-	SemanticOK     *bool              `json:"semantic_ok,omitempty"`
-	Movetime       string             `json:"movetime_status,omitempty"`
-	Match          any                `json:"match,omitempty"`
-	Cases          []compactCase      `json:"changed_cases,omitempty"`
-	Previous       []previousDecision `json:"previous_candidates,omitempty"`
-	Artifacts      map[string]string  `json:"artifacts"`
+	SchemaVersion      int                `json:"schema_version"`
+	CandidateID        string             `json:"candidate_id"`
+	Status             string             `json:"status"`
+	Hypothesis         string             `json:"hypothesis,omitempty"`
+	ProposedChange     string             `json:"proposed_change,omitempty"`
+	HardFailures       []string           `json:"hard_failures,omitempty"`
+	Baseline           experimentIdentity `json:"baseline"`
+	Candidate          experimentIdentity `json:"candidate"`
+	Stages             map[string]string  `json:"stages"`
+	NPSDelta           float64            `json:"nps_delta_percent,omitempty"`
+	SemanticPreserving bool               `json:"semantic_preserving"`
+	SemanticOK         *bool              `json:"semantic_ok,omitempty"`
+	Movetime           string             `json:"movetime_status,omitempty"`
+	Match              any                `json:"match,omitempty"`
+	Cases              []compactCase      `json:"changed_cases,omitempty"`
+	Previous           []previousDecision `json:"previous_candidates,omitempty"`
+	Artifacts          map[string]string  `json:"artifacts"`
 }
 
 type previousDecision struct {
@@ -971,7 +972,7 @@ func compactDecisionInput(report experimentReport, dir string) decisionInput {
 	for _, stage := range report.Stages {
 		stages[stage.Name] = stage.Status
 	}
-	input := decisionInput{SchemaVersion: experimentSchemaVersion, CandidateID: report.CandidateID, Status: report.Status, Hypothesis: report.Config.Hypothesis, ProposedChange: report.Config.ProposedChange, HardFailures: report.HardFailures, Baseline: report.Baseline, Candidate: report.Candidate, Stages: stages, Artifacts: map[string]string{"full_report": filepath.Join(dir, "experiment.json"), "logs": dir}}
+	input := decisionInput{SchemaVersion: experimentSchemaVersion, CandidateID: report.CandidateID, Status: report.Status, Hypothesis: report.Config.Hypothesis, ProposedChange: report.Config.ProposedChange, HardFailures: report.HardFailures, Baseline: report.Baseline, Candidate: report.Candidate, Stages: stages, SemanticPreserving: report.Config.SemanticPreserve, Artifacts: map[string]string{"full_report": filepath.Join(dir, "experiment.json"), "logs": dir}}
 	if report.Benchmark != nil {
 		input.NPSDelta = report.Benchmark.NPSDeltaPercent
 		input.SemanticOK = &report.Benchmark.SemanticOK
