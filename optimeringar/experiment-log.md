@@ -42,3 +42,11 @@ ligger under `artifacts/experiments/`, som är lokala och ignorerade av Git.
 - Nästa ändring: Use integrated commit a9647fa as the baseline for the next candidate.
 - Hypotes: Depth- and move-number-based LMR improves playing strength despite intentionally changed fixed-depth search behavior.
 - Orsak: All correctness gates passed. Screening scored 53.6%. SPRT accepted H1 after 2203 games with 534 wins, 1241 draws and 428 losses (52.4%); LLR 2.97 exceeded the upper bound 2.94. Fixed-depth changes are expected because this candidate was explicitly not semantic-preserving. Explicit human approval was granted and the candidate was integrated as commit a9647fa.
+
+## candidate-006-lmr-research
+
+- Status: `awaiting_approval`
+- Rekommendation: `screening`
+- Nästa ändring: Run the 400-game paired screening at 20+0.2 before considering SPRT.
+- Hypotes: The completed LMR re-search ladder improves playing strength by avoiding unnecessary full-window searches despite lower fixed-depth NPS.
+- Orsak: All hard correctness gates passed. The candidate intentionally changes search behavior, with a -2.28% median NPS delta and four changed bestmoves in 14 fixed-depth positions. A strength match is required to determine whether the more selective re-search sequence is beneficial.
