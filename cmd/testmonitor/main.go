@@ -330,7 +330,7 @@ func startCommand(args []string) error {
 	if err := os.MkdirAll(cfg.RunDir, 0o755); err != nil {
 		return err
 	}
-	if err := writeJSON(filepath.Join(cfg.RunDir, "config.json"), cfg); err != nil {
+	if err := writeJSON(filepath.Join(cfg.RunDir, "monitor-config.json"), cfg); err != nil {
 		return err
 	}
 

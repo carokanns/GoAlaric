@@ -140,7 +140,8 @@ go run ./cmd/testmonitor validate \
 ```
 
 Varje körning får en egen katalog under `artifacts/matches/` med `status.json`,
-PGN, `pgn-audit.json`, Fastchess-logg och full programutskrift. PGN-granskningen
+`monitor-config.json`, PGN, `pgn-audit.json`, Fastchess-logg och full
+programutskrift. Fastchess skriver dessutom sin egen `config.json`. PGN-granskningen
 räknar faktiska bokdrag och unika öppningssekvenser, kontrollerar att varje
 öppning används exakt två gånger och markerar identiska partier och identiska
 färgväxlade par. Resultatet bäddas även in i

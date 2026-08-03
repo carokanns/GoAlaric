@@ -102,7 +102,7 @@ func retryEvaluationCommand(args []string) error {
 		return err
 	}
 	var cfg matchConfig
-	if err := readJSON(filepath.Join(dir, "config.json"), &cfg); err != nil {
+	if err := readJSON(filepath.Join(dir, "monitor-config.json"), &cfg); err != nil {
 		return err
 	}
 	if !cfg.AutoEvaluate {
@@ -270,7 +270,7 @@ func invokeCodex(cfg matchConfig, event completionEvent, experimentDir, decision
 	payload, _ := json.Marshal(event)
 	prompt := "Evaluate this completed GoAlaric match. Use only the supplied compact JSON; do not inspect files or run commands. " +
 		"For screening choose sprt only when justified, otherwise reject or propose_change. For SPRT choose promote only for accepted_h1; always provide the next proposed change. Return only schema-valid JSON.\n" + string(payload) + "\n"
-	args := []string{"exec", "--ephemeral", "--skip-git-repo-check", "-C", workDir, "-s", "read-only", "-a", "never", "--output-schema", schemaPath, "--output-last-message", tmpDecision, "-"}
+	args := []string{"-a", "never", "exec", "--ephemeral", "--skip-git-repo-check", "-C", workDir, "-s", "read-only", "--output-schema", schemaPath, "--output-last-message", tmpDecision, "-"}
 	cmd := exec.Command(cfg.Codex, args...)
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = log
