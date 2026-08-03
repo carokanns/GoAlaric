@@ -26,3 +26,11 @@ ligger under `artifacts/experiments/`, som är lokala och ignorerade av Git.
 - Nästa ändring: Use integrated commit 6c787b7 as the baseline for the next candidate.
 - Hypotes: Depth-dependent history updates improve move ordering and playing strength despite a small fixed-depth NPS decrease.
 - Orsak: All correctness gates passed. Screening passed with 103 wins, 216 draws and 81 losses (52.8%). SPRT then accepted H1 after 3079 games with 699 wins, 1789 draws and 591 losses (51.8%); LLR 2.95 exceeded the upper bound 2.94. The previous invalid_unpaired_openings result was caused only by the obsolete strict pairing policy: one opening was incomplete because games ran in parallel. Explicit approval was granted and the candidate was integrated as commit 6c787b7.
+
+## candidate-005-lmr
+
+- Status: `awaiting_approval`
+- Rekommendation: `screening`
+- Nästa ändring: Run the 400-game paired screening at 20+0.2; let automatic evaluation decide whether to start SPRT.
+- Hypotes: Depth- and move-number-based LMR may improve playing strength by spending search effort on more relevant moves despite lower fixed-depth NPS.
+- Orsak: All correctness gates passed. The candidate intentionally changes search behavior, with a -2.51% median fixed-depth NPS delta and changed bestmove in 3 of 14 positions. LMR is a strength-oriented change, so a paired 400-game screening is required before accepting or rejecting it.
