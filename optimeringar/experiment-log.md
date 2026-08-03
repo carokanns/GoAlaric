@@ -21,8 +21,8 @@ ligger under `artifacts/experiments/`, som är lokala och ignorerade av Git.
 
 ## candidate-004-depth-history
 
-- Status: `awaiting_approval`
+- Status: `promoted`
 - Rekommendation: `promote`
-- Nästa ändring: After explicit human approval, integrate commit 3505798 and build a new baseline; do not promote automatically.
+- Nästa ändring: Use integrated commit 6c787b7 as the baseline for the next candidate.
 - Hypotes: Depth-dependent history updates improve move ordering and playing strength despite a small fixed-depth NPS decrease.
-- Orsak: All correctness gates passed. Screening passed with 103 wins, 216 draws and 81 losses (52.8%). SPRT then accepted H1 after 3079 games with 699 wins, 1789 draws and 591 losses (51.8%); LLR 2.95 exceeded the upper bound 2.94. The previous invalid_unpaired_openings result was caused only by the obsolete strict pairing policy: one opening was incomplete because games ran in parallel. Promotion is recommended subject to explicit human approval.
+- Orsak: All correctness gates passed. Screening passed with 103 wins, 216 draws and 81 losses (52.8%). SPRT then accepted H1 after 3079 games with 699 wins, 1789 draws and 591 losses (51.8%); LLR 2.95 exceeded the upper bound 2.94. The previous invalid_unpaired_openings result was caused only by the obsolete strict pairing policy: one opening was incomplete because games ran in parallel. Explicit approval was granted and the candidate was integrated as commit 6c787b7.
