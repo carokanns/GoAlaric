@@ -32,7 +32,9 @@ const (
 	defaultOpenings          = ".tools/books/8moves_v3.pgn"
 	minimumOpenings          = 100
 	defaultScreeningTC       = "20+0.2"
-	defaultSPRTTC            = "30+0.3"
+	defaultSPRTTC            = "20+0.2"
+	defaultSPRTAlpha         = "0.04"
+	defaultSPRTBeta          = "0.20"
 	defaultProgressInterval  = "1m"
 	defaultScreeningProgress = 10
 	defaultSPRTProgress      = 50
@@ -412,7 +414,7 @@ func runMatchCommand(args []string) error {
 		"-output", "format=cutechess", "-scoreinterval", "1",
 	}
 	if cfg.SPRT {
-		fcArgs = append(fcArgs, "-sprt", "elo0=0", "elo1=5", "alpha=0.05", "beta=0.05", "model=logistic")
+		fcArgs = append(fcArgs, "-sprt", "elo0=0", "elo1=5", "alpha="+defaultSPRTAlpha, "beta="+defaultSPRTBeta, "model=logistic")
 	}
 
 	logFile, err := os.OpenFile(filepath.Join(cfg.RunDir, "match.out"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
@@ -658,7 +660,7 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.Openings, "openings", "", "PGN or EPD opening book")
 	fs.Int64Var(&cfg.Seed, "seed", 0, "opening randomization seed; random and persisted when zero")
 	fs.IntVar(&cfg.Games, "games", 400, "even number of games")
-	fs.StringVar(&cfg.TC, "tc", "", "Fastchess time control; defaults to 20+0.2 for screening and 30+0.3 for SPRT")
+	fs.StringVar(&cfg.TC, "tc", "", "Fastchess time control; defaults to 20+0.2")
 	fs.IntVar(&cfg.Concurrency, "concurrency", 8, "concurrent games")
 	fs.IntVar(&cfg.ProgressEvery, "progress-games", 0, "games between progress snapshots; defaults to 10 for screening and 50 for SPRT")
 	fs.StringVar(&cfg.ProgressTime, "progress-interval", defaultProgressInterval, "time between progress snapshots; use 0 to disable")

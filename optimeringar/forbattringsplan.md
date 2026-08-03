@@ -75,7 +75,7 @@ För varje kandidat:
 - Fastdjupsbenchmark för illegala drag, tom `bestmove`, instabil score och prestandaförändring.
 - 400 parade Fastchess-partier från 200 öppningar som screening; kandidater
   under 47 % poäng förkastas.
-- Godkända kandidater går vidare till SPRT med `elo0=0`, `elo1=5`, `alpha=0.05`, `beta=0.05`, högst 10 000 partier och tidskontroll `30+0.3`.
+- Godkända kandidater går vidare till SPRT med `elo0=0`, `elo1=5`, `alpha=0.04`, `beta=0.20`, LLR-gränser kring −1,57/+3,00, högst 10 000 partier och tidskontroll `20+0.2`.
 - Endast SPRT-godkända styrkeändringar införs. Inkonklusiva kandidater vid maxgränsen förkastas eller omarbetas.
 
 ## Antaganden

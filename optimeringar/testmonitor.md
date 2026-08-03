@@ -95,7 +95,9 @@ en gång med read-only-sandbox, ett fast JSON-schema och eventet som enda
 beslutsunderlag. PGN och råloggar skickas inte till modellen.
 
 Efter en godkänd screening kan ett validerat `sprt`-beslut automatiskt starta
-en ny `30+0.3`-körning med högst 10 000 partier. Go-koden kontrollerar först
+en ny `20+0.2`-körning med högst 10 000 partier. `alpha=0.04` och `beta=0.20`
+ger LLR-gränser kring −1,57/+3,00 så svaga kandidater kan avslutas tidigare
+utan att sänka den positiva acceptansgränsen. Go-koden kontrollerar först
 att samtliga hårda teststeg är godkända och att binärernas SHA-256 fortfarande
 matchar experimentet. Övriga screeningbeslut skapar
 `approval-package.json` och inväntar godkännande.

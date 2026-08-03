@@ -97,6 +97,28 @@ func TestProgressIntervalDefaults(t *testing.T) {
 	}
 }
 
+func TestDefaultSPRTPolicy(t *testing.T) {
+	alpha, err := strconv.ParseFloat(defaultSPRTAlpha, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beta, err := strconv.ParseFloat(defaultSPRTBeta, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lower := math.Log(beta / (1 - alpha))
+	upper := math.Log((1 - beta) / alpha)
+	if math.Abs(lower-(-1.5686159)) > 0.0001 || math.Abs(upper-2.9957323) > 0.0001 {
+		t.Fatalf("SPRT bounds = [%.6f, %.6f], want about [-1.57, 3.00]", lower, upper)
+	}
+	if defaultSPRTTC != defaultScreeningTC {
+		t.Fatalf("SPRT time control = %q, want screening time %q", defaultSPRTTC, defaultScreeningTC)
+	}
+	if defaultSPRTTC != "20+0.2" {
+		t.Fatalf("SPRT time control = %q, want 20+0.2", defaultSPRTTC)
+	}
+}
+
 func TestFollowProgressReturnsAfterCompletedMatch(t *testing.T) {
 	dir := t.TempDir()
 	status := matchStatus{
