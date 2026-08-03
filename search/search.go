@@ -42,6 +42,7 @@ func init() {
 	Engine.Ponder = false
 	Engine.Threads = 1
 	Engine.Log = false
+	initLMRReductions()
 }
 
 ////// Engine paramters END //////
@@ -59,6 +60,24 @@ const maxPly = 100
 const nodeInterval = 1024
 const maxThreads = 16
 const maxQS = 2 // Max number of qs recursions
+
+const lmrMoveLimit = 64
+
+var lmrReductions [maxDepth + 1][lmrMoveLimit]int
+
+func initLMRReductions() {
+	for depth := 1; depth <= maxDepth; depth++ {
+		for moveNumber := 1; moveNumber < lmrMoveLimit; moveNumber++ {
+			reduction := int(0.75 + math.Log(float64(depth))*math.Log(float64(moveNumber))/2.25)
+			if reduction > depth-2 {
+				reduction = depth - 2
+			}
+			if reduction > 0 {
+				lmrReductions[depth][moveNumber] = reduction
+			}
+		}
+	}
+}
 
 // Different types of handling for the go command from GUI
 const (
@@ -704,7 +723,7 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 			if !dangerous {
 				dangerous = eval.IsCheck(mv, bd)
 			}
-			red = reduction(sl, mv, depth /* pv_node,*/, inCheck, searchedSize, dangerous) // LMR
+			red = reduction(sl, mv, depth, pvNode, inCheck, searchedSize, dangerous) // LMR
 		}
 
 		var sc int
@@ -958,7 +977,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 
 		red := 0
 		if ext == 0 {
-			red = reduction(sl, mv, depth /*pv_node,*/, inCheck, searched.Size(), dangerous) // LM Pruning
+			red = reduction(sl, mv, depth, pvNode, inCheck, searched.Size(), dangerous) // LM Pruning
 		}
 
 		var sc int
@@ -1137,22 +1156,28 @@ func extension(sl *Local, mv int, depth int, pvNode bool) int {
 
 }
 
-func reduction(sl *Local, mv int, depth int /* pvNode bool,*/, inCheck bool, searchedSize int, interesting bool) int {
-	_ = sl      // to avoid "unused" warning
-	_ = mv      // to avoid "unused" warning
-	_ = inCheck // to avoid "unused" warning
-
-	//int reduction(Search_Local & /* sl , int /* mv , int depth, bool /* pv_node , bool /* in_check , int searched_size, bool dangerous) {
-
-	red := 0
-
-	if depth >= 3 && searchedSize >= 3 && !interesting {
-		red = 1
-		if searchedSize >= 6 {
-			red = depth / 3
-		}
+func reduction(sl *Local, mv, depth int, pvNode, inCheck bool, searchedSize int, interesting bool) int {
+	if depth < 3 || searchedSize < 3 || inCheck || interesting || move.IsTactical(mv) {
+		return 0
 	}
-
+	ply := sl.Board.Ply()
+	if sl.killer.Killer1(ply) == mv || sl.killer.Killer2(ply) == mv {
+		return 0
+	}
+	moveNumber := searchedSize + 1
+	if moveNumber >= lmrMoveLimit {
+		moveNumber = lmrMoveLimit - 1
+	}
+	if depth > maxDepth {
+		depth = maxDepth
+	}
+	red := lmrReductions[depth][moveNumber]
+	if pvNode && red > 0 {
+		red--
+	}
+	if SG.History.IsStrong(mv, &sl.Board) && red > 0 {
+		red--
+	}
 	return red
 }
 

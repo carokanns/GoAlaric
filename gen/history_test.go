@@ -71,3 +71,23 @@ func TestHistoryIgnoresTacticalMoves(t *testing.T) {
 		t.Fatalf("tactical history score = %d, want %d", got, histHalf)
 	}
 }
+
+func TestHistoryStrongThreshold(t *testing.T) {
+	var bd board.Board
+	board.SetFen(board.StartFen, &bd)
+	quiet := move.Build(square.E2, square.E4, material.Pawn, material.None, material.None)
+	tactical := move.Build(square.E2, square.D3, material.Pawn, material.Pawn, material.None)
+
+	var history HistoryTab
+	history.Clear()
+	if history.IsStrong(quiet, &bd) {
+		t.Fatal("neutral quiet move reported as strong")
+	}
+	history.good(quiet, 20, &bd)
+	if !history.IsStrong(quiet, &bd) {
+		t.Fatal("positive quiet history was not reported as strong")
+	}
+	if history.IsStrong(tactical, &bd) {
+		t.Fatal("tactical move reported as strong quiet history")
+	}
+}

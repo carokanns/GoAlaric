@@ -66,6 +66,12 @@ func (h *HistoryTab) Score(mv int, bd *board.Board) int {
 	return h.entry[h.index(mv, bd)]
 }
 
+// IsStrong reports whether a quiet move has accumulated clearly positive
+// history. Search uses this to reduce promising late moves less aggressively.
+func (h *HistoryTab) IsStrong(mv int, bd *board.Board) bool {
+	return !move.IsTactical(mv) && h.Score(mv, bd) >= histHalf+histBonusMax/2
+}
+
 // Clear history table
 func (h *HistoryTab) Clear() {
 	for ix := range h.entry {
