@@ -734,11 +734,14 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 		slMove(sl, mv)
 		//write_info()
 		if !bStop {
-			if (searchedSize == 0) && red != 0 {
+			if searchedSize == 0 {
 				sc = -search(sl, depth-1+ext, -beta, -alpha, &npv)
 			} else {
 				sc = -search(sl, depth-1+ext-red, -alpha-1, -alpha, &npv)
-				if sc > alpha { // PVS/LMR re-search
+				if !bStop && needsFullDepthSearch(red, sc, alpha) {
+					sc = -search(sl, depth-1+ext, -alpha-1, -alpha, &npv)
+				}
+				if !bStop && needsFullWindowSearch(pvNode, sc, alpha, beta) {
 					failHighTrue()
 					sc = -search(sl, depth-1+ext, -beta, -alpha, &npv)
 				}
@@ -985,15 +988,16 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 
 		slMove(sl, mv) // do the move
 
-		if (pvNode && searched.Size() != 0) || red != 0 {
-			sc = -search(sl, depth+ext-red-1, -alpha-1, -alpha, &npv)
-			if !bStop {
-				if sc > alpha { // PVS/LMR re-search
-					sc = -search(sl, depth+ext-1, -beta, -alpha, &npv)
-				}
-			}
-		} else {
+		if pvNode && searched.Size() == 0 {
 			sc = -search(sl, depth+ext-1, -beta, -alpha, &npv)
+		} else {
+			sc = -search(sl, depth+ext-red-1, -alpha-1, -alpha, &npv)
+			if !bStop && needsFullDepthSearch(red, sc, alpha) {
+				sc = -search(sl, depth+ext-1, -alpha-1, -alpha, &npv)
+			}
+			if !bStop && needsFullWindowSearch(pvNode, sc, alpha, beta) {
+				sc = -search(sl, depth+ext-1, -beta, -alpha, &npv)
+			}
 		}
 
 		undo(sl) // undo the move
@@ -1179,6 +1183,14 @@ func reduction(sl *Local, mv, depth int, pvNode, inCheck bool, searchedSize int,
 		red--
 	}
 	return red
+}
+
+func needsFullDepthSearch(reduction, score, alpha int) bool {
+	return reduction > 0 && score > alpha
+}
+
+func needsFullWindowSearch(pvNode bool, score, alpha, beta int) bool {
+	return pvNode && score > alpha && score < beta
 }
 
 func depthStart(depth int) {

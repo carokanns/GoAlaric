@@ -63,3 +63,28 @@ func TestReductionIsLowerForPVAndStrongHistory(t *testing.T) {
 		t.Fatalf("strong-history reduction = %d, want %d", strong, base-1)
 	}
 }
+
+func TestLMRResearchStages(t *testing.T) {
+	if needsFullDepthSearch(2, 10, 10) {
+		t.Fatal("reduced fail-low requested a full-depth search")
+	}
+	if !needsFullDepthSearch(2, 11, 10) {
+		t.Fatal("reduced fail-high did not request a full-depth null-window search")
+	}
+	if needsFullDepthSearch(0, 11, 10) {
+		t.Fatal("unreduced move requested a duplicate full-depth search")
+	}
+
+	if !needsFullWindowSearch(true, 11, 10, 20) {
+		t.Fatal("PV improvement inside the window did not request a full-window search")
+	}
+	for name, got := range map[string]bool{
+		"non-PV":      needsFullWindowSearch(false, 11, 10, 20),
+		"fail-low":    needsFullWindowSearch(true, 10, 10, 20),
+		"beta cutoff": needsFullWindowSearch(true, 20, 10, 20),
+	} {
+		if got {
+			t.Errorf("%s requested a full-window search", name)
+		}
+	}
+}
