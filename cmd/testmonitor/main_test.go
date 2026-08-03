@@ -69,13 +69,16 @@ func TestProgressIntervalDefaults(t *testing.T) {
 	if err := os.WriteFile(book, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	base := matchConfig{Fastchess: fastchess, Baseline: baseline, Candidate: candidate, Openings: book, Games: 100, Concurrency: 1, RunDir: filepath.Join(dir, "run")}
+	base := matchConfig{Fastchess: fastchess, Baseline: baseline, Candidate: candidate, Openings: book, Games: 100, RunDir: filepath.Join(dir, "run")}
 	screening, err := normalizeConfig(base)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if screening.ProgressEvery != 10 {
 		t.Fatalf("screening progress interval = %d, want 10", screening.ProgressEvery)
+	}
+	if screening.Concurrency != defaultScreeningConcurrency {
+		t.Fatalf("screening concurrency = %d, want %d", screening.Concurrency, defaultScreeningConcurrency)
 	}
 	if screening.TC != defaultScreeningTC {
 		t.Fatalf("screening time control = %q, want %q", screening.TC, defaultScreeningTC)
@@ -92,8 +95,15 @@ func TestProgressIntervalDefaults(t *testing.T) {
 	if sprt.ProgressEvery != 50 {
 		t.Fatalf("SPRT progress interval = %d, want 50", sprt.ProgressEvery)
 	}
+	if sprt.Concurrency != defaultSPRTConcurrency {
+		t.Fatalf("SPRT concurrency = %d, want %d", sprt.Concurrency, defaultSPRTConcurrency)
+	}
 	if sprt.TC != defaultSPRTTC {
 		t.Fatalf("SPRT time control = %q, want %q", sprt.TC, defaultSPRTTC)
+	}
+	base.Concurrency = defaultScreeningConcurrency
+	if _, err := normalizeConfig(base); err == nil {
+		t.Fatal("SPRT accepted concurrency greater than one")
 	}
 }
 
@@ -153,6 +163,24 @@ func TestStopCommandTerminatesMonitor(t *testing.T) {
 	}
 }
 
+func TestPairStopTarget(t *testing.T) {
+	tests := []struct {
+		completed int
+		target    int
+		want      int
+	}{
+		{completed: 100, target: 1000, want: 102},
+		{completed: 101, target: 1000, want: 102},
+		{completed: 1000, target: 1000, want: 1000},
+		{completed: 999, target: 1000, want: 1000},
+	}
+	for _, test := range tests {
+		if got := pairStopTarget(test.completed, test.target); got != test.want {
+			t.Fatalf("pairStopTarget(%d, %d) = %d, want %d", test.completed, test.target, got, test.want)
+		}
+	}
+}
+
 func TestParseScoreLine(t *testing.T) {
 	line := "Score of Candidate vs Baseline: 12 - 8 - 20  [0.550] 40"
 	wins, losses, draws, games, score, ok := parseScoreLine(line)
@@ -184,24 +212,12 @@ func TestMatchDecision(t *testing.T) {
 	if got := matchDecision(matchStatus{Score: 55, PGNAudit: &pgnAudit{UniqueOpenings: 99}}, false); got != "invalid_insufficient_openings" {
 		t.Fatalf("unexpected opening validation decision %q", got)
 	}
-	partialFinalPair := &pgnAudit{UniqueOpenings: 100, OpeningGroupsWrongSize: 1, SingleGameOpeningGroups: 1}
-	if got := matchDecision(matchStatus{SPRTLLR: 2.95, SPRTLower: -2.94, SPRTUpper: 2.94, PGNAudit: partialFinalPair}, true); got != "accepted_h1" {
-		t.Fatalf("unexpected odd-game SPRT decision %q", got)
+	unpaired := &pgnAudit{UniqueOpenings: 100, OpeningGroupsWrongSize: 1}
+	if got := matchDecision(matchStatus{SPRTLLR: 2.95, SPRTLower: -2.94, SPRTUpper: 2.94, PGNAudit: unpaired}, true); got != "invalid_unpaired_openings" {
+		t.Fatalf("SPRT accepted an incomplete pair: %q", got)
 	}
-	if got := matchDecision(matchStatus{SPRTLLR: -2.95, SPRTLower: -2.94, SPRTUpper: 2.94, PGNAudit: partialFinalPair}, true); got != "rejected_h0" {
-		t.Fatalf("unexpected odd-game SPRT rejection %q", got)
-	}
-	if got := matchDecision(matchStatus{Score: 55, PGNAudit: partialFinalPair}, false); got != "invalid_unpaired_openings" {
+	if got := matchDecision(matchStatus{Score: 55, PGNAudit: unpaired}, false); got != "invalid_unpaired_openings" {
 		t.Fatalf("screening accepted an incomplete pair: %q", got)
-	}
-	invalidPairs := []*pgnAudit{
-		{UniqueOpenings: 100, OpeningGroupsWrongSize: 2, SingleGameOpeningGroups: 2},
-		{UniqueOpenings: 100, OpeningGroupsWrongSize: 1, OversizedOpeningGroups: 1},
-	}
-	for _, audit := range invalidPairs {
-		if got := matchDecision(matchStatus{SPRTLLR: 2.95, SPRTLower: -2.94, SPRTUpper: 2.94, PGNAudit: audit}, true); got != "invalid_unpaired_openings" {
-			t.Fatalf("SPRT accepted invalid opening groups %+v: %q", audit, got)
-		}
 	}
 }
 
@@ -269,7 +285,7 @@ func TestAuditPGN(t *testing.T) {
 	if audit.Games != 3 || audit.UniqueOpenings != 2 || audit.UniqueStartPositions != 2 || audit.UniqueGameSequences != 2 {
 		t.Fatalf("unexpected audit: %+v", audit)
 	}
-	if audit.OpeningGroupsWrongSize != 1 || audit.SingleGameOpeningGroups != 1 || audit.OversizedOpeningGroups != 0 || audit.GamesInDuplicateGroups != 2 || audit.IdenticalColorSwapPairs != 1 {
+	if audit.OpeningGroupsWrongSize != 1 || audit.GamesInDuplicateGroups != 2 || audit.IdenticalColorSwapPairs != 1 {
 		t.Fatalf("duplicates not detected: %+v", audit)
 	}
 }

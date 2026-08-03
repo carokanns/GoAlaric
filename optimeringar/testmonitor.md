@@ -73,10 +73,15 @@ Historiken sparas maskinläsbart i `progress.jsonl`; senaste snapshot finns i
 `progress.json`. En läsbar `[progress]`-rad skrivs också till `match.out` och
 `monitor.log`.
 
-Screening kräver att samtliga öppningar har spelats med båda färgerna. SPRT
-utvärderas däremot av Fastchess efter varje färdigt parti och får därför ha
-exakt en ensam slutöppning när en beslutsgräns stoppar matchen. Fler ensamma
-eller överanvända öppningsgrupper underkänner fortfarande körningen.
+Screening och SPRT kräver att samtliga öppningar har spelats med båda färgerna.
+SPRT körs därför med `--concurrency 1`. Fastchess pentanomiala LLR ändras först
+när öppningsparets andra parti är färdigt, så ett H0/H1-beslut kan inte lämna
+ett halvfärdigt par. Annan concurrency avvisas för SPRT; screening använder
+åtta samtidiga partier som standard.
+
+Om SPRT stoppas manuellt markeras stoppbegäran direkt, men Fastchess får spela
+klart det pågående öppningsparet innan processen avslutas. Ett andra stopp under
+väntan tvingar fram ett omedelbart avbrott.
 
 Avbryt den senaste pågående screening- eller SPRT-matchen:
 
