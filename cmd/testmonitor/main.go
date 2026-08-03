@@ -35,6 +35,7 @@ const (
 	defaultSPRTTC            = "20+0.2"
 	defaultSPRTAlpha         = "0.04"
 	defaultSPRTBeta          = "0.20"
+	defaultResignScore       = 500
 	defaultProgressInterval  = "1m"
 	defaultScreeningProgress = 10
 	defaultSPRTProgress      = 50
@@ -406,7 +407,7 @@ func runMatchCommand(args []string) error {
 		"-each", "tc=" + cfg.TC,
 		"-openings", "file=" + cfg.Openings, "format=" + cfg.BookFormat, "order=random",
 		"-srand", strconv.FormatInt(cfg.Seed, 10), "-rounds", strconv.Itoa(rounds), "-repeat", "-concurrency", strconv.Itoa(cfg.Concurrency),
-		"-resign", "movecount=3", "score=800", "twosided=true",
+		"-resign", "movecount=3", "score=" + strconv.Itoa(defaultResignScore), "twosided=true",
 		"-draw", "movenumber=40", "movecount=8", "score=10", "-maxmoves", "200",
 		"-recover", "-autosaveinterval", "10", "-strict",
 		"-pgnout", "file=" + filepath.Join(cfg.RunDir, "games.pgn"), "append=false", "notation=uci", "nodes=true", "nps=true",

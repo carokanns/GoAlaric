@@ -117,6 +117,9 @@ func TestDefaultSPRTPolicy(t *testing.T) {
 	if defaultSPRTTC != "20+0.2" {
 		t.Fatalf("SPRT time control = %q, want 20+0.2", defaultSPRTTC)
 	}
+	if defaultResignScore != 500 {
+		t.Fatalf("resign adjudication score = %d, want 500", defaultResignScore)
+	}
 }
 
 func TestFollowProgressReturnsAfterCompletedMatch(t *testing.T) {

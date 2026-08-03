@@ -78,6 +78,11 @@ parallella partier och kan därför avslutas med ett eller flera ofullständiga
 öppningspar. PGN-auditen rapporterar dem, men de underkänner inte Fastchess
 SPRT-beslut. Ett manuellt stopp avbryter matchen omedelbart.
 
+Fastchess dömer vinst när båda motorerna är överens om minst 500 centipawns
+fördel för samma sida under tre på varandra följande bedömningar. Det motsvarar
+ungefär värdet av ett torn. Remiavdömningen börjar efter drag 40 och kräver åtta
+bedömningar inom ±10 centipawns; drag 200 avslutar återstående partier som remi.
+
 ## Automatisk slututvärdering
 
 Efter att den deterministiska pipelinen har skapat kandidatens
