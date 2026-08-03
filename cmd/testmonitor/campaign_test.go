@@ -8,6 +8,9 @@ import (
 )
 
 func TestCampaignStagesPassed(t *testing.T) {
+	if defaultCampaignPoll != 10*time.Second {
+		t.Fatalf("campaign poll interval = %s, want 10s", defaultCampaignPoll)
+	}
 	passed := []experimentStage{
 		{Name: "go_test", Status: "passed"},
 		{Name: "perft", Status: "passed"},

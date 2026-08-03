@@ -87,8 +87,8 @@ scripts/start_candidate_campaign.sh \
 Kommandot validerar en ren kandidatworktree, bygger en fristående
 `testmonitor` och startar en transient `systemd --user`-service. Servicen bygger
 kandidaten, kör den deterministiska pipelinen och startar screening när alla
-hårda tester passerar. Därefter läser den endast lokala statusfiler varannan
-minut. Det kostar inga modelltokens. Den befintliga kompakta engångsmodellen
+hårda tester passerar. Därefter läser den endast lokala statusfiler var tionde
+sekund. Det kostar inga modelltokens. Den befintliga kompakta engångsmodellen
 väljer endast `sprt` eller `no_sprt` efter godkänd screening.
 
 Vid `no_sprt`, avslutad SPRT, hårt testfel eller annat terminalt fel skriver

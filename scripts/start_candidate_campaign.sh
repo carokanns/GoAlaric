@@ -29,7 +29,7 @@ systemd-run --user \
   --property Restart=on-failure \
   --property RestartSec=30s \
   --property KillMode=process \
-  "$tool" campaign-run --state "$state" --poll-interval 2m
+  "$tool" campaign-run --state "$state" --poll-interval 10s
 
 echo "Campaign service started: $unit.service"
 echo "Status: $repo_root/scripts/campaign_status.sh"

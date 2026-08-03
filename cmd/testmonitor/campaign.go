@@ -15,6 +15,7 @@ import (
 const (
 	campaignSchemaVersion = 1
 	defaultCampaignState  = "artifacts/automation/active-campaign.json"
+	defaultCampaignPoll   = 10 * time.Second
 )
 
 type campaignConfig struct {
@@ -196,7 +197,7 @@ func campaignTickCommand(args []string) error {
 func campaignRunCommand(args []string) error {
 	fs := flag.NewFlagSet("campaign-run", flag.ContinueOnError)
 	statePath := fs.String("state", defaultCampaignState, "campaign state file")
-	poll := fs.Duration("poll-interval", 2*time.Minute, "deterministic status polling interval")
+	poll := fs.Duration("poll-interval", defaultCampaignPoll, "deterministic status polling interval")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
