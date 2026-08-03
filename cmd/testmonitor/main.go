@@ -75,6 +75,8 @@ type pgnAudit struct {
 	UniqueOpenings          int `json:"unique_openings"`
 	UniqueStartPositions    int `json:"unique_fen_start_positions"`
 	OpeningGroupsWrongSize  int `json:"opening_groups_with_wrong_size"`
+	SingleGameOpeningGroups int `json:"single_game_opening_groups"`
+	OversizedOpeningGroups  int `json:"oversized_opening_groups"`
 	MinimumBookPlies        int `json:"minimum_book_plies"`
 	MaximumBookPlies        int `json:"maximum_book_plies"`
 	UniqueGameSequences     int `json:"unique_game_sequences"`
@@ -957,7 +959,7 @@ func matchDecision(status matchStatus, sprt bool) string {
 	if status.PGNAudit.UniqueOpenings < minimumOpenings {
 		return "invalid_insufficient_openings"
 	}
-	if status.PGNAudit.OpeningGroupsWrongSize != 0 {
+	if !validOpeningPairing(*status.PGNAudit, sprt) {
 		return "invalid_unpaired_openings"
 	}
 	if sprt {
@@ -973,6 +975,15 @@ func matchDecision(status matchStatus, sprt bool) string {
 		return "passed_screening"
 	}
 	return "rejected_below_47_percent"
+}
+
+func validOpeningPairing(audit pgnAudit, sprt bool) bool {
+	if audit.OpeningGroupsWrongSize == 0 {
+		return true
+	}
+	// Fastchess evaluates SPRT after every completed game and can therefore
+	// stop after the first game of the final color-swapped opening pair.
+	return sprt && audit.OpeningGroupsWrongSize == 1 && audit.SingleGameOpeningGroups == 1 && audit.OversizedOpeningGroups == 0
 }
 
 var (
@@ -1031,6 +1042,12 @@ func auditPGN(path string) (pgnAudit, error) {
 	for _, count := range openings {
 		if count != 2 {
 			audit.OpeningGroupsWrongSize++
+		}
+		if count == 1 {
+			audit.SingleGameOpeningGroups++
+		}
+		if count > 2 {
+			audit.OversizedOpeningGroups++
 		}
 	}
 	for _, count := range identities {

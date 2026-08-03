@@ -184,6 +184,25 @@ func TestMatchDecision(t *testing.T) {
 	if got := matchDecision(matchStatus{Score: 55, PGNAudit: &pgnAudit{UniqueOpenings: 99}}, false); got != "invalid_insufficient_openings" {
 		t.Fatalf("unexpected opening validation decision %q", got)
 	}
+	partialFinalPair := &pgnAudit{UniqueOpenings: 100, OpeningGroupsWrongSize: 1, SingleGameOpeningGroups: 1}
+	if got := matchDecision(matchStatus{SPRTLLR: 2.95, SPRTLower: -2.94, SPRTUpper: 2.94, PGNAudit: partialFinalPair}, true); got != "accepted_h1" {
+		t.Fatalf("unexpected odd-game SPRT decision %q", got)
+	}
+	if got := matchDecision(matchStatus{SPRTLLR: -2.95, SPRTLower: -2.94, SPRTUpper: 2.94, PGNAudit: partialFinalPair}, true); got != "rejected_h0" {
+		t.Fatalf("unexpected odd-game SPRT rejection %q", got)
+	}
+	if got := matchDecision(matchStatus{Score: 55, PGNAudit: partialFinalPair}, false); got != "invalid_unpaired_openings" {
+		t.Fatalf("screening accepted an incomplete pair: %q", got)
+	}
+	invalidPairs := []*pgnAudit{
+		{UniqueOpenings: 100, OpeningGroupsWrongSize: 2, SingleGameOpeningGroups: 2},
+		{UniqueOpenings: 100, OpeningGroupsWrongSize: 1, OversizedOpeningGroups: 1},
+	}
+	for _, audit := range invalidPairs {
+		if got := matchDecision(matchStatus{SPRTLLR: 2.95, SPRTLower: -2.94, SPRTUpper: 2.94, PGNAudit: audit}, true); got != "invalid_unpaired_openings" {
+			t.Fatalf("SPRT accepted invalid opening groups %+v: %q", audit, got)
+		}
+	}
 }
 
 func TestParseSPRTLine(t *testing.T) {
@@ -250,7 +269,7 @@ func TestAuditPGN(t *testing.T) {
 	if audit.Games != 3 || audit.UniqueOpenings != 2 || audit.UniqueStartPositions != 2 || audit.UniqueGameSequences != 2 {
 		t.Fatalf("unexpected audit: %+v", audit)
 	}
-	if audit.OpeningGroupsWrongSize != 1 || audit.GamesInDuplicateGroups != 2 || audit.IdenticalColorSwapPairs != 1 {
+	if audit.OpeningGroupsWrongSize != 1 || audit.SingleGameOpeningGroups != 1 || audit.OversizedOpeningGroups != 0 || audit.GamesInDuplicateGroups != 2 || audit.IdenticalColorSwapPairs != 1 {
 		t.Fatalf("duplicates not detected: %+v", audit)
 	}
 }

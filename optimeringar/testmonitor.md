@@ -73,6 +73,11 @@ Historiken sparas maskinläsbart i `progress.jsonl`; senaste snapshot finns i
 `progress.json`. En läsbar `[progress]`-rad skrivs också till `match.out` och
 `monitor.log`.
 
+Screening kräver att samtliga öppningar har spelats med båda färgerna. SPRT
+utvärderas däremot av Fastchess efter varje färdigt parti och får därför ha
+exakt en ensam slutöppning när en beslutsgräns stoppar matchen. Fler ensamma
+eller överanvända öppningsgrupper underkänner fortfarande körningen.
+
 Avbryt den senaste pågående screening- eller SPRT-matchen:
 
 ```bash
