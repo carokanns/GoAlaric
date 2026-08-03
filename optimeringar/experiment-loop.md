@@ -68,3 +68,35 @@ eller `no_sprt`. Ett validerat `sprt`-beslut startar matchen automatiskt;
 `no_sprt` lämnar experimentet i `awaiting_decision`. Efter SPRT körs ingen
 modell: resultatet lämnas alltid för utvärdering i den synliga
 användarsessionen.
+
+## Frikopplad kandidatkampanj från Codex CLI
+
+Efter att en kandidatändring är implementerad, testad lokalt och committad kan
+Codex starta hela återstående kedjan med:
+
+```bash
+scripts/start_candidate_campaign.sh \
+  --candidate-id <id> \
+  --candidate-worktree <absolut-worktree> \
+  --baseline <baseline-binär> \
+  --hypothesis "<hypotes>" \
+  --change "<ändring>" \
+  --semantic-preserving=false
+```
+
+Kommandot validerar en ren kandidatworktree, bygger en fristående
+`testmonitor` och startar en transient `systemd --user`-service. Servicen bygger
+kandidaten, kör den deterministiska pipelinen och startar screening när alla
+hårda tester passerar. Därefter läser den endast lokala statusfiler varannan
+minut. Det kostar inga modelltokens. Den befintliga kompakta engångsmodellen
+väljer endast `sprt` eller `no_sprt` efter godkänd screening.
+
+Vid `no_sprt`, avslutad SPRT, hårt testfel eller annat terminalt fel skriver
+servicen `artifacts/automation/active-campaign.json` med status
+`awaiting_decision`, `tests_failed` eller `failed` och avslutas automatiskt.
+Användaren kan därefter återuppta Codex CLI i projektmappen och begära manuell
+utvärdering. Visa aktuell status med:
+
+```bash
+scripts/campaign_status.sh
+```

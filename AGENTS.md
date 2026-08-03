@@ -62,6 +62,20 @@ Bygg motorn:
 go build -o bin/goalaric ./GoAlaric.go
 ```
 
+## Frikopplad kandidatkampanj
+
+När användaren uttryckligen har godkänt en färdig, committad och pushad
+kandidat startas den återstående testkedjan med
+`scripts/start_candidate_campaign.sh`. Vänta på kvittensen
+`Campaign service started` innan användaren avslutar Codex CLI. Starta aldrig
+en andra kampanj parallellt.
+
+Den transienta `systemd --user`-servicen bygger kandidaten, kör den
+deterministiska pipelinen, startar screening och följer eventuell SPRT utan
+återkommande modell-anrop. När användaren återupptar Codex CLI, kör
+`scripts/campaign_status.sh` och utvärdera terminalt resultat manuellt. Baseline
+och nästa kodändring kräver fortsatt uttryckligt godkännande.
+
 ## Korrekthetskrav
 
 - Ändringar i `board`, `gen`, `move`, `material`, `square` eller `bit` ska normalt verifieras med `go test ./...` och perft.

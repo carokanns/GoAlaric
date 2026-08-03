@@ -17,6 +17,8 @@ Trying to restore an old chesspogram in Go
 - `go run ./cmd/testmonitor record-decision --candidate-id <id> --decision decision.json` (validera och dokumentera beslut)
 - `go run ./cmd/testmonitor start --baseline <bin> --candidate <bin> --candidate-id <id> --auto-evaluate` (utvärdera screening efter avslut och starta godkänd SPRT automatiskt)
 - `go run ./cmd/testmonitor retry-evaluation --run-dir <match-directory>` (försök om ett misslyckat modell-anrop uttryckligen)
+- `scripts/start_candidate_campaign.sh ...` (bygg, testa och starta en godkänd kandidats frikopplade screening/SPRT-kedja under `systemd --user`)
+- `scripts/campaign_status.sh` (visa kampanjens kompakta status och bakgrundstjänst)
 
 Long match status is persisted under `artifacts/matches/` and can be read with
 `go run ./cmd/testmonitor status`. See `optimeringar/testmonitor.md` for the

@@ -183,6 +183,14 @@ func main() {
 		err = recordDecisionCommand(os.Args[2:])
 	case "retry-evaluation":
 		err = retryEvaluationCommand(os.Args[2:])
+	case "campaign-init":
+		err = campaignInitCommand(os.Args[2:])
+	case "campaign-tick":
+		err = campaignTickCommand(os.Args[2:])
+	case "campaign-run":
+		err = campaignRunCommand(os.Args[2:])
+	case "campaign-status":
+		err = campaignStatusCommand(os.Args[2:])
 	default:
 		usage()
 		err = fmt.Errorf("unknown command %q", os.Args[1])
@@ -194,7 +202,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|progress|follow|wait|stop|pipeline|snapshot|record-decision|retry-evaluation> [options]")
+	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|progress|follow|wait|stop|pipeline|snapshot|record-decision|retry-evaluation|campaign-init|campaign-tick|campaign-run|campaign-status> [options]")
 }
 
 func auditPGNCommand(args []string) error {
@@ -360,6 +368,7 @@ func startCommand(args []string) error {
 		_ = logFile.Close()
 		return err
 	}
+	go func() { _ = cmd.Wait() }()
 	_ = logFile.Close()
 
 	status := initialStatus(cfg)
