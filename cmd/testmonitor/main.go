@@ -28,16 +28,14 @@ import (
 )
 
 const (
-	defaultFastchess            = ".tools/fastchess/bin/fastchess"
-	defaultOpenings             = ".tools/books/8moves_v3.pgn"
-	minimumOpenings             = 100
-	defaultScreeningTC          = "20+0.2"
-	defaultSPRTTC               = "30+0.3"
-	defaultProgressInterval     = "1m"
-	defaultScreeningProgress    = 10
-	defaultSPRTProgress         = 50
-	defaultScreeningConcurrency = 8
-	defaultSPRTConcurrency      = 1
+	defaultFastchess         = ".tools/fastchess/bin/fastchess"
+	defaultOpenings          = ".tools/books/8moves_v3.pgn"
+	minimumOpenings          = 100
+	defaultScreeningTC       = "20+0.2"
+	defaultSPRTTC            = "30+0.3"
+	defaultProgressInterval  = "1m"
+	defaultScreeningProgress = 10
+	defaultSPRTProgress      = 50
 )
 
 type matchStatus struct {
@@ -434,26 +432,9 @@ func runMatchCommand(args []string) error {
 		case received := <-signalCh:
 			stopPeriodicProgress()
 			stopped = true
-			if cfg.SPRT {
-				target := pairStopTarget(parser.completedGames(), cfg.Games)
-				parser.markStopping(fmt.Sprintf("stop requested: %s; finishing opening pair through game %d", received, target))
-				ticker := time.NewTicker(100 * time.Millisecond)
-				for parser.completedGames() < target {
-					select {
-					case err = <-done:
-						ticker.Stop()
-						goto matchFinished
-					case <-ticker.C:
-					case <-signalCh:
-						ticker.Stop()
-						goto stopFastchess
-					}
-				}
-				ticker.Stop()
-			} else {
-				parser.markStopping("stop requested: " + received.String())
-			}
-		stopFastchess:
+			status.State = "stopping"
+			status.Error = "stop requested: " + received.String()
+			_ = saveStatus(cfg.RunDir, &status)
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 			select {
 			case err = <-done:
@@ -463,8 +444,6 @@ func runMatchCommand(args []string) error {
 			}
 		}
 	}
-
-matchFinished:
 	stopPeriodicProgress()
 	parser.flush()
 	audit, auditErr := auditPGN(filepath.Join(cfg.RunDir, "games.pgn"))
@@ -634,28 +613,9 @@ func stopCommand(args []string) error {
 				return nil
 			}
 		case <-deadline.C:
-			latest, loadErr := loadStatus(dir)
-			if loadErr != nil {
-				return loadErr
-			}
-			if latest.State == "stopping" {
-				fmt.Printf("stop requested: waiting for current opening pair to finish at game %d run_dir=%s\n", latest.Games, dir)
-				return nil
-			}
 			return fmt.Errorf("monitor PID %d did not stop within %s", status.PID, *timeout)
 		}
 	}
-}
-
-func pairStopTarget(completed, targetGames int) int {
-	target := completed + 2
-	if completed%2 != 0 {
-		target = completed + 1
-	}
-	if target > targetGames {
-		return targetGames
-	}
-	return target
 }
 
 func processExists(pid int) bool {
@@ -685,7 +645,7 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.Int64Var(&cfg.Seed, "seed", 0, "opening randomization seed; random and persisted when zero")
 	fs.IntVar(&cfg.Games, "games", 400, "even number of games")
 	fs.StringVar(&cfg.TC, "tc", "", "Fastchess time control; defaults to 20+0.2 for screening and 30+0.3 for SPRT")
-	fs.IntVar(&cfg.Concurrency, "concurrency", 0, "concurrent games; defaults to 8 for screening and 1 for SPRT")
+	fs.IntVar(&cfg.Concurrency, "concurrency", 8, "concurrent games")
 	fs.IntVar(&cfg.ProgressEvery, "progress-games", 0, "games between progress snapshots; defaults to 10 for screening and 50 for SPRT")
 	fs.StringVar(&cfg.ProgressTime, "progress-interval", defaultProgressInterval, "time between progress snapshots; use 0 to disable")
 	fs.BoolVar(&cfg.Follow, "follow", false, "print progress live until the match finishes")
@@ -700,8 +660,8 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	if cfg.Games < 2 || cfg.Games%2 != 0 {
 		return cfg, errors.New("--games must be a positive even number")
 	}
-	if cfg.Concurrency < 0 {
-		return cfg, errors.New("--concurrency cannot be negative")
+	if cfg.Concurrency < 1 {
+		return cfg, errors.New("--concurrency must be positive")
 	}
 	if cfg.ProgressEvery < 0 {
 		return cfg, errors.New("--progress-games cannot be negative")
@@ -717,15 +677,6 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 
 func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 	var err error
-	if cfg.Concurrency == 0 {
-		cfg.Concurrency = defaultScreeningConcurrency
-		if cfg.SPRT {
-			cfg.Concurrency = defaultSPRTConcurrency
-		}
-	}
-	if cfg.SPRT && cfg.Concurrency != defaultSPRTConcurrency {
-		return cfg, errors.New("SPRT requires --concurrency 1 so every opening pair finishes before a decision")
-	}
 	if cfg.TC == "" {
 		cfg.TC = defaultScreeningTC
 		if cfg.SPRT {
@@ -852,21 +803,6 @@ type matchOutput struct {
 	nextProgress    int
 	sprt            bool
 	pendingProgress bool
-}
-
-func (m *matchOutput) completedGames() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.status.Games
-}
-
-func (m *matchOutput) markStopping(reason string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.status.State = "stopping"
-	m.status.Error = reason
-	m.status.UpdatedAt = time.Now()
-	_ = saveStatus(m.runDir, m.status)
 }
 
 func (m *matchOutput) Write(p []byte) (int, error) {
@@ -1021,7 +957,7 @@ func matchDecision(status matchStatus, sprt bool) string {
 	if status.PGNAudit.UniqueOpenings < minimumOpenings {
 		return "invalid_insufficient_openings"
 	}
-	if status.PGNAudit.OpeningGroupsWrongSize != 0 {
+	if !sprt && status.PGNAudit.OpeningGroupsWrongSize != 0 {
 		return "invalid_unpaired_openings"
 	}
 	if sprt {

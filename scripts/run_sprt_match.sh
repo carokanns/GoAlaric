@@ -17,7 +17,6 @@ args=(
   --candidate "$candidate"
   --games "$games"
   --tc 30+0.3
-  --concurrency 1
   --sprt
 )
 if [[ -n "$openings" ]]; then

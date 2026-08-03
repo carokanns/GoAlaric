@@ -30,9 +30,8 @@ go run ./cmd/testmonitor pipeline \
 SPRT körs inte av pipelinen. Den kräver separat mänskligt godkännande.
 En pågående SPRT kan alltid avbrytas med `go run ./cmd/testmonitor stop` eller
 med `--run-dir` för att välja en viss körning. Partiresultat och loggar fram
-till avbrottet bevaras. SPRT använder en samtidig match och ett normalt stopp
-väntar tills det pågående färgväxlade öppningsparet är färdigspelat. Ett andra
-stopp fungerar som nödstopp och avbryter omedelbart.
+till avbrottet bevaras. SPRT kör parallellt och stoppas omedelbart; pågående
+öppningspar behöver alltså inte färdigspelas.
 
 Pågående matcher rapporterar delresultat via `testmonitor progress`. Skripten
 `run_match.sh` och `run_sprt_match.sh` visar dem automatiskt i terminalen;
