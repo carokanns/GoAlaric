@@ -102,6 +102,10 @@ type matchConfig struct {
 	Concurrency   int    `json:"concurrency"`
 	RunDir        string `json:"run_dir"`
 	SPRT          bool   `json:"sprt"`
+	CandidateID   string `json:"candidate_id,omitempty"`
+	AutoEvaluate  bool   `json:"auto_evaluate,omitempty"`
+	Codex         string `json:"codex,omitempty"`
+	RepoRoot      string `json:"repo_root,omitempty"`
 	ProgressEvery int    `json:"progress_every_games"`
 	ProgressTime  string `json:"progress_interval"`
 	Follow        bool   `json:"-"`
@@ -174,6 +178,8 @@ func main() {
 		err = snapshotCommand(os.Args[2:])
 	case "record-decision":
 		err = recordDecisionCommand(os.Args[2:])
+	case "retry-evaluation":
+		err = retryEvaluationCommand(os.Args[2:])
 	default:
 		usage()
 		err = fmt.Errorf("unknown command %q", os.Args[1])
@@ -185,7 +191,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|progress|follow|wait|stop|pipeline|snapshot|record-decision> [options]")
+	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|progress|follow|wait|stop|pipeline|snapshot|record-decision|retry-evaluation> [options]")
 }
 
 func auditPGNCommand(args []string) error {
@@ -340,6 +346,9 @@ func startCommand(args []string) error {
 	if cfg.SPRT {
 		childArgs = append(childArgs, "--sprt")
 	}
+	if cfg.AutoEvaluate {
+		childArgs = append(childArgs, "--auto-evaluate", "--candidate-id", cfg.CandidateID, "--codex", cfg.Codex, "--repo-root", cfg.RepoRoot)
+	}
 	cmd := exec.Command(exe, childArgs...)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
@@ -478,6 +487,11 @@ func runMatchCommand(args []string) error {
 		return saveErr
 	}
 	parser.finalProgress()
+	if cfg.AutoEvaluate {
+		if automationErr := processMatchCompletion(cfg, status, false); automationErr != nil {
+			_, _ = fmt.Fprintf(logFile, "[automation-error] %v\n", automationErr)
+		}
+	}
 	if stopped {
 		return nil
 	}
@@ -651,6 +665,10 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.BoolVar(&cfg.Follow, "follow", false, "print progress live until the match finishes")
 	fs.StringVar(&cfg.RunDir, "run-dir", "", "artifact directory")
 	fs.BoolVar(&cfg.SPRT, "sprt", false, "enable SPRT 0/5 Elo")
+	fs.StringVar(&cfg.CandidateID, "candidate-id", "", "candidate identifier used by automatic evaluation")
+	fs.BoolVar(&cfg.AutoEvaluate, "auto-evaluate", false, "evaluate the terminal result once and automatically start an approved SPRT")
+	fs.StringVar(&cfg.Codex, "codex", "codex", "Codex CLI executable used after match completion")
+	fs.StringVar(&cfg.RepoRoot, "repo-root", ".", "repository root containing artifacts/experiments")
 	if err := fs.Parse(args); err != nil {
 		return cfg, err
 	}
@@ -672,6 +690,14 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 			return cfg, errors.New("--progress-interval must be a positive duration or 0")
 		}
 	}
+	if cfg.AutoEvaluate {
+		if cfg.CandidateID == "" {
+			return cfg, errors.New("--candidate-id is required with --auto-evaluate")
+		}
+		if !candidateIDPattern.MatchString(cfg.CandidateID) {
+			return cfg, errors.New("candidate-id contains unsafe characters")
+		}
+	}
 	return cfg, nil
 }
 
@@ -690,6 +716,17 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 		cfg.ProgressEvery = defaultScreeningProgress
 		if cfg.SPRT {
 			cfg.ProgressEvery = defaultSPRTProgress
+		}
+	}
+	if cfg.AutoEvaluate {
+		if cfg.RepoRoot, err = existingAbs(cfg.RepoRoot); err != nil {
+			return cfg, err
+		}
+		if cfg.Codex, err = resolveExecutable(cfg.Codex); err != nil {
+			return cfg, err
+		}
+		if _, err = os.Stat(filepath.Join(cfg.RepoRoot, "artifacts", "experiments", cfg.CandidateID, "experiment.json")); err != nil {
+			return cfg, fmt.Errorf("automatic evaluation requires candidate experiment: %w", err)
 		}
 	}
 	if cfg.Fastchess, err = existingAbs(cfg.Fastchess); err != nil {

@@ -27,7 +27,10 @@ go run ./cmd/testmonitor pipeline \
   --candidate-id <id> --screening
 ```
 
-SPRT körs inte av pipelinen. Den kräver separat mänskligt godkännande.
+SPRT körs inte av den deterministiska pipelinen. En manuellt startad screening
+med `--auto-evaluate` kan däremot följas av SPRT utan ett mellanliggande
+mänskligt godkännande när modellbeslutet är `sprt` och alla hårda grindar
+passerar.
 En pågående SPRT kan alltid avbrytas med `go run ./cmd/testmonitor stop` eller
 med `--run-dir` för att välja en viss körning. Partiresultat och loggar fram
 till avbrottet bevaras. SPRT kör parallellt och stoppas omedelbart; pågående
@@ -56,3 +59,8 @@ rekommendationer är `reject`, `continue`, `propose_change`, `screening`,
 `decision_input.json` innehåller sammanfattade mätvärden, fel, ändrade
 positioner och länkar till lokala artefakter. Råloggar och PGN inkluderas inte
 i modellunderlaget.
+
+Automatiska beslut använder samma kompakta data och samma beslutsfält. Efter
+screening startas endast ett validerat SPRT-beslut automatiskt. Efter SPRT
+skrivs `approval-package.json` med rekommendation om baseline och nästa
+förbättring; paketet inväntar alltid användarens godkännande.

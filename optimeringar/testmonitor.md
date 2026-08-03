@@ -78,6 +78,40 @@ parallella partier och kan därför avslutas med ett eller flera ofullständiga
 öppningspar. PGN-auditen rapporterar dem, men de underkänner inte Fastchess
 SPRT-beslut. Ett manuellt stopp avbryter matchen omedelbart.
 
+## Automatisk slututvärdering
+
+Efter att den deterministiska pipelinen har skapat kandidatens
+`experiment.json` kan screeningen startas med automatisk slututvärdering:
+
+```bash
+go run ./cmd/testmonitor start \
+  --baseline <baseline> --candidate <candidate> \
+  --candidate-id <id> --auto-evaluate
+```
+
+Ingen modell körs medan matchen pågår. När matchstatusen är terminal skrivs ett
+kompakt event under `artifacts/llm-inbox/`, och installerad `codex exec` körs
+en gång med read-only-sandbox, ett fast JSON-schema och eventet som enda
+beslutsunderlag. PGN och råloggar skickas inte till modellen.
+
+Efter en godkänd screening kan ett validerat `sprt`-beslut automatiskt starta
+en ny `30+0.3`-körning med högst 10 000 partier. Go-koden kontrollerar först
+att samtliga hårda teststeg är godkända och att binärernas SHA-256 fortfarande
+matchar experimentet. Övriga screeningbeslut skapar
+`approval-package.json` och inväntar godkännande.
+
+Efter SPRT skapas alltid ett godkännandepaket med baseline-rekommendation och
+nästa förbättring. Promotion och kodändringar sker aldrig automatiskt. Stoppade
+eller misslyckade matcher får inte promoveras eller startas om automatiskt.
+
+Varje event har en maskinell kvittens som förhindrar dubbla modell-anrop och
+dubbla SPRT-starter. Ett misslyckat Codex-anrop försöks inte igen automatiskt:
+
+```bash
+go run ./cmd/testmonitor retry-evaluation \
+  --run-dir artifacts/matches/<körning>
+```
+
 Avbryt den senaste pågående screening- eller SPRT-matchen:
 
 ```bash
@@ -111,7 +145,7 @@ räknar faktiska bokdrag och unika öppningssekvenser, kontrollerar att varje
 öppning används exakt två gånger och markerar identiska partier och identiska
 färgväxlade par. Resultatet bäddas även in i
 `status.json`. Kandidaten klarar den första screeningen vid minst 47 procent.
-Om screeningen godkänns startas den beslutande, maximalt 10 000 partier långa,
+Utan `--auto-evaluate` startas den beslutande, maximalt 10 000 partier långa,
 SPRT-körningen separat:
 
 ```bash
@@ -126,4 +160,6 @@ En valfri PGN kan också granskas separat:
 go run ./cmd/testmonitor audit-pgn --pgn artifacts/matches/<körning>/games.pgn
 ```
 
-Start av den beslutande matchen görs endast efter uttryckligt klartecken.
+Manuell körning kräver klartecken. Med `--auto-evaluate` får modellen välja
+SPRT, men den deterministiska monitorn startar matchen och tillämpar alla
+hårda skyddsregler.
