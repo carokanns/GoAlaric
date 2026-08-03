@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	automationSchemaVersion = 2
+	automationSchemaVersion = 3
 	codexEvaluationTimeout  = 5 * time.Minute
 )
 
@@ -53,29 +53,13 @@ type automationRecord struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-type approvalPackage struct {
-	SchemaVersion          int                `json:"schema_version"`
-	CandidateID            string             `json:"candidate_id"`
-	SourceEvent            string             `json:"source_event"`
-	Status                 string             `json:"status"`
-	BaselineRecommendation string             `json:"baseline_recommendation"`
-	RecommendedBaseline    experimentIdentity `json:"recommended_baseline"`
-	NextChange             string             `json:"next_change"`
-	Hypothesis             string             `json:"hypothesis"`
-	RequiredTests          []string           `json:"required_tests"`
-	Reason                 string             `json:"reason"`
-}
-
 const decisionJSONSchema = `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["candidate_id", "recommendation", "next_change", "hypothesis", "required_tests", "reason"],
+  "required": ["candidate_id", "recommendation", "reason"],
   "properties": {
     "candidate_id": {"type": "string"},
-    "recommendation": {"type": "string", "enum": ["sprt", "promote", "reject", "propose_change"]},
-    "next_change": {"type": "string", "minLength": 1},
-    "hypothesis": {"type": "string", "minLength": 1},
-    "required_tests": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "recommendation": {"type": "string", "enum": ["sprt", "no_sprt"]},
     "reason": {"type": "string", "minLength": 1}
   }
 }`
@@ -154,6 +138,12 @@ func processMatchCompletion(cfg matchConfig, status matchStatus, retry bool) err
 	if err := writeJSON(recordPath, record); err != nil {
 		return err
 	}
+	if event.MatchType != "screening" || event.State != "completed" || event.Decision != "passed_screening" {
+		return completeWithoutModel(recordPath, record, experimentDir, report, status)
+	}
+	if err := validateAutomaticSPRT(report, cfg, status); err != nil {
+		return completeWithoutModel(recordPath, record, experimentDir, report, status)
+	}
 
 	decisionPath := filepath.Join(experimentDir, event.MatchType+"-decision-"+event.EventID+".json")
 	var d decision
@@ -182,7 +172,7 @@ func processMatchCompletion(cfg matchConfig, status matchStatus, retry bool) err
 
 	report.Decision = &d
 	report.Match = &status
-	if event.MatchType == "screening" && d.Recommendation == "sprt" {
+	if d.Recommendation == "sprt" {
 		if err := validateAutomaticSPRT(report, cfg, status); err != nil {
 			return failAutomation(recordPath, record, err)
 		}
@@ -201,10 +191,7 @@ func processMatchCompletion(cfg matchConfig, status matchStatus, retry bool) err
 		}
 		report.Status = "sprt_running"
 	} else {
-		report.Status = "awaiting_approval"
-		if err := writeApprovalPackage(experimentDir, event, report, d); err != nil {
-			return failAutomation(recordPath, record, err)
-		}
+		report.Status = "awaiting_decision"
 	}
 	if err := writeJSON(filepath.Join(experimentDir, "experiment.json"), report); err != nil {
 		return failAutomation(recordPath, record, err)
@@ -301,26 +288,18 @@ func invokeCodex(cfg matchConfig, event completionEvent, experimentDir, decision
 
 func evaluationPrompt(event completionEvent) string {
 	payload, _ := json.Marshal(event)
-	return "Evaluate this completed GoAlaric match. Use only the supplied compact JSON; do not inspect files or run commands. " +
+	return "Decide only whether this completed GoAlaric screening should start SPRT. Use only the supplied compact JSON; do not inspect files, run commands, propose changes, or recommend promotion. " +
 		"semantic_ok is a required invariant only when semantic_preserving is true. When semantic_preserving is false, changed fixed-depth nodes, scores, or bestmoves are expected and must not be treated as correctness failures; NPS remains diagnostic only. " +
-		"Use hard_failures and stage statuses for correctness. For screening choose sprt only when justified, otherwise reject or propose_change. For SPRT choose promote only for accepted_h1; always provide the next proposed change. Return only schema-valid JSON.\n" + string(payload) + "\n"
+		"Use hard_failures and stage statuses for correctness. Return recommendation sprt to start it or no_sprt to leave the result for manual evaluation. Return only schema-valid JSON.\n" + string(payload) + "\n"
 }
 
 func validateAutomationDecision(event completionEvent, d decision) error {
 	if err := validateDecision(event.CandidateID, d); err != nil {
 		return err
 	}
-	if strings.TrimSpace(d.NextChange) == "" || strings.TrimSpace(d.Hypothesis) == "" || len(d.RequiredTests) == 0 {
-		return errors.New("automatic decision requires next_change, hypothesis and required_tests")
-	}
-	allowed := map[string]bool{"reject": true, "propose_change": true}
+	allowed := map[string]bool{"no_sprt": true}
 	if event.MatchType == "screening" && event.State == "completed" && event.Decision == "passed_screening" {
 		allowed["sprt"] = true
-	}
-	if event.MatchType == "sprt" {
-		if event.State == "completed" && event.Decision == "accepted_h1" {
-			allowed["promote"] = true
-		}
 	}
 	if !allowed[d.Recommendation] {
 		return fmt.Errorf("recommendation %q is not allowed for %s state=%s decision=%s", d.Recommendation, event.MatchType, event.State, event.Decision)
@@ -378,22 +357,17 @@ func startAutomaticSPRT(cfg matchConfig, runDir string) error {
 	return startCommand(args)
 }
 
-func writeApprovalPackage(dir string, event completionEvent, report experimentReport, d decision) error {
-	recommended := report.Baseline
-	baselineRecommendation := "keep"
-	if d.Recommendation == "promote" {
-		recommended = report.Candidate
-		baselineRecommendation = "promote"
+func completeWithoutModel(recordPath string, record automationRecord, experimentDir string, report experimentReport, status matchStatus) error {
+	report.Match = &status
+	report.Decision = nil
+	report.Status = "awaiting_decision"
+	if err := writeJSON(filepath.Join(experimentDir, "experiment.json"), report); err != nil {
+		return failAutomation(recordPath, record, err)
 	}
-	pkg := approvalPackage{
-		SchemaVersion: automationSchemaVersion, CandidateID: event.CandidateID, SourceEvent: event.EventID,
-		Status: "awaiting_approval", BaselineRecommendation: baselineRecommendation, RecommendedBaseline: recommended,
-		NextChange: d.NextChange, Hypothesis: d.Hypothesis, RequiredTests: d.RequiredTests, Reason: d.Reason,
-	}
-	if err := writeJSON(filepath.Join(dir, "approval-package-"+event.EventID+".json"), pkg); err != nil {
-		return err
-	}
-	return writeJSON(filepath.Join(dir, "approval-package.json"), pkg)
+	record.Status = "completed"
+	record.Error = ""
+	record.UpdatedAt = time.Now()
+	return writeJSON(recordPath, record)
 }
 
 func failAutomation(path string, record automationRecord, err error) error {

@@ -13,7 +13,7 @@ import (
 
 func TestAutomationInvokesCodexOnceAndStartsSPRTOnce(t *testing.T) {
 	root, cfg, _ := automationFixture(t)
-	configureFakeCodex(t, root, &cfg, "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"sprt\",\"next_change\":\"Run SPRT\",\"hypothesis\":\"Screening strength persists\",\"required_tests\":[\"sprt\"],\"reason\":\"Screening passed\"}")
+	configureFakeCodex(t, root, &cfg, "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"sprt\",\"reason\":\"Screening passed\"}")
 	status := completedMatchStatus(cfg, "screening-1", "passed_screening")
 
 	starts := 0
@@ -59,20 +59,40 @@ func TestAutomationDoesNotInvokeCodexBeforeTerminalState(t *testing.T) {
 	}
 }
 
-func TestAutomationRejectCreatesApprovalPackageWithoutSPRT(t *testing.T) {
+func TestAutomationRejectAwaitsManualDecisionWithoutSPRT(t *testing.T) {
 	root, cfg, _ := automationFixture(t)
-	configureFakeCodex(t, root, &cfg, "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"propose_change\",\"next_change\":\"Tune LMR\",\"hypothesis\":\"Safer reductions improve strength\",\"required_tests\":[\"go_test\",\"perft\",\"screening\"],\"reason\":\"Screening is not convincing\"}")
+	configureFakeCodex(t, root, &cfg, "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"no_sprt\",\"reason\":\"Screening is not convincing\"}")
 	oldStarter := automaticSPRTStarter
 	automaticSPRTStarter = func(matchConfig, string) error { return errors.New("SPRT must not start") }
 	t.Cleanup(func() { automaticSPRTStarter = oldStarter })
 
-	if err := processMatchCompletion(cfg, completedMatchStatus(cfg, "screening-2", "rejected_below_47_percent"), false); err != nil {
+	if err := processMatchCompletion(cfg, completedMatchStatus(cfg, "screening-2", "passed_screening"), false); err != nil {
 		t.Fatal(err)
 	}
-	var pkg approvalPackage
-	readTestJSON(t, filepath.Join(root, "artifacts", "experiments", cfg.CandidateID, "approval-package.json"), &pkg)
-	if pkg.Status != "awaiting_approval" || pkg.BaselineRecommendation != "keep" || pkg.NextChange != "Tune LMR" {
-		t.Fatalf("unexpected approval package: %+v", pkg)
+	var report experimentReport
+	readTestJSON(t, filepath.Join(root, "artifacts", "experiments", cfg.CandidateID, "experiment.json"), &report)
+	if report.Status != "awaiting_decision" || report.Decision == nil || report.Decision.Recommendation != "no_sprt" {
+		t.Fatalf("unexpected experiment state: %+v", report)
+	}
+	if _, err := os.Stat(filepath.Join(root, "artifacts", "experiments", cfg.CandidateID, "approval-package.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unexpected automatic approval package: %v", err)
+	}
+}
+
+func TestFailedScreeningSkipsCodexAndAwaitsManualDecision(t *testing.T) {
+	root, cfg, _ := automationFixture(t)
+	configureFakeCodex(t, root, &cfg, "must-not-be-used")
+	status := completedMatchStatus(cfg, "screening-failed", "rejected_below_47_percent")
+	if err := processMatchCompletion(cfg, status, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := fakeCodexCalls(t, root); got != 0 {
+		t.Fatalf("Codex calls = %d, want 0", got)
+	}
+	var report experimentReport
+	readTestJSON(t, filepath.Join(root, "artifacts", "experiments", cfg.CandidateID, "experiment.json"), &report)
+	if report.Status != "awaiting_decision" || report.Match == nil || report.Match.Decision != "rejected_below_47_percent" {
+		t.Fatalf("unexpected failed-screening state: %+v", report)
 	}
 }
 
@@ -92,7 +112,7 @@ func TestAutomationInvalidDecisionRequiresExplicitRetry(t *testing.T) {
 	if got := fakeCodexCalls(t, root); got != 1 {
 		t.Fatalf("Codex calls after implicit retry = %d, want 1", got)
 	}
-	t.Setenv("FAKE_CODEX_DECISION", "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"reject\",\"next_change\":\"Try LMR\",\"hypothesis\":\"LMR may help\",\"required_tests\":[\"go_test\"],\"reason\":\"Do not run SPRT\"}")
+	t.Setenv("FAKE_CODEX_DECISION", "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"no_sprt\",\"reason\":\"Do not run SPRT\"}")
 	if err := processMatchCompletion(cfg, status, true); err != nil {
 		t.Fatal(err)
 	}
@@ -105,39 +125,25 @@ func TestAutomationHardFailureBlocksAutomaticSPRT(t *testing.T) {
 	root, cfg, report := automationFixture(t)
 	report.HardFailures = []string{"perft mismatch"}
 	writeTestJSON(t, filepath.Join(root, "artifacts", "experiments", cfg.CandidateID, "experiment.json"), report)
-	configureFakeCodex(t, root, &cfg, "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"sprt\",\"next_change\":\"Run SPRT\",\"hypothesis\":\"Candidate is stronger\",\"required_tests\":[\"sprt\"],\"reason\":\"Screening passed\"}")
+	configureFakeCodex(t, root, &cfg, "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"sprt\",\"reason\":\"Screening passed\"}")
 	oldStarter := automaticSPRTStarter
 	automaticSPRTStarter = func(matchConfig, string) error {
 		t.Fatal("SPRT started despite hard failure")
 		return nil
 	}
 	t.Cleanup(func() { automaticSPRTStarter = oldStarter })
-	if err := processMatchCompletion(cfg, completedMatchStatus(cfg, "screening-4", "passed_screening"), false); err == nil {
-		t.Fatal("hard failure did not block automation")
-	}
-}
-
-func TestPostSPRTDecisionRules(t *testing.T) {
-	event := completionEvent{CandidateID: "candidate-auto", MatchType: "sprt", State: "completed", Decision: "accepted_h1"}
-	promote := decision{CandidateID: event.CandidateID, Recommendation: "promote", NextChange: "Add LMR", Hypothesis: "LMR helps", RequiredTests: []string{"go_test"}, Reason: "H1 accepted"}
-	if err := validateAutomationDecision(event, promote); err != nil {
+	if err := processMatchCompletion(cfg, completedMatchStatus(cfg, "screening-4", "passed_screening"), false); err != nil {
 		t.Fatal(err)
 	}
-	for _, test := range []completionEvent{
-		{CandidateID: event.CandidateID, MatchType: "sprt", State: "completed", Decision: "rejected_h0"},
-		{CandidateID: event.CandidateID, MatchType: "sprt", State: "completed", Decision: "inconclusive_at_game_limit"},
-		{CandidateID: event.CandidateID, MatchType: "sprt", State: "stopped", Decision: "stopped_by_user"},
-	} {
-		if err := validateAutomationDecision(test, promote); err == nil {
-			t.Fatalf("promotion accepted for %+v", test)
-		}
+	if got := fakeCodexCalls(t, root); got != 0 {
+		t.Fatalf("Codex calls = %d, want 0 for a hard failure", got)
 	}
 }
 
 func TestEvaluationPromptExplainsNonSemanticCandidate(t *testing.T) {
 	event := completionEvent{
 		CandidateID: "candidate-lmr",
-		MatchType:   "sprt",
+		MatchType:   "screening",
 		Experiment: decisionInput{
 			SemanticPreserving: false,
 		},
@@ -145,8 +151,10 @@ func TestEvaluationPromptExplainsNonSemanticCandidate(t *testing.T) {
 	prompt := evaluationPrompt(event)
 	for _, required := range []string{
 		`"semantic_preserving":false`,
+		"Decide only whether this completed GoAlaric screening should start SPRT",
 		"semantic_ok is a required invariant only when semantic_preserving is true",
 		"must not be treated as correctness failures",
+		"do not inspect files, run commands, propose changes, or recommend promotion",
 	} {
 		if !strings.Contains(prompt, required) {
 			t.Fatalf("prompt omitted %q: %s", required, prompt)
@@ -154,25 +162,28 @@ func TestEvaluationPromptExplainsNonSemanticCandidate(t *testing.T) {
 	}
 }
 
-func TestPostSPRTPromotionCreatesApprovalPackage(t *testing.T) {
-	root, cfg, report := automationFixture(t)
+func TestPostSPRTSkipsCodexAndAwaitsManualDecision(t *testing.T) {
+	root, cfg, _ := automationFixture(t)
 	cfg.SPRT = true
-	configureFakeCodex(t, root, &cfg, "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"promote\",\"next_change\":\"Add LMR\",\"hypothesis\":\"LMR improves search\",\"required_tests\":[\"go_test\",\"screening\"],\"reason\":\"SPRT accepted H1\"}")
+	configureFakeCodex(t, root, &cfg, "must-not-be-used")
 	status := completedMatchStatus(cfg, "sprt-1", "accepted_h1")
 	status.SPRTLLR, status.SPRTLower, status.SPRTUpper = 2.95, -2.94, 2.94
 	if err := processMatchCompletion(cfg, status, false); err != nil {
 		t.Fatal(err)
 	}
-	var pkg approvalPackage
-	readTestJSON(t, filepath.Join(root, "artifacts", "experiments", cfg.CandidateID, "approval-package.json"), &pkg)
-	if pkg.BaselineRecommendation != "promote" || pkg.RecommendedBaseline.SHA256 != report.Candidate.SHA256 || pkg.NextChange != "Add LMR" {
-		t.Fatalf("unexpected post-SPRT package: %+v", pkg)
+	if got := fakeCodexCalls(t, root); got != 0 {
+		t.Fatalf("Codex calls = %d, want 0 after SPRT", got)
+	}
+	var report experimentReport
+	readTestJSON(t, filepath.Join(root, "artifacts", "experiments", cfg.CandidateID, "experiment.json"), &report)
+	if report.Status != "awaiting_decision" || report.Match == nil || report.Match.Decision != "accepted_h1" {
+		t.Fatalf("unexpected post-SPRT state: %+v", report)
 	}
 }
 
 func TestRunMatchCallsCodexOnlyAfterFakeFastchessCompletes(t *testing.T) {
 	root, cfg, _ := automationFixture(t)
-	configureFakeCodex(t, root, &cfg, "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"reject\",\"next_change\":\"Try LMR\",\"hypothesis\":\"LMR may improve ordering\",\"required_tests\":[\"go_test\"],\"reason\":\"Screening result is insufficient\"}")
+	configureFakeCodex(t, root, &cfg, "{\"candidate_id\":\"candidate-auto\",\"recommendation\":\"no_sprt\",\"reason\":\"Screening result is insufficient\"}")
 	fastchess := filepath.Join(root, "fake-fastchess")
 	script := "#!/bin/sh\n" +
 		"if [ -e \"$FAKE_CODEX_COUNT\" ]; then exit 91; fi\n" +

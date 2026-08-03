@@ -94,22 +94,25 @@ go run ./cmd/testmonitor start \
   --candidate-id <id> --auto-evaluate
 ```
 
-Ingen modell körs medan matchen pågår. När matchstatusen är terminal skrivs ett
-kompakt event under `artifacts/llm-inbox/`, och installerad `codex exec` körs
-en gång med read-only-sandbox, ett fast JSON-schema och eventet som enda
-beslutsunderlag. PGN och råloggar skickas inte till modellen.
+Ingen modell körs medan matchen pågår. Efter en maskinellt godkänd screening
+skrivs ett kompakt event under `artifacts/llm-inbox/`, och installerad
+`codex exec` körs en gång med read-only-sandbox, ett fast JSON-schema och
+eventet som enda beslutsunderlag. Modellen får endast välja `sprt` eller
+`no_sprt`; den föreslår ingen kodändring eller promotion. PGN och råloggar
+skickas inte till modellen.
 
 Efter en godkänd screening kan ett validerat `sprt`-beslut automatiskt starta
 en ny `20+0.2`-körning med högst 10 000 partier. `alpha=0.04` och `beta=0.20`
 ger LLR-gränser kring −1,57/+3,00 så svaga kandidater kan avslutas tidigare
 utan att sänka den positiva acceptansgränsen. Go-koden kontrollerar först
 att samtliga hårda teststeg är godkända och att binärernas SHA-256 fortfarande
-matchar experimentet. Övriga screeningbeslut skapar
-`approval-package.json` och inväntar godkännande.
+matchar experimentet. Om modellen inte startar SPRT sätts experimentet till
+`awaiting_decision` för manuell utvärdering.
 
-Efter SPRT skapas alltid ett godkännandepaket med baseline-rekommendation och
-nästa förbättring. Promotion och kodändringar sker aldrig automatiskt. Stoppade
-eller misslyckade matcher får inte promoveras eller startas om automatiskt.
+Efter SPRT körs ingen modell alls. Experimentet sätts till `awaiting_decision`
+så att resultat, eventuell baseline-promotion och nästa förbättring utvärderas
+i den synliga användarsessionen. Stoppade eller misslyckade matcher behandlas
+på samma manuella sätt och får aldrig startas om automatiskt.
 
 Varje event har en maskinell kvittens som förhindrar dubbla modell-anrop och
 dubbla SPRT-starter. Ett misslyckat Codex-anrop försöks inte igen automatiskt:

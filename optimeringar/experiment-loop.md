@@ -63,7 +63,8 @@ rekommendationer är `reject`, `continue`, `propose_change`, `screening`,
 positioner och länkar till lokala artefakter. Råloggar och PGN inkluderas inte
 i modellunderlaget.
 
-Automatiska beslut använder samma kompakta data och samma beslutsfält. Efter
-screening startas endast ett validerat SPRT-beslut automatiskt. Efter SPRT
-skrivs `approval-package.json` med rekommendation om baseline och nästa
-förbättring; paketet inväntar alltid användarens godkännande.
+Efter en godkänd screening får den automatiska modellen endast välja `sprt`
+eller `no_sprt`. Ett validerat `sprt`-beslut startar matchen automatiskt;
+`no_sprt` lämnar experimentet i `awaiting_decision`. Efter SPRT körs ingen
+modell: resultatet lämnas alltid för utvärdering i den synliga
+användarsessionen.

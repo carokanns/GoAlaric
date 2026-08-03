@@ -172,9 +172,9 @@ type previousDecision struct {
 type decision struct {
 	CandidateID    string   `json:"candidate_id"`
 	Recommendation string   `json:"recommendation"`
-	NextChange     string   `json:"next_change"`
-	Hypothesis     string   `json:"hypothesis"`
-	RequiredTests  []string `json:"required_tests"`
+	NextChange     string   `json:"next_change,omitempty"`
+	Hypothesis     string   `json:"hypothesis,omitempty"`
+	RequiredTests  []string `json:"required_tests,omitempty"`
 	Reason         string   `json:"reason"`
 }
 
@@ -338,7 +338,7 @@ func recordDecisionCommand(args []string) error {
 }
 
 func validateDecision(candidateID string, d decision) error {
-	allowed := map[string]bool{"reject": true, "continue": true, "propose_change": true, "screening": true, "sprt": true, "promote": true}
+	allowed := map[string]bool{"reject": true, "continue": true, "propose_change": true, "screening": true, "sprt": true, "no_sprt": true, "promote": true}
 	if d.CandidateID != candidateID {
 		return errors.New("decision candidate_id does not match")
 	}
