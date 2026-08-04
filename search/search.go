@@ -63,6 +63,11 @@ const maxQS = 2 // Max number of qs recursions
 
 const lmrMoveLimit = 64
 
+const (
+	nullMoveBaseReduction = 3
+	nullMoveMaxReduction  = 5
+)
+
 var lmrReductions [maxDepth + 1][lmrMoveLimit]int
 
 func initLMRReductions() {
@@ -77,6 +82,14 @@ func initLMRReductions() {
 			}
 		}
 	}
+}
+
+func nullMoveReduction(depth int) int {
+	reduction := nullMoveBaseReduction + depth/6
+	if reduction > nullMoveMaxReduction {
+		return nullMoveMaxReduction
+	}
+	return reduction
 }
 
 // Different types of handling for the go command from GUI
@@ -887,7 +900,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			sc = -Qs(sl, -beta+1, 100)
 		} else { // dynamic
 			var npv pvStruct
-			sc = -search(sl, depth-3-1, -beta, -beta+1, &npv)
+			sc = -search(sl, depth-nullMoveReduction(depth)-1, -beta, -beta+1, &npv)
 		}
 
 		bd.UndoNull() // TODO: use sl?
