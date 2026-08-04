@@ -18,6 +18,17 @@ import (
 var bd board.Board
 var sl Local
 
+func TestNodePollMaskMatchesModulo(t *testing.T) {
+	for node := int64(0); node < nodeInterval*4; node++ {
+		for cnt := 0; cnt < 32; cnt++ {
+			want := node%nodeInterval <= int64(cnt)
+			if got := nodePollDue(node, cnt); got != want {
+				t.Fatalf("nodePollDue(%d, %d) = %v, want %v", node, cnt, got, want)
+			}
+		}
+	}
+}
+
 // TestNext säkerställer att move-ordningen prioriterar förväntat drag.
 func TestNext(t *testing.T) {
 	board.SetFen("8/6kp/5p2/3n2pq/3N1n1R/1P3P2/P6P/4QK2 w - - 2 2", &bd)

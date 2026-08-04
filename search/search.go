@@ -58,6 +58,7 @@ const (
 const maxDepth = 100
 const maxPly = 100
 const nodeInterval = 1024
+const nodeMask int64 = nodeInterval - 1
 const maxThreads = 16
 const maxQS = 2 // Max number of qs recursions
 const searchRepetitionContempt = 5
@@ -1242,7 +1243,7 @@ func incNode(sl *Local, cnt int) {
 
 	sl.node++
 
-	if sl.node%nodeInterval <= int64(cnt) {
+	if nodePollDue(sl.node, cnt) {
 
 		abort := false
 
@@ -1290,6 +1291,10 @@ func incNode(sl *Local, cnt int) {
 	//	if sl_stop(sl) {   // split logik
 	//		Abort()
 	//	}
+}
+
+func nodePollDue(node int64, cnt int) bool {
+	return node&nodeMask <= int64(cnt)
 }
 
 func poll() bool {
