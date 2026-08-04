@@ -60,6 +60,7 @@ const maxPly = 100
 const nodeInterval = 1024
 const maxThreads = 16
 const maxQS = 2 // Max number of qs recursions
+const searchRepetitionContempt = 5
 
 const lmrMoveLimit = 64
 
@@ -817,8 +818,11 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 		}
 	}
 
-	if bd.IsDraw() {
+	switch bd.DrawState() {
+	case board.FiftyMoveDraw, board.ThreefoldRepetition:
 		return 0
+	case board.SearchRepetition:
+		return repetitionScore(bd.Ply())
 	}
 
 	stm := bd.Stm() // NOTE!! be aware of before and after move
@@ -1044,6 +1048,13 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	}
 
 	return bs
+}
+
+func repetitionScore(ply int) int {
+	if ply%2 == 0 {
+		return -searchRepetitionContempt
+	}
+	return searchRepetitionContempt
 }
 
 func initMvSearch(mv, pos, size int) {

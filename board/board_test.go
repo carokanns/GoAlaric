@@ -227,3 +227,44 @@ func TestMakeFenMveUndoRestoresState(t *testing.T) {
 		t.Fatalf("stack index not restored after undo: got %v want %v", bd.stackIx, origStackIx)
 	}
 }
+
+func TestRepetitionUsesThreefoldAtRootAndTwofoldInSearch(t *testing.T) {
+	cycle := []string{"g1f3", "g8f6", "f3g1", "f6g8"}
+
+	var root Board
+	SetFen(StartFen, &root)
+	FenMoves(cycle, &root)
+	root.SetRoot()
+	if got := root.DrawState(); got != NoDraw {
+		t.Fatalf("twofold repetition at root = %v, want no draw", got)
+	}
+	FenMoves(cycle, &root)
+	if got := root.DrawState(); got != ThreefoldRepetition {
+		t.Fatalf("third occurrence = %v, want threefold repetition", got)
+	}
+
+	var tree Board
+	SetFen(StartFen, &tree)
+	tree.SetRoot()
+	FenMoves(cycle, &tree)
+	if got := tree.DrawState(); got != SearchRepetition {
+		t.Fatalf("twofold repetition in search = %v, want search repetition", got)
+	}
+}
+
+func TestRepetitionKeyIncludesCastlingAndEnPassant(t *testing.T) {
+	var bd Board
+	SetFen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", &bd)
+	bd.SetRoot()
+	FenMoves([]string{"e1f1", "e8f8", "f1e1", "f8e8"}, &bd)
+	if got := bd.DrawState(); got != NoDraw {
+		t.Fatalf("position with changed castling rights = %v, want no draw", got)
+	}
+
+	withoutEP := copyStruct{key: 1, flags: bd.copyStr.flags, epSq: square.None}
+	withEP := withoutEP
+	withEP.epSq = square.E3
+	if positionKey(withoutEP) == positionKey(withEP) {
+		t.Fatal("en-passant square did not change repetition key")
+	}
+}

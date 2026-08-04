@@ -54,6 +54,16 @@ type Undo struct {
 	castling bool
 }
 
+// DrawReason identifies why the current position is treated as drawn.
+type DrawReason int
+
+const (
+	NoDraw DrawReason = iota
+	FiftyMoveDraw
+	ThreefoldRepetition
+	SearchRepetition
+)
+
 // Board represents a chess position and provides make/undo operations.
 type Board struct {
 	piece [material.Size]bit.BB // bb per piece
@@ -383,10 +393,11 @@ func (bd *Board) getP12(sq int) int {
 
 // Key returns the hash key for the position
 func (bd *Board) Key() hash.Key {
-	key := bd.copyStr.key
-	key ^= castleKey[bd.copyStr.flags]
-	key ^= hash.EnPassantKey(bd.copyStr.epSq)
-	return key
+	return positionKey(bd.copyStr)
+}
+
+func positionKey(state copyStruct) hash.Key {
+	return state.key ^ castleKey[state.flags] ^ hash.EnPassantKey(state.epSq)
 }
 
 // PawnKey returns the pawn hash key.
@@ -830,24 +841,32 @@ func (bd *Board) Recap() int {
 	return bd.copyStr.recap
 }
 
-// IsDraw returns true if the 50-move rule is passed or if it is 3-move repetition
-func (bd *Board) IsDraw() bool {
-
+// DrawState distinguishes rule draws from the intentional twofold repetition
+// shortcut used only below the search root.
+func (bd *Board) DrawState() DrawReason {
 	if bd.copyStr.moves >= 100 { // TODO: check for mate
-		return true
+		return FiftyMoveDraw
 	}
 
-	key := bd.copyStr.key // HACK: ignores castling flags and e.p. square
-
-	//util.ASSERT(p_copy.moves <= p_sp);
-
-	for i := 4; i < bd.copyStr.moves; i += 2 {
-		if bd.stack[bd.stackIx-i].copyS.key == key {
-			return true
+	key := bd.Key()
+	matches := 0
+	for i := 4; i <= bd.copyStr.moves && i <= bd.stackIx; i += 2 {
+		if positionKey(bd.stack[bd.stackIx-i].copyS) == key {
+			matches++
 		}
 	}
+	if matches >= 2 {
+		return ThreefoldRepetition
+	}
+	if matches == 1 && bd.Ply() > 0 {
+		return SearchRepetition
+	}
+	return NoDraw
+}
 
-	return false
+// IsDraw reports whether the current position is treated as drawn.
+func (bd *Board) IsDraw() bool {
+	return bd.DrawState() != NoDraw
 }
 
 // IsMove returns true if it is a possible move (except checks)
