@@ -52,6 +52,10 @@ type List struct {
 	postSV    int
 	pos       int
 	candidate bool
+	seeMove   int
+	seeKnown  bool
+	seeSafe   bool
+	seeWin    bool
 
 	board       *board.Board
 	attacks     *eval.Attacks
@@ -89,6 +93,7 @@ func (l *List) Init(depth int, bd *board.Board, attacks *eval.Attacks, transMove
 	l.postSV = 0
 	l.pos = 0
 	l.candidate = false
+	l.seeKnown = false
 }
 
 // Here is where the moves are actually generated
@@ -177,6 +182,8 @@ func (l *List) gen() bool {
 func (l *List) post(mv int) bool {
 
 	//util.ASSERT(mv != move.None)
+	l.seeMove = mv
+	l.seeKnown = false
 
 	switch l.postSV {
 
@@ -200,7 +207,9 @@ func (l *List) post(mv int) bool {
 			return false
 		}
 
-		if !NoSacrifice(mv, l.board) {
+		l.seeSafe, l.seeWin = classifyExchange(mv, l.board)
+		l.seeKnown = true
+		if !l.seeSafe {
 			l.badList.Add(mv)
 			return false
 		}
@@ -229,7 +238,9 @@ func (l *List) post(mv int) bool {
 
 		l.doneList.Add(mv)
 
-		if !NoSacrifice(mv, l.board) {
+		l.seeSafe, l.seeWin = classifyExchange(mv, l.board)
+		l.seeKnown = true
+		if !l.seeSafe {
 			l.badList.Add(mv)
 			return false
 		}
@@ -237,6 +248,9 @@ func (l *List) post(mv int) bool {
 	case postBad:
 
 		//util.ASSERT(Is_legal(mv, l.p_board, l.p_attacks))
+		l.seeKnown = true
+		l.seeSafe = false
+		l.seeWin = false
 
 	default:
 		panic("don't go here List.post")
@@ -277,6 +291,22 @@ func (l *List) Next() int {
 // Candidate returns true if we are in SV for moves that candidates to be good
 func (l *List) Candidate() bool {
 	return l.candidate
+}
+
+// NoSacrifice reuses the current move's generator SEE result when available.
+func (l *List) NoSacrifice(mv int) bool {
+	if l.seeKnown && l.seeMove == mv {
+		return l.seeSafe
+	}
+	return NoSacrifice(mv, l.board)
+}
+
+// IsWin reuses the current move's generator SEE result when available.
+func (l *List) IsWin(mv int) bool {
+	if l.seeKnown && l.seeMove == mv {
+		return l.seeWin
+	}
+	return IsWin(mv, l.board)
 }
 
 // SEE is the struct holding values needed for the See algorithm
@@ -422,6 +452,28 @@ func NoSacrifice(mv int, bd *board.Board) bool {
 	var se SEE
 	val, _ := se.See(mv, -1, 0, bd)
 	return val >= 0
+}
+
+func classifyExchange(mv int, bd *board.Board) (safe, winning bool) {
+	pc := move.Piece(mv)
+	cp := move.Capt(mv)
+	pp := move.Prom(mv)
+
+	if pc == material.King || material.Value[cp] > material.Value[pc] {
+		return true, true
+	}
+	if pp != material.None && pp != material.Queen {
+		return material.Value[cp] >= material.Value[pc], false
+	}
+	if material.Value[cp] == material.Value[pc] {
+		var se SEE
+		val, _ := se.See(mv, 0, 1, bd)
+		return true, val > 0
+	}
+
+	var se SEE
+	val, _ := se.See(mv, -1, 1, bd)
+	return val >= 0, val > 0
 }
 
 func isLegal(mv int, bd *board.Board, attacks *eval.Attacks) bool {

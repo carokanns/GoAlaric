@@ -717,7 +717,7 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
 
-		ext := extension(sl, mv, depth, pvNode)
+		ext := extension(sl, mv, depth, pvNode, nil)
 		red := 0
 		if ext == 0 {
 			dangerous := inCheck || move.IsTactical(mv) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd)
@@ -963,7 +963,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			if move.IsTactical(mv) && !eval.IsCheck(mv, bd) && val+move.CaptMax(mv) <= alpha { // delta pruning
 				continue
 			}
-			if !gen.NoSacrifice(mv, bd) { // Material pruning
+			if !gl.NoSacrifice(mv) { // Material pruning
 				continue
 			}
 		}
@@ -977,7 +977,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			continue
 		}
 
-		ext := extension(sl, mv, depth, pvNode)
+		ext := extension(sl, mv, depth, pvNode, gl)
 
 		red := 0
 		if ext == 0 {
@@ -1149,22 +1149,29 @@ func Qs(sl *Local, beta, gain int) int { // for static NMP
 	return bs
 }
 
-func extension(sl *Local, mv int, depth int, pvNode bool) int {
+func extension(sl *Local, mv int, depth int, pvNode bool, gl *gen.List) int {
 
 	bd := &sl.Board
 
-	if depth <= 4 && (eval.IsCheck(mv, bd) || gen.IsRecapture(mv, bd)) {
+	if depth <= 4 && (eval.IsCheck(mv, bd) || (move.To(mv) == bd.Recap() && moveIsWin(gl, mv, bd))) {
 		return 1
 	}
 
 	if pvNode {
-		if eval.IsCheck(mv, bd) || (move.IsTactical(mv) && gen.IsWin(mv, bd)) || eval.IsPawnPush(mv, bd) {
+		if eval.IsCheck(mv, bd) || (move.IsTactical(mv) && moveIsWin(gl, mv, bd)) || eval.IsPawnPush(mv, bd) {
 			return 1
 		}
 	}
 
 	return 0
 
+}
+
+func moveIsWin(gl *gen.List, mv int, bd *board.Board) bool {
+	if gl != nil {
+		return gl.IsWin(mv)
+	}
+	return gen.IsWin(mv, bd)
 }
 
 func reduction(sl *Local, mv, depth int, pvNode, inCheck bool, searchedSize int, interesting bool) int {
