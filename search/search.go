@@ -716,15 +716,16 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 	// move loop
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
+		properties := newMoveProperties(mv)
 
-		ext := extension(sl, mv, depth, pvNode)
+		ext := extension(sl, mv, depth, pvNode, &properties)
 		red := 0
 		if ext == 0 {
-			dangerous := inCheck || move.IsTactical(mv) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd)
+			dangerous := inCheck || properties.tactical || properties.castling || properties.isPawnPush(mv, bd)
 			if !dangerous {
-				dangerous = eval.IsCheck(mv, bd)
+				dangerous = properties.givesCheck(mv, bd)
 			}
-			red = reduction(sl, mv, depth, pvNode, inCheck, searchedSize, dangerous) // LMR
+			red = reduction(sl, mv, depth, pvNode, inCheck, searchedSize, dangerous, properties.tactical) // LMR
 		}
 
 		var sc int
@@ -959,8 +960,9 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	searched := &genSearched[sl.ID][bd.Ply()]
 	searched.Clear()
 	for mv := gl.Next(); mv != move.None; mv = gl.Next() {
+		properties := newMoveProperties(mv)
 		if hardPruning {
-			if move.IsTactical(mv) && !eval.IsCheck(mv, bd) && val+move.CaptMax(mv) <= alpha { // delta pruning
+			if properties.tactical && !properties.givesCheck(mv, bd) && val+move.CaptMax(mv) <= alpha { // delta pruning
 				continue
 			}
 			if !gen.NoSacrifice(mv, bd) { // Material pruning
@@ -968,20 +970,20 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			}
 		}
 
-		dangerous := inCheck || move.IsTactical(mv) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd) || gl.Candidate()
+		dangerous := inCheck || properties.tactical || properties.castling || properties.isPawnPush(mv, bd) || gl.Candidate()
 		if !dangerous {
-			dangerous = eval.IsCheck(mv, bd)
+			dangerous = properties.givesCheck(mv, bd)
 		}
 
 		if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(bs) && searched.Size() >= depth*4 && !dangerous { // late-move pruning
 			continue
 		}
 
-		ext := extension(sl, mv, depth, pvNode)
+		ext := extension(sl, mv, depth, pvNode, &properties)
 
 		red := 0
 		if ext == 0 {
-			red = reduction(sl, mv, depth, pvNode, inCheck, searched.Size(), dangerous) // LM Pruning
+			red = reduction(sl, mv, depth, pvNode, inCheck, searched.Size(), dangerous, properties.tactical) // LM Pruning
 		}
 
 		var sc int
@@ -1020,7 +1022,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 				}
 
 				if sc >= beta {
-					if depth > 0 && !inCheck && !move.IsTactical(mv) {
+					if depth > 0 && !inCheck && !properties.tactical {
 						sl.killer.Add(mv, bd.Ply())
 						SG.History.Add(mv, searched, depth, bd)
 					}
@@ -1149,16 +1151,48 @@ func Qs(sl *Local, beta, gain int) int { // for static NMP
 	return bs
 }
 
-func extension(sl *Local, mv int, depth int, pvNode bool) int {
+type moveProperties struct {
+	tactical        bool
+	castling        bool
+	pawnPushKnown   bool
+	pawnPush        bool
+	givesCheckKnown bool
+	check           bool
+}
+
+func newMoveProperties(mv int) moveProperties {
+	return moveProperties{
+		tactical: move.IsTactical(mv),
+		castling: move.IsCastling(mv),
+	}
+}
+
+func (properties *moveProperties) isPawnPush(mv int, bd *board.Board) bool {
+	if !properties.pawnPushKnown {
+		properties.pawnPush = eval.IsPawnPush(mv, bd)
+		properties.pawnPushKnown = true
+	}
+	return properties.pawnPush
+}
+
+func (properties *moveProperties) givesCheck(mv int, bd *board.Board) bool {
+	if !properties.givesCheckKnown {
+		properties.check = eval.IsCheck(mv, bd)
+		properties.givesCheckKnown = true
+	}
+	return properties.check
+}
+
+func extension(sl *Local, mv int, depth int, pvNode bool, properties *moveProperties) int {
 
 	bd := &sl.Board
 
-	if depth <= 4 && (eval.IsCheck(mv, bd) || gen.IsRecapture(mv, bd)) {
+	if depth <= 4 && (properties.givesCheck(mv, bd) || gen.IsRecapture(mv, bd)) {
 		return 1
 	}
 
 	if pvNode {
-		if eval.IsCheck(mv, bd) || (move.IsTactical(mv) && gen.IsWin(mv, bd)) || eval.IsPawnPush(mv, bd) {
+		if properties.givesCheck(mv, bd) || (properties.tactical && gen.IsWin(mv, bd)) || properties.isPawnPush(mv, bd) {
 			return 1
 		}
 	}
@@ -1167,8 +1201,8 @@ func extension(sl *Local, mv int, depth int, pvNode bool) int {
 
 }
 
-func reduction(sl *Local, mv, depth int, pvNode, inCheck bool, searchedSize int, interesting bool) int {
-	if depth < 3 || searchedSize < 3 || inCheck || interesting || move.IsTactical(mv) {
+func reduction(sl *Local, mv, depth int, pvNode, inCheck bool, searchedSize int, interesting, tactical bool) int {
+	if depth < 3 || searchedSize < 3 || inCheck || interesting || tactical {
 		return 0
 	}
 	ply := sl.Board.Ply()

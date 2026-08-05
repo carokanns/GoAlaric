@@ -28,20 +28,20 @@ func TestReductionProtectsImportantMoves(t *testing.T) {
 	quiet := move.Build(square.E2, square.E4, material.Pawn, material.None, material.None)
 	tactical := move.Build(square.E2, square.D3, material.Pawn, material.Pawn, material.None)
 
-	if got := reduction(&local, quiet, 12, false, false, 20, false); got == 0 {
+	if got := reduction(&local, quiet, 12, false, false, 20, false, false); got == 0 {
 		t.Fatal("late quiet move was not reduced")
 	}
 	for name, got := range map[string]int{
-		"in check":    reduction(&local, quiet, 12, false, true, 20, false),
-		"interesting": reduction(&local, quiet, 12, false, false, 20, true),
-		"tactical":    reduction(&local, tactical, 12, false, false, 20, false),
+		"in check":    reduction(&local, quiet, 12, false, true, 20, false, false),
+		"interesting": reduction(&local, quiet, 12, false, false, 20, true, false),
+		"tactical":    reduction(&local, tactical, 12, false, false, 20, false, true),
 	} {
 		if got != 0 {
 			t.Errorf("%s move reduction = %d, want 0", name, got)
 		}
 	}
 	local.killer.Add(quiet, local.Board.Ply())
-	if got := reduction(&local, quiet, 12, false, false, 20, false); got != 0 {
+	if got := reduction(&local, quiet, 12, false, false, 20, false, false); got != 0 {
 		t.Fatalf("killer reduction = %d, want 0", got)
 	}
 }
@@ -51,14 +51,14 @@ func TestReductionIsLowerForPVAndStrongHistory(t *testing.T) {
 	board.SetFen(board.StartFen, &local.Board)
 	quiet := move.Build(square.E2, square.E4, material.Pawn, material.None, material.None)
 	SG.History.Clear()
-	base := reduction(&local, quiet, 12, false, false, 20, false)
-	pv := reduction(&local, quiet, 12, true, false, 20, false)
+	base := reduction(&local, quiet, 12, false, false, 20, false, false)
+	pv := reduction(&local, quiet, 12, true, false, 20, false, false)
 	if pv != base-1 {
 		t.Fatalf("PV reduction = %d, want %d", pv, base-1)
 	}
 	var searched gen.ScMvList
 	SG.History.Add(quiet, &searched, 20, &local.Board)
-	strong := reduction(&local, quiet, 12, false, false, 20, false)
+	strong := reduction(&local, quiet, 12, false, false, 20, false, false)
 	if strong != base-1 {
 		t.Fatalf("strong-history reduction = %d, want %d", strong, base-1)
 	}
