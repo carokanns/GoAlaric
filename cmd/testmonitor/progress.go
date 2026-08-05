@@ -28,6 +28,11 @@ type progressSnapshot struct {
 	SPRTLower         float64   `json:"sprt_lower,omitempty"`
 	SPRTUpper         float64   `json:"sprt_upper,omitempty"`
 	Decision          string    `json:"decision,omitempty"`
+	DepthSamples      int       `json:"depth_samples,omitempty"`
+	MeanDepth         float64   `json:"mean_depth,omitempty"`
+	MedianDepth       int       `json:"median_depth,omitempty"`
+	P25Depth          int       `json:"p25_depth,omitempty"`
+	P90Depth          int       `json:"p90_depth,omitempty"`
 }
 
 func snapshotFromStatus(status matchStatus) progressSnapshot {
@@ -35,13 +40,21 @@ func snapshotFromStatus(status matchStatus) progressSnapshot {
 	if status.TargetGames > 0 {
 		completion = float64(status.Games) * 100 / float64(status.TargetGames)
 	}
-	return progressSnapshot{
+	snapshot := progressSnapshot{
 		Timestamp: time.Now(), RunID: status.RunID, State: status.State, Stage: status.Stage,
 		Games: status.Games, TargetGames: status.TargetGames, CompletionPercent: completion,
 		Wins: status.Wins, Losses: status.Losses, Draws: status.Draws, ScorePercent: status.Score,
 		SPRTLLR: status.SPRTLLR, SPRTLower: status.SPRTLower, SPRTUpper: status.SPRTUpper,
 		Decision: status.Decision,
 	}
+	if status.DepthProfile != nil {
+		snapshot.DepthSamples = status.DepthProfile.SampleCount
+		snapshot.MeanDepth = status.DepthProfile.MeanDepth
+		snapshot.MedianDepth = status.DepthProfile.MedianDepth
+		snapshot.P25Depth = status.DepthProfile.P25Depth
+		snapshot.P90Depth = status.DepthProfile.P90Depth
+	}
+	return snapshot
 }
 
 func appendProgressSnapshot(runDir string, status matchStatus) error {
@@ -76,6 +89,9 @@ func formatProgress(status matchStatus) string {
 		status.Games, status.TargetGames, completion, status.Wins, status.Draws, status.Losses, status.Score, status.State)
 	if status.SPRTLower != 0 || status.SPRTUpper != 0 {
 		line += fmt.Sprintf(" SPRT=%.2f [%.2f, %.2f]", status.SPRTLLR, status.SPRTLower, status.SPRTUpper)
+	}
+	if status.DepthProfile != nil {
+		line += fmt.Sprintf(" depth=median:%d mean:%.1f p25:%d p90:%d samples:%d", status.DepthProfile.MedianDepth, status.DepthProfile.MeanDepth, status.DepthProfile.P25Depth, status.DepthProfile.P90Depth, status.DepthProfile.SampleCount)
 	}
 	if status.Decision != "" {
 		line += " decision=" + status.Decision
@@ -169,6 +185,12 @@ func formatProgressSnapshot(snapshot progressSnapshot) string {
 		Wins: snapshot.Wins, Losses: snapshot.Losses, Draws: snapshot.Draws, Score: snapshot.ScorePercent,
 		SPRTLLR: snapshot.SPRTLLR, SPRTLower: snapshot.SPRTLower, SPRTUpper: snapshot.SPRTUpper,
 		Decision: snapshot.Decision,
+	}
+	if snapshot.DepthSamples > 0 {
+		status.DepthProfile = &depthProfileReport{
+			SampleCount: snapshot.DepthSamples, MeanDepth: snapshot.MeanDepth,
+			MedianDepth: snapshot.MedianDepth, P25Depth: snapshot.P25Depth, P90Depth: snapshot.P90Depth,
+		}
 	}
 	return fmt.Sprintf("%s %s", snapshot.Timestamp.Format(time.RFC3339), strings.TrimPrefix(formatProgress(status), "[progress] "))
 }

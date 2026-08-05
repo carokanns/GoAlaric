@@ -71,10 +71,16 @@ kandidat startas den återstående testkedjan med
 en andra kampanj parallellt.
 
 Den transienta `systemd --user`-servicen bygger kandidaten, kör den
-deterministiska pipelinen, startar screening och följer eventuell SPRT utan
+deterministiska pipelinen, kör eventuell depth pre-scan, startar screening och följer eventuell SPRT utan
 återkommande modell-anrop. När användaren återupptar Codex CLI, kör
 `scripts/campaign_status.sh` och utvärdera terminalt resultat manuellt. Baseline
 och nästa kodändring kräver fortsatt uttryckligt godkännande.
+
+För djupberoende sökändringar anges `--prescan full --minimum-depth <ply>`.
+`baseline` återanvänder en cachad baselineprofil utan kandidatprofil när
+ändringen inte påverkar djupet nämnvärt. `skip` används endast när ändringen
+inte är beroende av ett visst sökdjup. Screening startar först när depth-gaten
+passerar; vald tidskontroll används även av SPRT.
 
 ## Korrekthetskrav
 

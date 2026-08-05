@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -340,6 +341,22 @@ func validateAutomaticSPRT(report experimentReport, cfg matchConfig, status matc
 }
 
 func startAutomaticSPRT(cfg matchConfig, runDir string) error {
+	tc := cfg.TC
+	if tc == "" {
+		tc = defaultSPRTTC
+	}
+	concurrency := cfg.Concurrency
+	if concurrency < 1 {
+		concurrency = 8
+	}
+	hashMB := cfg.HashMB
+	if hashMB < 16 {
+		hashMB = 128
+	}
+	threads := cfg.Threads
+	if threads < 1 {
+		threads = 1
+	}
 	args := []string{
 		"--fastchess", cfg.Fastchess,
 		"--baseline", cfg.Baseline,
@@ -350,7 +367,10 @@ func startAutomaticSPRT(cfg matchConfig, runDir string) error {
 		"--repo-root", cfg.RepoRoot,
 		"--openings", cfg.Openings,
 		"--games", "10000",
-		"--tc", defaultSPRTTC,
+		"--tc", tc,
+		"--concurrency", strconv.Itoa(concurrency),
+		"--hash", strconv.Itoa(hashMB),
+		"--threads", strconv.Itoa(threads),
 		"--run-dir", runDir,
 		"--sprt",
 	}

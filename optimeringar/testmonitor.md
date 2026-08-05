@@ -83,6 +83,36 @@ fördel för samma sida under tre på varandra följande bedömningar. Det motsv
 ungefär värdet av ett torn. Remiavdömningen börjar efter drag 40 och kräver åtta
 bedömningar inom ±10 centipawns; drag 200 avslutar återstående partier som remi.
 
+## Fristående depth pre-scan
+
+Pre-scanningen mäter sista kompletta UCI-`depth` före varje `bestmove`. Den
+körs utan LLM och påverkar inte kandidatens matchresultat. Baseline kalibreras
+först i självspel och profilen cachas med motor-, Fastchess-, öppnings-,
+maskin- och testkonfiguration:
+
+```bash
+go run ./cmd/testmonitor prescan \
+  --engine artifacts/baseline/goalaric-36e10b7 \
+  --role baseline --minimum-depth 8 \
+  --games 40 --tc 20+0.2 --concurrency 8
+```
+
+Körningen startar frikopplat precis som en screening. `status`, `follow` och
+`stop` kan användas med dess `--run-dir`. `depth-profile.json` innehåller
+sample count, medel-, median-, p25- och p90-djup, selektivt djup, noder och
+NPS. Beslutet är `depth_adequate` eller `increase_time_control`.
+
+Kandidatkampanjen har tre lägen:
+
+- `--prescan full --minimum-depth N`: använd cachad baseline och mät kandidaten mot baseline.
+- `--prescan baseline --minimum-depth N`: kontrollera bara cachad baselineprofil.
+- `--prescan skip --prescan-skip-reason "..."`: hoppa över depth-gaten.
+
+Vid otillräckligt median-djup provas som standard
+`20+0.2,30+0.3,45+0.45,60+0.6`. Första tidskontrollen som klarar gaten används
+av både screening och eventuell SPRT. Om ingen klarar kravet avslutas
+kampanjen med `depth_insufficient` utan att starta screening.
+
 ## Automatisk slututvärdering
 
 Efter att den deterministiska pipelinen har skapat kandidatens
@@ -102,7 +132,7 @@ eventet som enda beslutsunderlag. Modellen får endast välja `sprt` eller
 skickas inte till modellen.
 
 Efter en godkänd screening kan ett validerat `sprt`-beslut automatiskt starta
-en ny `20+0.2`-körning med högst 10 000 partier. `alpha=0.04` och `beta=0.20`
+en ny körning med samma tidskontroll som screeningen och högst 10 000 partier. `alpha=0.04` och `beta=0.20`
 ger LLR-gränser kring −1,57/+3,00 så svaga kandidater kan avslutas tidigare
 utan att sänka den positiva acceptansgränsen. Go-koden kontrollerar först
 att samtliga hårda teststeg är godkända och att binärernas SHA-256 fortfarande

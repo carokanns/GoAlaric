@@ -81,13 +81,18 @@ scripts/start_candidate_campaign.sh \
   --baseline <baseline-binär> \
   --hypothesis "<hypotes>" \
   --change "<ändring>" \
-  --semantic-preserving=false
+  --semantic-preserving=false \
+  --prescan full --minimum-depth 8
 ```
 
 Kommandot validerar en ren kandidatworktree, bygger en fristående
 `testmonitor` och startar en transient `systemd --user`-service. Servicen bygger
-kandidaten, kör den deterministiska pipelinen och startar screening när alla
-hårda tester passerar. Därefter läser den endast lokala statusfiler var tionde
+kandidaten, kör den deterministiska pipelinen och genomför vald depth pre-scan
+innan screening. En cachad baselineprofil återanvänds. Vid för lågt
+median-djup provas nästa konfigurerade tidskontroll; samma tidskontroll används
+sedan av screening och SPRT. Läget `baseline` hoppar över kandidatprofilen när
+ändringen inte påverkar djupet nämnvärt, och `skip` används för ändringar som
+inte är djupberoende. Därefter läser servicen endast lokala statusfiler var tionde
 sekund. Det kostar inga modelltokens. Den befintliga kompakta engångsmodellen
 väljer endast `sprt` eller `no_sprt` efter godkänd screening.
 

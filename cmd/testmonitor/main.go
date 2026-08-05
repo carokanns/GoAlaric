@@ -42,35 +42,36 @@ const (
 )
 
 type matchStatus struct {
-	RunID         string    `json:"run_id"`
-	State         string    `json:"state"`
-	Stage         string    `json:"stage"`
-	PID           int       `json:"pid,omitempty"`
-	StartedAt     time.Time `json:"started_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	FinishedAt    time.Time `json:"finished_at,omitempty"`
-	Baseline      string    `json:"baseline"`
-	Candidate     string    `json:"candidate"`
-	TimeControl   string    `json:"time_control"`
-	TargetGames   int       `json:"target_games"`
-	ProgressEvery int       `json:"progress_every_games"`
-	ProgressTime  string    `json:"progress_interval"`
-	OpeningFile   string    `json:"opening_file"`
-	OpeningCount  int       `json:"opening_count"`
-	RandomSeed    int64     `json:"random_seed"`
-	Games         int       `json:"games"`
-	Wins          int       `json:"wins"`
-	Losses        int       `json:"losses"`
-	Draws         int       `json:"draws"`
-	Score         float64   `json:"score_percent"`
-	SPRTLLR       float64   `json:"sprt_llr,omitempty"`
-	SPRTLower     float64   `json:"sprt_lower,omitempty"`
-	SPRTUpper     float64   `json:"sprt_upper,omitempty"`
-	Decision      string    `json:"decision,omitempty"`
-	PGNAudit      *pgnAudit `json:"pgn_audit,omitempty"`
-	ExitCode      int       `json:"exit_code,omitempty"`
-	Error         string    `json:"error,omitempty"`
-	RunDir        string    `json:"run_dir"`
+	RunID         string              `json:"run_id"`
+	State         string              `json:"state"`
+	Stage         string              `json:"stage"`
+	PID           int                 `json:"pid,omitempty"`
+	StartedAt     time.Time           `json:"started_at"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+	FinishedAt    time.Time           `json:"finished_at,omitempty"`
+	Baseline      string              `json:"baseline"`
+	Candidate     string              `json:"candidate"`
+	TimeControl   string              `json:"time_control"`
+	TargetGames   int                 `json:"target_games"`
+	ProgressEvery int                 `json:"progress_every_games"`
+	ProgressTime  string              `json:"progress_interval"`
+	OpeningFile   string              `json:"opening_file"`
+	OpeningCount  int                 `json:"opening_count"`
+	RandomSeed    int64               `json:"random_seed"`
+	Games         int                 `json:"games"`
+	Wins          int                 `json:"wins"`
+	Losses        int                 `json:"losses"`
+	Draws         int                 `json:"draws"`
+	Score         float64             `json:"score_percent"`
+	SPRTLLR       float64             `json:"sprt_llr,omitempty"`
+	SPRTLower     float64             `json:"sprt_lower,omitempty"`
+	SPRTUpper     float64             `json:"sprt_upper,omitempty"`
+	Decision      string              `json:"decision,omitempty"`
+	PGNAudit      *pgnAudit           `json:"pgn_audit,omitempty"`
+	DepthProfile  *depthProfileReport `json:"depth_profile,omitempty"`
+	ExitCode      int                 `json:"exit_code,omitempty"`
+	Error         string              `json:"error,omitempty"`
+	RunDir        string              `json:"run_dir"`
 }
 
 type pgnAudit struct {
@@ -112,6 +113,12 @@ type matchConfig struct {
 	ProgressEvery int    `json:"progress_every_games"`
 	ProgressTime  string `json:"progress_interval"`
 	Follow        bool   `json:"-"`
+	DepthProfile  bool   `json:"depth_profile,omitempty"`
+	ProfileRole   string `json:"profile_role,omitempty"`
+	MinimumDepth  int    `json:"minimum_depth,omitempty"`
+	DepthCacheDir string `json:"depth_cache_dir,omitempty"`
+	HashMB        int    `json:"hash_mb"`
+	Threads       int    `json:"threads"`
 }
 
 type searchSample struct {
@@ -191,6 +198,8 @@ func main() {
 		err = campaignRunCommand(os.Args[2:])
 	case "campaign-status":
 		err = campaignStatusCommand(os.Args[2:])
+	case "prescan":
+		err = preScanCommand(os.Args[2:])
 	default:
 		usage()
 		err = fmt.Errorf("unknown command %q", os.Args[1])
@@ -202,7 +211,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|progress|follow|wait|stop|pipeline|snapshot|record-decision|retry-evaluation|campaign-init|campaign-tick|campaign-run|campaign-status> [options]")
+	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|progress|follow|wait|stop|pipeline|snapshot|record-decision|retry-evaluation|campaign-init|campaign-tick|campaign-run|campaign-status|prescan> [options]")
 }
 
 func auditPGNCommand(args []string) error {
@@ -353,12 +362,15 @@ func startCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", cfg.Openings, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--run-dir", cfg.RunDir}
+	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", cfg.Openings, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--hash", strconv.Itoa(cfg.HashMB), "--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir}
 	if cfg.SPRT {
 		childArgs = append(childArgs, "--sprt")
 	}
 	if cfg.AutoEvaluate {
 		childArgs = append(childArgs, "--auto-evaluate", "--candidate-id", cfg.CandidateID, "--codex", cfg.Codex, "--repo-root", cfg.RepoRoot)
+	}
+	if cfg.DepthProfile {
+		childArgs = append(childArgs, "--depth-profile", "--profile-role", cfg.ProfileRole, "--minimum-depth", strconv.Itoa(cfg.MinimumDepth), "--repo-root", cfg.RepoRoot, "--depth-cache-dir", cfg.DepthCacheDir)
 	}
 	cmd := exec.Command(exe, childArgs...)
 	cmd.Stdout = logFile
@@ -410,9 +422,13 @@ func runMatchCommand(args []string) error {
 	_ = appendProgressSnapshot(cfg.RunDir, status)
 
 	rounds := cfg.Games / 2
+	logOptions := []string{"-log", "file=" + filepath.Join(cfg.RunDir, "fastchess.log"), "level=info", "append=false", "realtime=true"}
+	if cfg.DepthProfile {
+		logOptions = []string{"-log", "file=" + filepath.Join(cfg.RunDir, "fastchess.log"), "level=trace", "append=false", "realtime=true", "engine=true"}
+	}
 	fcArgs := []string{
-		"-engine", "cmd=" + cfg.Candidate, "name=Candidate", "option.Hash=128", "option.Threads=1", "option.Ponder=false",
-		"-engine", "cmd=" + cfg.Baseline, "name=Baseline", "option.Hash=128", "option.Threads=1", "option.Ponder=false",
+		"-engine", "cmd=" + cfg.Candidate, "name=Candidate", "option.Hash=" + strconv.Itoa(cfg.HashMB), "option.Threads=" + strconv.Itoa(cfg.Threads), "option.Ponder=false",
+		"-engine", "cmd=" + cfg.Baseline, "name=Baseline", "option.Hash=" + strconv.Itoa(cfg.HashMB), "option.Threads=" + strconv.Itoa(cfg.Threads), "option.Ponder=false",
 		"-each", "tc=" + cfg.TC,
 		"-openings", "file=" + cfg.Openings, "format=" + cfg.BookFormat, "order=random",
 		"-srand", strconv.FormatInt(cfg.Seed, 10), "-rounds", strconv.Itoa(rounds), "-repeat", "-concurrency", strconv.Itoa(cfg.Concurrency),
@@ -420,9 +436,11 @@ func runMatchCommand(args []string) error {
 		"-draw", "movenumber=40", "movecount=8", "score=10", "-maxmoves", "200",
 		"-recover", "-autosaveinterval", "10", "-strict",
 		"-pgnout", "file=" + filepath.Join(cfg.RunDir, "games.pgn"), "append=false", "notation=uci", "nodes=true", "nps=true",
-		"-log", "file=" + filepath.Join(cfg.RunDir, "fastchess.log"), "level=info", "append=false", "realtime=true",
-		"-output", "format=cutechess", "-scoreinterval", "1",
 	}
+	fcArgs = append(fcArgs, logOptions...)
+	fcArgs = append(fcArgs,
+		"-output", "format=cutechess", "-scoreinterval", "1",
+	)
 	if cfg.SPRT {
 		fcArgs = append(fcArgs, "-sprt", "elo0=0", "elo1=5", "alpha="+defaultSPRTAlpha, "beta="+defaultSPRTBeta, "model=logistic")
 	}
@@ -476,6 +494,17 @@ func runMatchCommand(args []string) error {
 	} else if err == nil && !stopped {
 		err = fmt.Errorf("audit completed PGN: %w", auditErr)
 	}
+	if err == nil && !stopped && cfg.DepthProfile {
+		profile, profileErr := buildDepthProfile(cfg, filepath.Join(cfg.RunDir, "fastchess.log"))
+		if profileErr != nil {
+			err = profileErr
+		} else {
+			status.DepthProfile = &profile
+			if writeErr := persistDepthProfile(cfg, profile); writeErr != nil {
+				err = writeErr
+			}
+		}
+	}
 	status.UpdatedAt = time.Now()
 	status.FinishedAt = status.UpdatedAt
 	if stopped {
@@ -493,7 +522,11 @@ func runMatchCommand(args []string) error {
 	} else {
 		status.State = "completed"
 		status.Stage = "finished"
-		status.Decision = matchDecision(status, cfg.SPRT)
+		if cfg.DepthProfile {
+			status.Decision = status.DepthProfile.Decision
+		} else {
+			status.Decision = matchDecision(status, cfg.SPRT)
+		}
 	}
 	if saveErr := saveStatus(cfg.RunDir, &status); saveErr != nil {
 		return saveErr
@@ -681,6 +714,12 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.BoolVar(&cfg.AutoEvaluate, "auto-evaluate", false, "evaluate the terminal result once and automatically start an approved SPRT")
 	fs.StringVar(&cfg.Codex, "codex", "codex", "Codex CLI executable used after match completion")
 	fs.StringVar(&cfg.RepoRoot, "repo-root", ".", "repository root containing artifacts/experiments")
+	fs.BoolVar(&cfg.DepthProfile, "depth-profile", false, "collect final UCI depth before each bestmove")
+	fs.StringVar(&cfg.ProfileRole, "profile-role", "standalone", "depth profile role: baseline, candidate or standalone")
+	fs.IntVar(&cfg.MinimumDepth, "minimum-depth", 0, "minimum accepted median depth")
+	fs.StringVar(&cfg.DepthCacheDir, "depth-cache-dir", "", "directory for cached depth profiles")
+	fs.IntVar(&cfg.HashMB, "hash", 128, "engine hash in MB")
+	fs.IntVar(&cfg.Threads, "threads", 1, "threads per engine")
 	if err := fs.Parse(args); err != nil {
 		return cfg, err
 	}
@@ -692,6 +731,20 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	}
 	if cfg.Concurrency < 1 {
 		return cfg, errors.New("--concurrency must be positive")
+	}
+	if cfg.HashMB < 16 || cfg.Threads < 1 {
+		return cfg, errors.New("--hash must be at least 16 and --threads must be positive")
+	}
+	if cfg.DepthProfile {
+		if cfg.SPRT || cfg.AutoEvaluate {
+			return cfg, errors.New("depth profiling cannot use SPRT or automatic LLM evaluation")
+		}
+		if cfg.MinimumDepth < 0 {
+			return cfg, errors.New("--minimum-depth cannot be negative")
+		}
+		if cfg.ProfileRole != "baseline" && cfg.ProfileRole != "candidate" && cfg.ProfileRole != "standalone" {
+			return cfg, errors.New("--profile-role must be baseline, candidate or standalone")
+		}
 	}
 	if cfg.ProgressEvery < 0 {
 		return cfg, errors.New("--progress-games cannot be negative")
@@ -739,6 +792,16 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 		}
 		if _, err = os.Stat(filepath.Join(cfg.RepoRoot, "artifacts", "experiments", cfg.CandidateID, "experiment.json")); err != nil {
 			return cfg, fmt.Errorf("automatic evaluation requires candidate experiment: %w", err)
+		}
+	}
+	if cfg.DepthProfile {
+		if cfg.RepoRoot, err = existingAbs(cfg.RepoRoot); err != nil {
+			return cfg, err
+		}
+		if cfg.DepthCacheDir == "" {
+			cfg.DepthCacheDir = filepath.Join(cfg.RepoRoot, "artifacts", "depth-profiles", "cache")
+		} else if !filepath.IsAbs(cfg.DepthCacheDir) {
+			cfg.DepthCacheDir = filepath.Join(cfg.RepoRoot, cfg.DepthCacheDir)
 		}
 	}
 	if cfg.Fastchess, err = existingAbs(cfg.Fastchess); err != nil {

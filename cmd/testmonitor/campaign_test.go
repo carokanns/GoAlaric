@@ -104,6 +104,128 @@ func TestCampaignTracksAutomaticSPRTToCompletion(t *testing.T) {
 	}
 }
 
+func TestCampaignFullPreScanReusesBaselineAndProfilesCandidate(t *testing.T) {
+	statePath, state := depthCampaignFixture(t, "full", []string{"20+0.2"})
+	writeCachedCampaignProfile(t, state, state.Config.Baseline, "baseline", "20+0.2", 9)
+	oldPreScan := campaignStartPreScan
+	t.Cleanup(func() { campaignStartPreScan = oldPreScan })
+	var started matchConfig
+	campaignStartPreScan = func(cfg matchConfig) error {
+		started = cfg
+		return nil
+	}
+	if err := advanceDepthGate(statePath, &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != "prescan_candidate_running" || started.ProfileRole != "candidate" {
+		t.Fatalf("unexpected state=%s profile=%+v", state.Status, started)
+	}
+	if started.Candidate != state.Config.CandidateBinary || started.Baseline != state.Config.Baseline {
+		t.Fatalf("candidate pre-scan engines are not candidate vs baseline: %+v", started)
+	}
+	if state.DepthGate.Baseline == nil || state.DepthGate.Baseline.MedianDepth != 9 {
+		t.Fatalf("cached baseline was not reused: %+v", state.DepthGate)
+	}
+}
+
+func TestCampaignBaselineGateRaisesTimeControlAndStartsScreening(t *testing.T) {
+	statePath, state := depthCampaignFixture(t, "baseline", []string{"20+0.2", "30+0.3"})
+	writeCachedCampaignProfile(t, state, state.Config.Baseline, "baseline", "20+0.2", 7)
+	writeCachedCampaignProfile(t, state, state.Config.Baseline, "baseline", "30+0.3", 9)
+	oldStart := campaignStartScreening
+	t.Cleanup(func() { campaignStartScreening = oldStart })
+	started := 0
+	campaignStartScreening = func(campaignState) error { started++; return nil }
+	if err := advanceDepthGate(statePath, &state); err != nil {
+		t.Fatal(err)
+	}
+	if started != 1 || state.Status != "screening_running" || state.Config.SelectedTC != "30+0.3" {
+		t.Fatalf("unexpected gate result: started=%d state=%s tc=%s", started, state.Status, state.Config.SelectedTC)
+	}
+}
+
+func TestCampaignCandidatePreScanCompletionStartsScreening(t *testing.T) {
+	statePath, state := depthCampaignFixture(t, "full", []string{"20+0.2"})
+	state.Status = "prescan_candidate_running"
+	state.DepthGate.CurrentTC = "20+0.2"
+	state.DepthGate.CurrentRole = "candidate"
+	state.DepthGate.Baseline = &campaignDepthSummary{Role: "baseline", MedianDepth: 9}
+	state.DepthGate.RunDir = filepath.Join(state.Config.RepoRoot, "candidate-prescan")
+	status := matchStatus{
+		State: "completed", PID: 1 << 30, RunDir: state.DepthGate.RunDir,
+		DepthProfile: &depthProfileReport{
+			SampleCount: 200, MedianDepth: 8, P25Depth: 7, P90Depth: 10,
+			Settings: depthProfileSettings{TimeControl: "20+0.2"},
+		},
+	}
+	if err := writeJSON(filepath.Join(state.DepthGate.RunDir, "status.json"), status); err != nil {
+		t.Fatal(err)
+	}
+	oldStart := campaignStartScreening
+	t.Cleanup(func() { campaignStartScreening = oldStart })
+	started := 0
+	campaignStartScreening = func(campaignState) error { started++; return nil }
+	if err := advanceCampaign(statePath, &state); err != nil {
+		t.Fatal(err)
+	}
+	if started != 1 || state.Status != "screening_running" || state.Config.SelectedTC != "20+0.2" {
+		t.Fatalf("unexpected completion transition: started=%d state=%s tc=%s", started, state.Status, state.Config.SelectedTC)
+	}
+}
+
+func TestCampaignDepthGateStopsWhenLadderIsInsufficient(t *testing.T) {
+	statePath, state := depthCampaignFixture(t, "baseline", []string{"20+0.2"})
+	writeCachedCampaignProfile(t, state, state.Config.Baseline, "baseline", "20+0.2", 7)
+	if err := advanceDepthGate(statePath, &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != "depth_insufficient" || !terminalCampaignStatus(state.Status) {
+		t.Fatalf("unexpected terminal depth state: %+v", state)
+	}
+}
+
+func depthCampaignFixture(t *testing.T, mode string, timeControls []string) (string, campaignState) {
+	t.Helper()
+	statePath, state := campaignFixture(t)
+	root := state.Config.RepoRoot
+	state.Config.Baseline = writeTestExecutable(t, root, "baseline")
+	state.Config.CandidateBinary = writeTestExecutable(t, root, "candidate")
+	state.Config.Fastchess = writeTestExecutable(t, root, "fastchess")
+	state.Config.Openings = filepath.Join(root, "book.pgn")
+	if err := os.WriteFile(state.Config.Openings, []byte("book"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	state.Config.PreScanMode = mode
+	state.Config.MinimumDepth = 8
+	state.Config.PreScanGames = 40
+	state.Config.PreScanTCs = timeControls
+	state.Config.Concurrency = 8
+	state.Config.HashMB = 128
+	state.Config.Threads = 1
+	state.Config.PreScanSeed = defaultPreScanSeed
+	state.DepthGate = &campaignDepthGate{Mode: mode, MinimumDepth: 8, TimeControls: timeControls}
+	if err := saveCampaignState(statePath, &state); err != nil {
+		t.Fatal(err)
+	}
+	return statePath, state
+}
+
+func writeCachedCampaignProfile(t *testing.T, state campaignState, engine, role, tc string, medianDepth int) {
+	t.Helper()
+	cfg := campaignPreScanConfig(state, engine, role, tc)
+	identity, settings, key, err := depthProfileIdentity(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := depthProfileReport{
+		SchemaVersion: depthProfileSchemaVersion, CacheKey: key, Role: role,
+		Engine: identity, Settings: settings, SampleCount: 100, MedianDepth: medianDepth,
+	}
+	if err := writeJSON(filepath.Join(cfg.DepthCacheDir, key+".json"), report); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func campaignFixture(t *testing.T) (string, campaignState) {
 	t.Helper()
 	root := t.TempDir()

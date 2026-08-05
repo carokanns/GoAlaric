@@ -13,25 +13,61 @@ import (
 )
 
 const (
-	campaignSchemaVersion = 1
+	campaignSchemaVersion = 2
 	defaultCampaignState  = "artifacts/automation/active-campaign.json"
 	defaultCampaignPoll   = 10 * time.Second
+	defaultPreScanTCs     = "20+0.2,30+0.3,45+0.45,60+0.6"
 )
 
 type campaignConfig struct {
-	CandidateID        string `json:"candidate_id"`
-	CandidateWorktree  string `json:"candidate_worktree"`
-	CandidateCommit    string `json:"candidate_commit"`
-	CandidateBinary    string `json:"candidate_binary"`
-	Baseline           string `json:"baseline"`
-	Hypothesis         string `json:"hypothesis"`
-	Change             string `json:"change"`
-	SemanticPreserving bool   `json:"semantic_preserving"`
-	RepoRoot           string `json:"repo_root"`
-	Fastchess          string `json:"fastchess"`
-	Openings           string `json:"openings"`
-	Codex              string `json:"codex"`
-	Go                 string `json:"go"`
+	CandidateID        string   `json:"candidate_id"`
+	CandidateWorktree  string   `json:"candidate_worktree"`
+	CandidateCommit    string   `json:"candidate_commit"`
+	CandidateBinary    string   `json:"candidate_binary"`
+	Baseline           string   `json:"baseline"`
+	Hypothesis         string   `json:"hypothesis"`
+	Change             string   `json:"change"`
+	SemanticPreserving bool     `json:"semantic_preserving"`
+	RepoRoot           string   `json:"repo_root"`
+	Fastchess          string   `json:"fastchess"`
+	Openings           string   `json:"openings"`
+	Codex              string   `json:"codex"`
+	Go                 string   `json:"go"`
+	PreScanMode        string   `json:"prescan_mode"`
+	PreScanSkipReason  string   `json:"prescan_skip_reason,omitempty"`
+	MinimumDepth       int      `json:"minimum_depth,omitempty"`
+	PreScanGames       int      `json:"prescan_games,omitempty"`
+	PreScanTCs         []string `json:"prescan_time_controls,omitempty"`
+	Concurrency        int      `json:"concurrency"`
+	HashMB             int      `json:"hash_mb"`
+	Threads            int      `json:"threads"`
+	PreScanSeed        int64    `json:"prescan_seed"`
+	SelectedTC         string   `json:"selected_time_control,omitempty"`
+}
+
+type campaignDepthSummary struct {
+	Role        string  `json:"role"`
+	TimeControl string  `json:"time_control"`
+	SampleCount int     `json:"sample_count"`
+	MeanDepth   float64 `json:"mean_depth"`
+	MedianDepth int     `json:"median_depth"`
+	P25Depth    int     `json:"p25_depth"`
+	P90Depth    int     `json:"p90_depth"`
+	Decision    string  `json:"decision"`
+	ProfilePath string  `json:"profile_path"`
+}
+
+type campaignDepthGate struct {
+	Mode         string                `json:"mode"`
+	MinimumDepth int                   `json:"minimum_depth,omitempty"`
+	TimeControls []string              `json:"time_controls,omitempty"`
+	CurrentIndex int                   `json:"current_index"`
+	CurrentTC    string                `json:"current_time_control,omitempty"`
+	CurrentRole  string                `json:"current_role,omitempty"`
+	RunDir       string                `json:"run_dir,omitempty"`
+	Decision     string                `json:"decision,omitempty"`
+	Baseline     *campaignDepthSummary `json:"baseline,omitempty"`
+	Candidate    *campaignDepthSummary `json:"candidate,omitempty"`
 }
 
 type campaignMatchSummary struct {
@@ -60,6 +96,7 @@ type campaignState struct {
 	SPRTRunDir    string                `json:"sprt_run_dir"`
 	Screening     *campaignMatchSummary `json:"screening,omitempty"`
 	SPRT          *campaignMatchSummary `json:"sprt,omitempty"`
+	DepthGate     *campaignDepthGate    `json:"depth_gate,omitempty"`
 	Error         string                `json:"error,omitempty"`
 }
 
@@ -67,6 +104,7 @@ var (
 	campaignBuildCandidate = buildCampaignCandidate
 	campaignRunPipeline    = runCampaignPipeline
 	campaignStartScreening = startCampaignScreening
+	campaignStartPreScan   = startCampaignPreScan
 )
 
 func campaignInitCommand(args []string) error {
@@ -82,6 +120,15 @@ func campaignInitCommand(args []string) error {
 	fastchess := fs.String("fastchess", defaultFastchess, "Fastchess executable")
 	openings := fs.String("openings", defaultOpenings, "opening book")
 	codex := fs.String("codex", "codex", "Codex executable for the screening gate")
+	preScanMode := fs.String("prescan", "", "required depth pre-scan mode: full, baseline or skip")
+	preScanSkipReason := fs.String("prescan-skip-reason", "", "document why full pre-scan is unnecessary")
+	minimumDepth := fs.Int("minimum-depth", 0, "minimum accepted median search depth")
+	preScanGames := fs.Int("prescan-games", defaultPreScanGames, "self-play games per depth profile")
+	preScanTCs := fs.String("prescan-time-controls", defaultPreScanTCs, "comma-separated time-control ladder")
+	concurrency := fs.Int("concurrency", 8, "concurrent pre-scan and match games")
+	hashMB := fs.Int("hash", 128, "engine hash in MB")
+	threads := fs.Int("threads", 1, "threads per engine")
+	preScanSeed := fs.Int64("prescan-seed", defaultPreScanSeed, "fixed opening seed for comparable depth profiles")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -90,6 +137,25 @@ func campaignInitCommand(args []string) error {
 	}
 	if !candidateIDPattern.MatchString(*candidateID) {
 		return errors.New("candidate-id contains unsafe characters")
+	}
+	if *preScanMode != "full" && *preScanMode != "baseline" && *preScanMode != "skip" {
+		return errors.New("--prescan must be full, baseline or skip")
+	}
+	if *preScanMode == "skip" && strings.TrimSpace(*preScanSkipReason) == "" {
+		return errors.New("--prescan-skip-reason is required when pre-scan is skipped")
+	}
+	if (*preScanMode == "full" || *preScanMode == "baseline") && *minimumDepth < 1 {
+		return errors.New("--minimum-depth must be positive when pre-scan is full or baseline")
+	}
+	if *preScanGames < 2 || *preScanGames%2 != 0 {
+		return errors.New("--prescan-games must be a positive even number")
+	}
+	if *concurrency < 1 || *hashMB < 16 || *threads < 1 {
+		return errors.New("invalid concurrency, hash or thread configuration")
+	}
+	timeControls, err := parseTimeControlLadder(*preScanTCs)
+	if err != nil {
+		return err
 	}
 	root, err := existingAbs(*repoRoot)
 	if err != nil {
@@ -158,16 +224,33 @@ func campaignInitCommand(args []string) error {
 			Baseline:        base, Hypothesis: strings.TrimSpace(*hypothesis), Change: strings.TrimSpace(*change),
 			SemanticPreserving: *semantic, RepoRoot: root, Fastchess: fastchessAbs,
 			Openings: openingsAbs, Codex: codexAbs, Go: goAbs,
+			PreScanMode: *preScanMode, PreScanSkipReason: strings.TrimSpace(*preScanSkipReason),
+			MinimumDepth: *minimumDepth, PreScanGames: *preScanGames, PreScanTCs: timeControls,
+			Concurrency: *concurrency, HashMB: *hashMB, Threads: *threads,
+			PreScanSeed: *preScanSeed,
 		},
 		ExperimentDir: filepath.Join(root, "artifacts", "experiments", *candidateID),
 		ScreeningDir:  screeningDir,
 		SPRTRunDir:    sprtDir,
+		DepthGate: &campaignDepthGate{
+			Mode: *preScanMode, MinimumDepth: *minimumDepth, TimeControls: timeControls,
+		},
 	}
 	if err := saveCampaignState(stateAbs, &state); err != nil {
 		return err
 	}
 	fmt.Printf("campaign initialized: candidate=%s state=%s\n", state.Config.CandidateID, stateAbs)
-	fmt.Printf("subl %s %s\n", filepath.Join(screeningDir, "monitor.log"), filepath.Join(sprtDir, "monitor.log"))
+	logs := make([]string, 0, 2+len(timeControls)*2)
+	if *preScanMode != "skip" {
+		for _, tc := range timeControls {
+			logs = append(logs, filepath.Join(root, "artifacts", "prescans", *candidateID+"-prescan-baseline-"+sanitizeTimeControl(tc), "monitor.log"))
+			if *preScanMode == "full" {
+				logs = append(logs, filepath.Join(root, "artifacts", "prescans", *candidateID+"-prescan-candidate-"+sanitizeTimeControl(tc), "monitor.log"))
+			}
+		}
+	}
+	logs = append(logs, filepath.Join(screeningDir, "monitor.log"), filepath.Join(sprtDir, "monitor.log"))
+	fmt.Printf("subl %s\n", strings.Join(logs, " "))
 	return nil
 }
 
@@ -273,11 +356,33 @@ func advanceCampaign(path string, state *campaignState) error {
 			state.FinishedAt = time.Now()
 			return saveCampaignState(path, state)
 		}
-		if err := campaignStartScreening(*state); err != nil {
-			return fmt.Errorf("start screening: %w", err)
+		return advanceDepthGate(path, state)
+	case "prescan_baseline_running", "prescan_candidate_running":
+		status, err := loadStatus(state.DepthGate.RunDir)
+		if err != nil {
+			return err
 		}
-		state.Status = "screening_running"
-		return saveCampaignState(path, state)
+		if !terminalMatchState(status.State) || processExists(status.PID) {
+			return saveCampaignState(path, state)
+		}
+		if status.State != "completed" || status.DepthProfile == nil {
+			state.Status = "depth_measurement_invalid"
+			state.Error = status.Error
+			if state.Error == "" {
+				state.Error = "pre-scan finished without a depth profile"
+			}
+			state.FinishedAt = time.Now()
+			return saveCampaignState(path, state)
+		}
+		summary := campaignDepthProfileSummary(state.DepthGate.CurrentRole, *status.DepthProfile, filepath.Join(status.RunDir, "depth-profile.json"), state.Config.MinimumDepth)
+		if state.DepthGate.CurrentRole == "baseline" {
+			state.DepthGate.Baseline = summary
+		} else {
+			state.DepthGate.Candidate = summary
+		}
+		state.DepthGate.RunDir = ""
+		state.DepthGate.CurrentRole = ""
+		return advanceDepthGate(path, state)
 	case "screening_running":
 		status, err := loadStatus(state.ScreeningDir)
 		if err != nil {
@@ -345,6 +450,10 @@ func runCampaignPipeline(state campaignState) error {
 }
 
 func startCampaignScreening(state campaignState) error {
+	tc := state.Config.SelectedTC
+	if tc == "" {
+		tc = defaultScreeningTC
+	}
 	return startCommand([]string{
 		"--fastchess", state.Config.Fastchess,
 		"--baseline", state.Config.Baseline,
@@ -355,9 +464,158 @@ func startCampaignScreening(state campaignState) error {
 		"--repo-root", state.Config.RepoRoot,
 		"--openings", state.Config.Openings,
 		"--games", "400",
-		"--tc", defaultScreeningTC,
+		"--tc", tc,
+		"--concurrency", strconv.Itoa(state.Config.Concurrency),
+		"--hash", strconv.Itoa(state.Config.HashMB),
+		"--threads", strconv.Itoa(state.Config.Threads),
 		"--run-dir", state.ScreeningDir,
 	})
+}
+
+func advanceDepthGate(path string, state *campaignState) error {
+	gate := state.DepthGate
+	if gate == nil || gate.Mode == "skip" {
+		if gate != nil {
+			gate.Decision = "skipped"
+		}
+		state.Config.SelectedTC = defaultScreeningTC
+		if len(state.Config.PreScanTCs) > 0 {
+			state.Config.SelectedTC = state.Config.PreScanTCs[0]
+		}
+		return launchCampaignScreening(path, state)
+	}
+	for gate.CurrentIndex < len(gate.TimeControls) {
+		tc := gate.TimeControls[gate.CurrentIndex]
+		gate.CurrentTC = tc
+		if gate.Baseline == nil {
+			cfg := campaignPreScanConfig(*state, state.Config.Baseline, "baseline", tc)
+			if report, profilePath, found, err := loadCachedDepthProfile(cfg); err != nil {
+				return err
+			} else if found {
+				gate.Baseline = campaignDepthProfileSummary("baseline", report, profilePath, state.Config.MinimumDepth)
+			} else {
+				return launchCampaignPreScan(path, state, cfg)
+			}
+		}
+		if gate.Baseline.MedianDepth < state.Config.MinimumDepth {
+			advanceDepthTimeControl(gate)
+			continue
+		}
+		if gate.Mode == "baseline" {
+			gate.Decision = "depth_adequate"
+			state.Config.SelectedTC = tc
+			return launchCampaignScreening(path, state)
+		}
+		if gate.Candidate == nil {
+			cfg := campaignPreScanConfig(*state, state.Config.CandidateBinary, "candidate", tc)
+			if report, profilePath, found, err := loadCachedDepthProfile(cfg); err != nil {
+				return err
+			} else if found {
+				gate.Candidate = campaignDepthProfileSummary("candidate", report, profilePath, state.Config.MinimumDepth)
+			} else {
+				return launchCampaignPreScan(path, state, cfg)
+			}
+		}
+		if gate.Candidate.MedianDepth < state.Config.MinimumDepth {
+			advanceDepthTimeControl(gate)
+			continue
+		}
+		gate.Decision = "depth_adequate"
+		state.Config.SelectedTC = tc
+		return launchCampaignScreening(path, state)
+	}
+	gate.Decision = "depth_insufficient"
+	state.Status = "depth_insufficient"
+	state.FinishedAt = time.Now()
+	return saveCampaignState(path, state)
+}
+
+func launchCampaignScreening(path string, state *campaignState) error {
+	if err := campaignStartScreening(*state); err != nil {
+		return fmt.Errorf("start screening: %w", err)
+	}
+	state.Status = "screening_running"
+	return saveCampaignState(path, state)
+}
+
+func launchCampaignPreScan(path string, state *campaignState, cfg matchConfig) error {
+	if err := campaignStartPreScan(cfg); err != nil {
+		return fmt.Errorf("start %s pre-scan: %w", cfg.ProfileRole, err)
+	}
+	state.DepthGate.CurrentRole = cfg.ProfileRole
+	state.DepthGate.RunDir = cfg.RunDir
+	state.Status = "prescan_" + cfg.ProfileRole + "_running"
+	return saveCampaignState(path, state)
+}
+
+func advanceDepthTimeControl(gate *campaignDepthGate) {
+	gate.CurrentIndex++
+	gate.CurrentTC = ""
+	gate.CurrentRole = ""
+	gate.RunDir = ""
+	gate.Baseline = nil
+	gate.Candidate = nil
+}
+
+func campaignPreScanConfig(state campaignState, engine, role, tc string) matchConfig {
+	runName := state.Config.CandidateID + "-prescan-" + role + "-" + sanitizeTimeControl(tc)
+	baselineEngine := engine
+	if role == "candidate" {
+		baselineEngine = state.Config.Baseline
+	}
+	return matchConfig{
+		Fastchess: state.Config.Fastchess, Baseline: baselineEngine, Candidate: engine,
+		Openings: state.Config.Openings, Games: state.Config.PreScanGames, TC: tc,
+		Concurrency: state.Config.Concurrency, RunDir: filepath.Join(state.Config.RepoRoot, "artifacts", "prescans", runName),
+		RepoRoot: state.Config.RepoRoot, DepthProfile: true, ProfileRole: role,
+		MinimumDepth: state.Config.MinimumDepth, HashMB: state.Config.HashMB, Threads: state.Config.Threads,
+		DepthCacheDir: filepath.Join(state.Config.RepoRoot, "artifacts", "depth-profiles", "cache"),
+		ProgressEvery: 10, ProgressTime: defaultProgressInterval, Seed: state.Config.PreScanSeed,
+	}
+}
+
+func startCampaignPreScan(cfg matchConfig) error {
+	return startCommand([]string{
+		"--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate,
+		"--openings", cfg.Openings, "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC,
+		"--concurrency", strconv.Itoa(cfg.Concurrency), "--hash", strconv.Itoa(cfg.HashMB),
+		"--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir,
+		"--repo-root", cfg.RepoRoot, "--depth-profile", "--profile-role", cfg.ProfileRole,
+		"--minimum-depth", strconv.Itoa(cfg.MinimumDepth), "--depth-cache-dir", cfg.DepthCacheDir,
+		"--seed", strconv.FormatInt(cfg.Seed, 10),
+	})
+}
+
+func campaignDepthProfileSummary(role string, report depthProfileReport, path string, minimumDepth int) *campaignDepthSummary {
+	decision := "depth_adequate"
+	if report.MedianDepth < minimumDepth {
+		decision = "increase_time_control"
+	}
+	return &campaignDepthSummary{
+		Role: role, TimeControl: report.Settings.TimeControl, SampleCount: report.SampleCount,
+		MeanDepth: report.MeanDepth, MedianDepth: report.MedianDepth, P25Depth: report.P25Depth,
+		P90Depth: report.P90Depth, Decision: decision, ProfilePath: path,
+	}
+}
+
+func parseTimeControlLadder(input string) ([]string, error) {
+	var result []string
+	for _, value := range strings.Split(input, ",") {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, errors.New("pre-scan time-control ladder contains an empty value")
+		}
+		result = append(result, value)
+	}
+	if len(result) == 0 {
+		return nil, errors.New("pre-scan time-control ladder is empty")
+	}
+	return result, nil
+}
+
+func sanitizeTimeControl(tc string) string {
+	replacer := strings.NewReplacer("+", "p", ".", "_", ":", "_", "/", "_")
+	return replacer.Replace(tc)
 }
 
 func campaignStagesPassed(stages []experimentStage) bool {
@@ -385,7 +643,7 @@ func campaignSummary(status matchStatus) *campaignMatchSummary {
 }
 
 func terminalCampaignStatus(status string) bool {
-	return status == "awaiting_decision" || status == "tests_failed" || status == "failed" || status == "cancelled"
+	return status == "awaiting_decision" || status == "tests_failed" || status == "failed" || status == "cancelled" || status == "depth_insufficient" || status == "depth_measurement_invalid"
 }
 
 func readCampaignStatePath(path string) (campaignState, string, error) {
