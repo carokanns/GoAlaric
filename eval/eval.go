@@ -432,7 +432,11 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 
 		mg += shelter[sd]
 		//fmt.Println("col:", sd, "shelter mg:", mg)
-		mg += mulShift(kingScore(kingPower*Parms[72], kingN), Parms[73]-shelter[xd], Parms[74]) //30 32 5
+		kingAttack := mulShift(kingScore(kingPower*Parms[72], kingN), Parms[73]-shelter[xd], Parms[74]) //30 32 5
+		if bd.Count(material.Queen, sd) == 0 {
+			kingAttack = kingAttack * 7 / 8
+		}
+		mg += kingAttack
 		//fmt.Println("col:", sd, "mul_sh king_score mg:", mg)
 
 		eval = -eval
