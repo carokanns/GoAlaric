@@ -973,7 +973,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			dangerous = eval.IsCheck(mv, bd)
 		}
 
-		if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(bs) && searched.Size() >= depth*4 && !dangerous { // late-move pruning
+		if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(bs) && searched.Size() >= depth*4 && !dangerous && !SG.History.IsStrong(mv, bd) { // late-move pruning
 			continue
 		}
 
