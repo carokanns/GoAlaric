@@ -210,7 +210,7 @@ func campaignInitCommand(args []string) error {
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return statErr
 	}
-	sprtDir := filepath.Join(root, "artifacts", "matches", *candidateID+"-sprt-"+filepath.Base(screeningDir))
+	sprtDir := candidateSPRTRunDir(root, *candidateID)
 	now := time.Now()
 	state := campaignState{
 		SchemaVersion: campaignSchemaVersion,

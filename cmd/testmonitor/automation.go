@@ -178,7 +178,7 @@ func processMatchCompletion(cfg matchConfig, status matchStatus, retry bool) err
 			return failAutomation(recordPath, record, err)
 		}
 		if record.SPRTRunDir == "" {
-			record.SPRTRunDir = filepath.Join(cfg.RepoRoot, "artifacts", "matches", cfg.CandidateID+"-sprt-"+status.RunID)
+			record.SPRTRunDir = candidateSPRTRunDir(cfg.RepoRoot, cfg.CandidateID)
 			if err := writeJSON(recordPath, record); err != nil {
 				return err
 			}
@@ -201,6 +201,10 @@ func processMatchCompletion(cfg matchConfig, status matchStatus, retry bool) err
 	record.Error = ""
 	record.UpdatedAt = time.Now()
 	return writeJSON(recordPath, record)
+}
+
+func candidateSPRTRunDir(repoRoot, candidateID string) string {
+	return filepath.Join(repoRoot, "artifacts", "matches", candidateID+"-sprt")
 }
 
 func loadAutomationExperiment(cfg matchConfig) (experimentReport, string, error) {

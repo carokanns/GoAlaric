@@ -27,6 +27,14 @@ func TestCampaignStagesPassed(t *testing.T) {
 	}
 }
 
+func TestCandidateSPRTRunDirUsesCandidateIDOnce(t *testing.T) {
+	root := t.TempDir()
+	want := filepath.Join(root, "artifacts", "matches", "candidate-test-sprt")
+	if got := candidateSPRTRunDir(root, "candidate-test"); got != want {
+		t.Fatalf("SPRT run directory = %q, want %q", got, want)
+	}
+}
+
 func TestCampaignBuildsTestsAndStartsScreening(t *testing.T) {
 	statePath, state := campaignFixture(t)
 	oldBuild, oldPipeline, oldStart := campaignBuildCandidate, campaignRunPipeline, campaignStartScreening
@@ -236,7 +244,7 @@ func campaignFixture(t *testing.T) (string, campaignState) {
 		Config:        campaignConfig{CandidateID: "candidate-test", RepoRoot: root},
 		ExperimentDir: filepath.Join(root, "artifacts", "experiments", "candidate-test"),
 		ScreeningDir:  filepath.Join(root, "artifacts", "matches", "candidate-test-screening"),
-		SPRTRunDir:    filepath.Join(root, "artifacts", "matches", "candidate-test-sprt-candidate-test-screening"),
+		SPRTRunDir:    filepath.Join(root, "artifacts", "matches", "candidate-test-sprt"),
 	}
 	statePath := filepath.Join(root, "artifacts", "automation", "active-campaign.json")
 	if err := saveCampaignState(statePath, &state); err != nil {
