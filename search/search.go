@@ -861,15 +861,18 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 		}
 	}
 
-	ev := evalByColor(stm, sl)
-
 	// ply limit
 	if bd.Ply() >= maxPly || bStop {
-		return ev
+		return evalByColor(stm, sl)
 	}
+
+	var ev int
+	evalReady := false
 
 	// beta pruning
 	if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(beta) && !inCheck {
+		ev = evalByColor(stm, sl)
+		evalReady = true
 
 		sc := ev - depth*50
 
@@ -879,31 +882,36 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	}
 
 	// null-move pruning
-	if !pvNode && depth > 0 && !IsMateScore(beta) && !inCheck && !board.LoneKing(stm, bd) && ev >= beta {
-
-		bd.MoveNull() // TODO: use sl?
-
-		sc := minScore
-
-		if depth <= 3 { // static
-			// if you don't beat me with 100 points,
-			// then I think your position sucks
-			sc = -Qs(sl, -beta+1, 100)
-		} else { // dynamic
-			var npv pvStruct
-			sc = -search(sl, depth-3-1, -beta, -beta+1, &npv)
+	if !pvNode && depth > 0 && !IsMateScore(beta) && !inCheck && !board.LoneKing(stm, bd) {
+		if !evalReady {
+			ev = evalByColor(stm, sl)
+			evalReady = true
 		}
+		if ev >= beta {
+			bd.MoveNull() // TODO: use sl?
 
-		bd.UndoNull() // TODO: use sl?
-		if sc >= beta {
+			sc := minScore
 
-			if useTrans {
-				SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, scoreTypeLower)
+			if depth <= 3 { // static
+				// if you don't beat me with 100 points,
+				// then I think your position sucks
+				sc = -Qs(sl, -beta+1, 100)
+			} else { // dynamic
+				var npv pvStruct
+				sc = -search(sl, depth-3-1, -beta, -beta+1, &npv)
 			}
-			return sc
-		}
-		if bStop {
-			return sc
+
+			bd.UndoNull() // TODO: use sl?
+			if sc >= beta {
+
+				if useTrans {
+					SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, scoreTypeLower)
+				}
+				return sc
+			}
+			if bStop {
+				return sc
+			}
 		}
 	}
 
@@ -916,6 +924,10 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 
 	if !inCheck { // rewritten apr 2018
 		if depth <= 0 {
+			if !evalReady {
+				ev = evalByColor(stm, sl)
+				evalReady = true
+			}
 			bs = ev
 
 			if ev > alpha {
@@ -927,6 +939,10 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			hardPruning = true
 			val = ev + 100 // QS-DP margin
 		} else if depth <= 8 && !IsMateScore(alpha) {
+			if !evalReady {
+				ev = evalByColor(stm, sl)
+				evalReady = true
+			}
 			// futility-pruning condition
 			sc := ev + depth*40
 
