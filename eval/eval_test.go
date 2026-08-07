@@ -109,6 +109,40 @@ func TestEval(t *testing.T) {
 	}
 }
 
+func TestStagedEvalIncludesPST(t *testing.T) {
+	var bd board.Board
+	board.SetFen("n6k/8/8/3N4/8/8/8/7K w - - 0 1", &bd)
+	var pawnTable PawnHash
+	if got := stagedEval(&bd, &pawnTable); got <= 0 {
+		t.Fatalf("staged eval = %d, want white's centralized knight to score above black's corner knight", got)
+	}
+}
+
+func TestEvalForNullMoveUsesStagedBound(t *testing.T) {
+	var bd board.Board
+	board.SetFen("7k/8/8/8/8/8/8/Q6K w - - 0 1", &bd)
+	var pawnTable PawnHash
+	var evalTable Hash
+
+	got, exact := evalTable.EvalForNullMove(&bd, &pawnTable, 100)
+	if exact || got < 100 {
+		t.Fatalf("null-move eval = %d exact=%v, want a lazy score at or above beta", got, exact)
+	}
+}
+
+func TestEvalForNullMoveReusesExactHashEntry(t *testing.T) {
+	var bd board.Board
+	board.SetFen("7k/8/8/8/8/8/8/Q6K w - - 0 1", &bd)
+	var pawnTable PawnHash
+	var evalTable Hash
+
+	want := evalTable.Eval(&bd, &pawnTable)
+	got, exact := evalTable.EvalForNullMove(&bd, &pawnTable, 100)
+	if !exact || got != want {
+		t.Fatalf("cached null-move eval = %d exact=%v, want exact score %d", got, exact, want)
+	}
+}
+
 func TestCompAttacks(t *testing.T) {
 	type evalStruct struct {
 		fen       string

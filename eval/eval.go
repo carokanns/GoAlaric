@@ -44,6 +44,11 @@ const (
 	SIZE = 1 << BITS
 	MASK = SIZE - 1
 )
+
+// lazyNullMargin protects the null-move gate from positional terms omitted by
+// the staged material, PST and pawn evaluation.
+const lazyNullMargin = 200
+
 const stageSize int = 2 // number of game stages
 
 var smallCentre, mediumCentre, largeCentre bit.BB
@@ -186,25 +191,77 @@ func (t *Hash) Clear() {
 
 // Eval hämtar eller beräknar värdet för ställningen (sett från vit).
 func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score for white
-	//fmt.Println("i hash.Eval", parms.Parms[23], Parms[24])
-	key := bd.EvalKey()
-
-	index := hash.Index(key) & MASK
-	lock := uint32(hash.Lock(key))
-
-	entry := t.entries[index]
-
-	if entry.lock == lock {
-		return entry.eval
+	if score, ok := t.probe(bd); ok {
+		return score
 	}
 
 	eval := CompEval(bd, pawnTable)
-
-	entry.lock = lock
-	entry.eval = eval
-	t.entries[index] = entry
-
+	t.store(bd, eval)
 	return eval
+}
+
+// EvalForNullMove returns a side-to-move score for the null-move gate. Exact
+// is false only when the staged score remains above beta after its guard
+// margin; a failed null search will therefore fall back to full evaluation.
+func (t *Hash) EvalForNullMove(bd *board.Board, pawnTable *PawnHash, beta int) (score int, exact bool) {
+	if full, ok := t.probe(bd); ok {
+		return scoreForSideToMove(full, bd.Stm()), true
+	}
+
+	quick := scoreForSideToMove(stagedEval(bd, pawnTable), bd.Stm())
+	if quick-lazyNullMargin >= beta {
+		return quick - lazyNullMargin, false
+	}
+	return scoreForSideToMove(t.Eval(bd, pawnTable), bd.Stm()), true
+}
+
+func (t *Hash) probe(bd *board.Board) (int, bool) {
+	key := bd.EvalKey()
+	entry := t.entries[hash.Index(key)&MASK]
+	if entry.lock == uint32(hash.Lock(key)) {
+		return entry.eval, true
+	}
+	return 0, false
+}
+
+func (t *Hash) store(bd *board.Board, score int) {
+	key := bd.EvalKey()
+	index := hash.Index(key) & MASK
+	t.entries[index] = entry{lock: uint32(hash.Lock(key)), eval: score}
+}
+
+func scoreForSideToMove(score, stm int) int {
+	if stm == BLACK {
+		return -score
+	}
+	return score
+}
+
+// stagedEval mirrors Alaric's cheap pre-evaluation: pawn material, pawn PST
+// and structure come from the pawn hash, while the remaining material and PST
+// terms are accumulated without constructing attack maps.
+func stagedEval(bd *board.Board, pawnTable *PawnHash) int {
+	pawns := pawnTable.getEntry(bd)
+	mg := int(pawns.mg)
+	eg := int(pawns.eg)
+
+	for sd := WHITE; sd <= BLACK; sd++ {
+		sign := 1
+		if sd == BLACK {
+			sign = -1
+		}
+		for pc := material.Knight; pc <= material.King; pc++ {
+			mg += sign * bd.Count(pc, sd) * material.Score(pc, MG)
+			eg += sign * bd.Count(pc, sd) * material.Score(pc, EG)
+			p12 := material.MakeP12(pc, sd)
+			for pieces := bd.PieceSd(pc, sd); pieces != 0; pieces = bit.Rest(pieces) {
+				sq := bit.First(pieces)
+				mg += sign * Score(p12, sq, MG)
+				eg += sign * Score(p12, sq, EG)
+			}
+		}
+	}
+	return Interpolation(mg, eg, bd)
 }
 
 // CompEval gör en fullständig statisk utvärdering för vit i aktuell ställning.

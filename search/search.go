@@ -884,8 +884,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	// null-move pruning
 	if !pvNode && depth > 0 && !IsMateScore(beta) && !inCheck && !board.LoneKing(stm, bd) {
 		if !evalReady {
-			ev = evalByColor(stm, sl)
-			evalReady = true
+			ev, evalReady = sl.evalHash.EvalForNullMove(bd, &sl.pawnHash, beta)
 		}
 		if ev >= beta {
 			bd.MoveNull() // TODO: use sl?

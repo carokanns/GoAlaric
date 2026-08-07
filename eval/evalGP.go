@@ -48,6 +48,9 @@ const (
 	SIZE = 1 << BITS
 	MASK = SIZE - 1
 )
+
+const lazyNullMargin = 200
+
 const stageSize int = 2 // number of game stages
 
 var smallCentre, mediumCentre, largeCentre bit.BB
@@ -210,6 +213,47 @@ func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score f
 	//entry.eval = eval
 
 	return eval
+}
+
+// EvalForNullMove mirrors the normal engine's staged null-move evaluation for
+// parameter-tuning builds.
+func (t *Hash) EvalForNullMove(bd *board.Board, pawnTable *PawnHash, beta int) (score int, exact bool) {
+	quick := scoreForSideToMove(stagedEval(bd, pawnTable), bd.Stm())
+	if quick-lazyNullMargin >= beta {
+		return quick - lazyNullMargin, false
+	}
+	return scoreForSideToMove(t.Eval(bd, pawnTable), bd.Stm()), true
+}
+
+func scoreForSideToMove(score, stm int) int {
+	if stm == BLACK {
+		return -score
+	}
+	return score
+}
+
+func stagedEval(bd *board.Board, pawnTable *PawnHash) int {
+	pawns := pawnTable.getEntry(bd)
+	mg := int(pawns.mg)
+	eg := int(pawns.eg)
+
+	for sd := WHITE; sd <= BLACK; sd++ {
+		sign := 1
+		if sd == BLACK {
+			sign = -1
+		}
+		for pc := material.Knight; pc <= material.King; pc++ {
+			mg += sign * bd.Count(pc, sd) * material.Score(pc, MG)
+			eg += sign * bd.Count(pc, sd) * material.Score(pc, EG)
+			p12 := material.MakeP12(pc, sd)
+			for pieces := bd.PieceSd(pc, sd); pieces != 0; pieces = bit.Rest(pieces) {
+				sq := bit.First(pieces)
+				mg += sign * Score(p12, sq, MG)
+				eg += sign * Score(p12, sq, EG)
+			}
+		}
+	}
+	return Interpolation(mg, eg, bd)
 }
 
 // Eval is called by evalWithSign (in search). It calls table.eval and returns the stm evaluation
