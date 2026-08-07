@@ -16,7 +16,7 @@ const (
 	campaignSchemaVersion = 2
 	defaultCampaignState  = "artifacts/automation/active-campaign.json"
 	defaultCampaignPoll   = 10 * time.Second
-	defaultPreScanTCs     = "20+0.2,30+0.3,45+0.45,60+0.6"
+	defaultPreScanTCs     = "10+0.1,20+0.2,30+0.3,45+0.45,60+0.6"
 )
 
 type campaignConfig struct {
@@ -465,6 +465,7 @@ func startCampaignScreening(state campaignState) error {
 		"--openings", state.Config.Openings,
 		"--games", "400",
 		"--tc", tc,
+		"--sprt-tc", defaultSPRTTC,
 		"--concurrency", strconv.Itoa(state.Config.Concurrency),
 		"--hash", strconv.Itoa(state.Config.HashMB),
 		"--threads", strconv.Itoa(state.Config.Threads),

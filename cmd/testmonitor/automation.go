@@ -345,10 +345,7 @@ func validateAutomaticSPRT(report experimentReport, cfg matchConfig, status matc
 }
 
 func startAutomaticSPRT(cfg matchConfig, runDir string) error {
-	tc := cfg.TC
-	if tc == "" {
-		tc = defaultSPRTTC
-	}
+	tc := automaticSPRTTimeControl(cfg)
 	concurrency := cfg.Concurrency
 	if concurrency < 1 {
 		concurrency = 8
@@ -379,6 +376,13 @@ func startAutomaticSPRT(cfg matchConfig, runDir string) error {
 		"--sprt",
 	}
 	return startCommand(args)
+}
+
+func automaticSPRTTimeControl(cfg matchConfig) string {
+	if cfg.SPRTTC != "" {
+		return cfg.SPRTTC
+	}
+	return defaultSPRTTC
 }
 
 func completeWithoutModel(recordPath string, record automationRecord, experimentDir string, report experimentReport, status matchStatus) error {

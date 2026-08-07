@@ -80,7 +80,8 @@ För djupberoende sökändringar anges `--prescan full --minimum-depth <ply>`.
 `baseline` återanvänder en cachad baselineprofil utan kandidatprofil när
 ändringen inte påverkar djupet nämnvärt. `skip` används endast när ändringen
 inte är beroende av ett visst sökdjup. Screening startar först när depth-gaten
-passerar; vald tidskontroll används även av SPRT.
+passerar. Screening använder normalt `10+0.1`; automatisk SPRT använder
+fortsatt `20+0.2`.
 
 ## Korrekthetskrav
 

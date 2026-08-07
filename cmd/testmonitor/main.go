@@ -31,7 +31,7 @@ const (
 	defaultFastchess         = ".tools/fastchess/bin/fastchess"
 	defaultOpenings          = ".tools/books/8moves_v3.pgn"
 	minimumOpenings          = 100
-	defaultScreeningTC       = "20+0.2"
+	defaultScreeningTC       = "10+0.1"
 	defaultSPRTTC            = "20+0.2"
 	defaultSPRTAlpha         = "0.04"
 	defaultSPRTBeta          = "0.20"
@@ -103,6 +103,7 @@ type matchConfig struct {
 	Seed          int64  `json:"random_seed"`
 	Games         int    `json:"games"`
 	TC            string `json:"time_control"`
+	SPRTTC        string `json:"sprt_time_control,omitempty"`
 	Concurrency   int    `json:"concurrency"`
 	RunDir        string `json:"run_dir"`
 	SPRT          bool   `json:"sprt"`
@@ -703,7 +704,8 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.Openings, "openings", "", "PGN or EPD opening book")
 	fs.Int64Var(&cfg.Seed, "seed", 0, "opening randomization seed; random and persisted when zero")
 	fs.IntVar(&cfg.Games, "games", 400, "even number of games")
-	fs.StringVar(&cfg.TC, "tc", "", "Fastchess time control; defaults to 20+0.2")
+	fs.StringVar(&cfg.TC, "tc", "", "Fastchess time control; defaults to 10+0.1 for screening and 20+0.2 for SPRT")
+	fs.StringVar(&cfg.SPRTTC, "sprt-tc", "", "time control for an automatically approved SPRT; defaults to 20+0.2")
 	fs.IntVar(&cfg.Concurrency, "concurrency", 8, "concurrent games")
 	fs.IntVar(&cfg.ProgressEvery, "progress-games", 0, "games between progress snapshots; defaults to 10 for screening and 50 for SPRT")
 	fs.StringVar(&cfg.ProgressTime, "progress-interval", defaultProgressInterval, "time between progress snapshots; use 0 to disable")
@@ -768,6 +770,9 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 
 func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 	var err error
+	if cfg.SPRTTC == "" {
+		cfg.SPRTTC = defaultSPRTTC
+	}
 	if cfg.TC == "" {
 		cfg.TC = defaultScreeningTC
 		if cfg.SPRT {

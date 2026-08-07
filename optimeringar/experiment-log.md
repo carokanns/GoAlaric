@@ -58,3 +58,11 @@ ligger under `artifacts/experiments/`, som är lokala och ignorerade av Git.
 - Nästa ändring: Implement verified bounded LazyEval as candidate 14.
 - Hypotes: Safe evaluation bounds can avoid expensive dynamic evaluation without changing alpha-beta outcomes.
 - Orsak: All hard tests passed. Screening scored 53.2%. SPRT accepted H1 after 6601 games with 1667 wins, 3415 draws and 1519 losses (51.1%); LLR reached the upper bound 3.00. Explicit human approval was granted and the candidate was integrated as commit 66e8d11.
+
+## candidate-014-lazy-eval
+
+- Status: `rejected`
+- Rekommendation: `reject`
+- Nästa ändring: Test a narrower Alaric-style staged LazyEval only for the null-move gate.
+- Hypotes: A material, PST and pawn-hash subtotal can avoid full evaluation at clear null-move fail-high nodes without degrading other pruning decisions.
+- Orsak: All correctness tests passed, but screening scored 49.1% and SPRT rejected H0 after 2633 games at 49.4% with LLR -1.59. Candidate median depth fell from 15 to 14 and benchmark NPS fell 3.3%.

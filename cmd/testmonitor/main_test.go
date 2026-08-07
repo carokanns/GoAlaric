@@ -111,14 +111,21 @@ func TestDefaultSPRTPolicy(t *testing.T) {
 	if math.Abs(lower-(-1.5686159)) > 0.0001 || math.Abs(upper-2.9957323) > 0.0001 {
 		t.Fatalf("SPRT bounds = [%.6f, %.6f], want about [-1.57, 3.00]", lower, upper)
 	}
-	if defaultSPRTTC != defaultScreeningTC {
-		t.Fatalf("SPRT time control = %q, want screening time %q", defaultSPRTTC, defaultScreeningTC)
+	if defaultScreeningTC != "10+0.1" {
+		t.Fatalf("screening time control = %q, want 10+0.1", defaultScreeningTC)
 	}
 	if defaultSPRTTC != "20+0.2" {
 		t.Fatalf("SPRT time control = %q, want 20+0.2", defaultSPRTTC)
 	}
 	if defaultResignScore != 500 {
 		t.Fatalf("resign adjudication score = %d, want 500", defaultResignScore)
+	}
+}
+
+func TestAutomaticSPRTKeepsLongerTimeControl(t *testing.T) {
+	cfg := matchConfig{TC: "10+0.1", SPRTTC: "20+0.2"}
+	if got := automaticSPRTTimeControl(cfg); got != "20+0.2" {
+		t.Fatalf("automatic SPRT time control = %q, want 20+0.2", got)
 	}
 }
 
