@@ -50,3 +50,11 @@ ligger under `artifacts/experiments/`, som är lokala och ignorerade av Git.
 - Nästa ändring: Run the 400-game paired screening at 20+0.2 before considering SPRT.
 - Hypotes: The completed LMR re-search ladder improves playing strength by avoiding unnecessary full-window searches despite lower fixed-depth NPS.
 - Orsak: All hard correctness gates passed. The candidate intentionally changes search behavior, with a -2.28% median NPS delta and four changed bestmoves in 14 fixed-depth positions. A strength match is required to determine whether the more selective re-search sequence is beneficial.
+
+## candidate-013-demand-eval
+
+- Status: `promoted`
+- Rekommendation: `promote`
+- Nästa ändring: Implement verified bounded LazyEval as candidate 14.
+- Hypotes: Safe evaluation bounds can avoid expensive dynamic evaluation without changing alpha-beta outcomes.
+- Orsak: All hard tests passed. Screening scored 53.2%. SPRT accepted H1 after 6601 games with 1667 wins, 3415 draws and 1519 losses (51.1%); LLR reached the upper bound 3.00. Explicit human approval was granted and the candidate was integrated as commit 66e8d11.
