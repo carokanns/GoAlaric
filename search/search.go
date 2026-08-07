@@ -871,8 +871,9 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 
 	// beta pruning
 	if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(beta) && !inCheck {
-		ev = evalByColor(stm, sl)
-		evalReady = true
+		var exact bool
+		ev, exact = evalWindowByColor(sl, minScore, beta+depth*50)
+		evalReady = exact
 
 		sc := ev - depth*50
 
@@ -884,8 +885,9 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	// null-move pruning
 	if !pvNode && depth > 0 && !IsMateScore(beta) && !inCheck && !board.LoneKing(stm, bd) {
 		if !evalReady {
-			ev = evalByColor(stm, sl)
-			evalReady = true
+			var exact bool
+			ev, exact = evalWindowByColor(sl, minScore, beta)
+			evalReady = exact
 		}
 		if ev >= beta {
 			bd.MoveNull() // TODO: use sl?
@@ -940,8 +942,9 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			val = ev + 100 // QS-DP margin
 		} else if depth <= 8 && !IsMateScore(alpha) {
 			if !evalReady {
-				ev = evalByColor(stm, sl)
-				evalReady = true
+				var exact bool
+				ev, exact = evalWindowByColor(sl, alpha-depth*40, maxScore)
+				evalReady = exact
 			}
 			// futility-pruning condition
 			sc := ev + depth*40
@@ -1099,6 +1102,10 @@ func evalByColor(stm int, sl *Local) int {
 		return -eval
 	}
 	return eval
+}
+
+func evalWindowByColor(sl *Local, alpha, beta int) (int, bool) {
+	return sl.evalHash.EvalWindow(&sl.Board, &sl.pawnHash, alpha, beta)
 }
 
 // Qs is the function called by the search when it is time to evaluate the position.

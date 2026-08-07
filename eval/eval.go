@@ -44,6 +44,12 @@ const (
 	SIZE = 1 << BITS
 	MASK = SIZE - 1
 )
+
+// lazyMargin limits LazyEval to positions with a clear material advantage.
+// Full evaluation is still used whenever the material interval overlaps the
+// search window.
+const lazyMargin = 500
+
 const stageSize int = 2 // number of game stages
 
 var smallCentre, mediumCentre, largeCentre bit.BB
@@ -186,25 +192,67 @@ func (t *Hash) Clear() {
 
 // Eval hämtar eller beräknar värdet för ställningen (sett från vit).
 func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score for white
-	//fmt.Println("i hash.Eval", parms.Parms[23], Parms[24])
-	key := bd.EvalKey()
-
-	index := hash.Index(key) & MASK
-	lock := uint32(hash.Lock(key))
-
-	entry := t.entries[index]
-
-	if entry.lock == lock {
-		return entry.eval
+	if score, ok := t.probe(bd); ok {
+		return score
 	}
 
 	eval := CompEval(bd, pawnTable)
-
-	entry.lock = lock
-	entry.eval = eval
-	t.entries[index] = entry
-
+	t.store(bd, eval)
 	return eval
+}
+
+// EvalWindow returns a score from the side-to-move viewpoint. Exact is false
+// only when the material score plus a conservative margin lies completely
+// outside [alpha, beta], allowing search pruning without full evaluation.
+func (t *Hash) EvalWindow(bd *board.Board, pawnTable *PawnHash, alpha, beta int) (score int, exact bool) {
+	if full, ok := t.probe(bd); ok {
+		return sideScore(full, bd.Stm()), true
+	}
+
+	quick := sideScore(materialEval(bd), bd.Stm())
+	if quick-lazyMargin >= beta {
+		return quick - lazyMargin, false
+	}
+	if quick+lazyMargin <= alpha {
+		return quick + lazyMargin, false
+	}
+
+	return sideScore(t.Eval(bd, pawnTable), bd.Stm()), true
+}
+
+func (t *Hash) probe(bd *board.Board) (int, bool) {
+	key := bd.EvalKey()
+	entry := t.entries[hash.Index(key)&MASK]
+	if entry.lock == uint32(hash.Lock(key)) {
+		return entry.eval, true
+	}
+	return 0, false
+}
+
+func (t *Hash) store(bd *board.Board, score int) {
+	key := bd.EvalKey()
+	index := hash.Index(key) & MASK
+	t.entries[index] = entry{lock: uint32(hash.Lock(key)), eval: score}
+}
+
+func sideScore(score, stm int) int {
+	if stm == BLACK {
+		return -score
+	}
+	return score
+}
+
+// materialEval is deliberately small: counting pieces is much cheaper than
+// constructing attacks and evaluating mobility, king safety and pawn detail.
+func materialEval(bd *board.Board) int {
+	mg := 0
+	eg := 0
+	for pc := material.Pawn; pc <= material.Queen; pc++ {
+		count := bd.Count(pc, WHITE) - bd.Count(pc, BLACK)
+		mg += count * material.Score(pc, MG)
+		eg += count * material.Score(pc, EG)
+	}
+	return Interpolation(mg, eg, bd)
 }
 
 // CompEval gör en fullständig statisk utvärdering för vit i aktuell ställning.

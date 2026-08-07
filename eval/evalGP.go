@@ -48,6 +48,9 @@ const (
 	SIZE = 1 << BITS
 	MASK = SIZE - 1
 )
+
+const lazyMargin = 500
+
 const stageSize int = 2 // number of game stages
 
 var smallCentre, mediumCentre, largeCentre bit.BB
@@ -210,6 +213,36 @@ func (t *Hash) Eval(bd *board.Board, pawnTable *PawnHash) int { // NOTE: score f
 	//entry.eval = eval
 
 	return eval
+}
+
+// EvalWindow mirrors the normal engine's LazyEval interface for tuning builds.
+func (t *Hash) EvalWindow(bd *board.Board, pawnTable *PawnHash, alpha, beta int) (score int, exact bool) {
+	quick := sideScore(materialEval(bd), bd.Stm())
+	if quick-lazyMargin >= beta {
+		return quick - lazyMargin, false
+	}
+	if quick+lazyMargin <= alpha {
+		return quick + lazyMargin, false
+	}
+	return sideScore(t.Eval(bd, pawnTable), bd.Stm()), true
+}
+
+func sideScore(score, stm int) int {
+	if stm == BLACK {
+		return -score
+	}
+	return score
+}
+
+func materialEval(bd *board.Board) int {
+	mg := 0
+	eg := 0
+	for pc := material.Pawn; pc <= material.Queen; pc++ {
+		count := bd.Count(pc, WHITE) - bd.Count(pc, BLACK)
+		mg += count * material.Score(pc, MG)
+		eg += count * material.Score(pc, EG)
+	}
+	return Interpolation(mg, eg, bd)
 }
 
 // Eval is called by evalWithSign (in search). It calls table.eval and returns the stm evaluation

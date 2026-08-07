@@ -109,6 +109,48 @@ func TestEval(t *testing.T) {
 	}
 }
 
+func TestEvalWindowUsesFullEvalNearWindow(t *testing.T) {
+	var boardPosition board.Board
+	board.SetFen(board.StartFen, &boardPosition)
+	var pawnTable PawnHash
+	var evalTable Hash
+
+	got, exact := evalTable.EvalWindow(&boardPosition, &pawnTable, -50, 50)
+	if !exact {
+		t.Fatal("start position unexpectedly used lazy material bound")
+	}
+	if got != 0 {
+		t.Fatalf("start position evaluation = %d, want 0", got)
+	}
+}
+
+func TestEvalWindowUsesMaterialBoundOutsideWindow(t *testing.T) {
+	var boardPosition board.Board
+	board.SetFen("7k/8/8/8/8/8/8/Q6K w - - 0 1", &boardPosition)
+	var pawnTable PawnHash
+	var evalTable Hash
+
+	got, exact := evalTable.EvalWindow(&boardPosition, &pawnTable, -100, 100)
+	if exact {
+		t.Fatal("large material advantage unexpectedly required full evaluation")
+	}
+	if got < 100 {
+		t.Fatalf("lazy lower bound = %d, want at least beta", got)
+	}
+}
+
+func TestEvalWindowUsesSideToMovePerspective(t *testing.T) {
+	var boardPosition board.Board
+	board.SetFen("q6k/8/8/8/8/8/8/7K b - - 0 1", &boardPosition)
+	var pawnTable PawnHash
+	var evalTable Hash
+
+	got, exact := evalTable.EvalWindow(&boardPosition, &pawnTable, -100, 100)
+	if exact || got < 100 {
+		t.Fatalf("black material bound = %d, exact=%v; want a lazy positive lower bound", got, exact)
+	}
+}
+
 func TestCompAttacks(t *testing.T) {
 	type evalStruct struct {
 		fen       string
