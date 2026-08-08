@@ -28,6 +28,18 @@ var passedMe [square.BoardSize][2]bit.BB
 var passedOpp [square.BoardSize][2]bit.BB
 var pair [square.BoardSize]bit.BB
 
+// candidateRankBonus is the normalized rank curve used for candidate
+// passers. The initial values follow the old Alaric pawn evaluator and are
+// intentionally kept local until this feature has a game-test result.
+var candidateRankBonus = [8]int{0, 0, 0, 0, 26, 77, 154, 256}
+
+const (
+	candidateMGMin = 5
+	candidateMGMax = 55
+	candidateEGMin = 10
+	candidateEGMax = 110
+)
+
 // ShelterFile returnerar 2 om en bonde står på filen fl rad 2, 1 om den står på rad 3, annars 0.
 func ShelterFile(fl, sd int, bd *board.Board) int {
 	if bd.SquareIs(square.MakeSd(fl, square.Rank2, sd), material.Pawn, sd) {
@@ -124,6 +136,58 @@ func (pawnHash *PawnHash) getEntry(bd *board.Board) *pawnEntry {
 func isPassed(sq, sd int, bd *board.Board) bool {
 	return (bd.PieceSd(material.Pawn, board.Opposite(sd))&passedOpp[sq][sd]) == 0 &&
 		(bd.PieceSd(material.Pawn, sd)&passedMe[sq][sd]) == 0
+}
+
+// isCandidatePasser identifies a pawn which is not yet passed but can become
+// one after favourable exchanges on the neighbouring files. It mirrors the
+// classic candidate-pawn test used by the original Alaric evaluator.
+func isCandidatePasser(sq, sd int, bd *board.Board) bool {
+	if isPassed(sq, sd, bd) {
+		return false
+	}
+
+	rank := square.RankSd(sq, sd)
+	if rank < square.Rank3 || rank > square.Rank7 {
+		return false
+	}
+
+	own := bd.PieceSd(material.Pawn, sd)
+	opponent := bd.PieceSd(material.Pawn, board.Opposite(sd))
+	adjacent := bit.AdjFiles(square.File(sq)) & ^bit.File(square.File(sq))
+	front := bit.FrontSd(sq, sd)
+
+	// A pawn blocked by a friendly pawn on its own file is not a candidate.
+	if own&bit.File(square.File(sq))&front != 0 {
+		return false
+	}
+
+	// A non-passed pawn must have opposing pawns ahead on neighbouring files.
+	opponentAhead := bit.Count(opponent & adjacent & front)
+	if opponentAhead == 0 {
+		return false
+	}
+
+	// Friendly neighbouring pawns behind or level with the pawn must be able
+	// to match the opposing pawn count ahead of it.
+	behindOrLevel := bit.RearSd(sq, sd) | bit.Rank(square.Rank(sq))
+	if bit.Count(own&adjacent&behindOrLevel) < opponentAhead {
+		return false
+	}
+
+	// Require the immediate supporting rank to be at least as well defended.
+	// This avoids awarding a candidate status to a pawn whose support is too
+	// slow to participate in the exchange.
+	if rank <= square.Rank2 {
+		return false
+	}
+	supportRank := bit.Rank(square.MakeSd(square.FileA, rank-1, sd))
+	attackRank := bit.Rank(square.MakeSd(square.FileA, rank+1, sd))
+	return bit.Count(own&adjacent&supportRank) >= bit.Count(opponent&adjacent&attackRank)
+}
+
+func candidatePawnScore(rank, min, max int) int {
+	bonus := candidateRankBonus[rank]
+	return min + ((max-min)*bonus+128)/256
 }
 
 func passerUnstoppable(sq, sd int, bd *board.Board) bool {
@@ -290,6 +354,11 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 					} // stop one line "later" for duos
 					bit.Set(&entry.target[board.Opposite(sd)], stop)
 				}
+			}
+
+			if isCandidatePasser(sq, sd, bd) {
+				entry.mg += int16(candidatePawnScore(int(rk), candidateMGMin, candidateMGMax))
+				entry.eg += int16(candidatePawnScore(int(rk), candidateEGMin, candidateEGMax))
 			}
 
 			safe[board.Opposite(sd)] &= ^possibleAttacks(sq, sd, bd)

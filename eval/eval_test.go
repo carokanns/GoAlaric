@@ -92,9 +92,11 @@ func TestEval(t *testing.T) {
 	var evalTest = [...]evalStruct{
 		{"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 0, 0},
 		{"7k/8/8/8/8/5N2/5BK1/8 w - - 0 1", 1900, 2000},
-		{"3r2k1/5pp1/p7/P1qp1PP1/8/1P1R3K/3Q4/8 w - - 5 39", 5, 10},
-		{"3r2k1/5pp1/p7/P1qp1PP1/1P6/3R3K/3Q4/8 b - - 5 39", 50, 90},
-		{"3r2k1/5pp1/p7/P2p1PP1/1P6/3R3K/3Q4/6q1 w - - 1 40", -70, -40},
+		// Candidate-passer bonuses shift these three middlegame scores by
+		// approximately 30 cp compared with the previous eval.
+		{"3r2k1/5pp1/p7/P1qp1PP1/8/1P1R3K/3Q4/8 w - - 5 39", 35, 40},
+		{"3r2k1/5pp1/p7/P1qp1PP1/1P6/3R3K/3Q4/8 b - - 5 39", 80, 120},
+		{"3r2k1/5pp1/p7/P2p1PP1/1P6/3R3K/3Q4/6q1 w - - 1 40", -40, -10},
 	}
 
 	initAll()
@@ -106,6 +108,47 @@ func TestEval(t *testing.T) {
 		if e < tst.evalMin || e > tst.evalMax {
 			t.Errorf("Testcase %v: Borde vara inom [%v, %v]. Men blev %v", ix+1, tst.evalMin, tst.evalMax, e)
 		}
+	}
+}
+
+func TestCandidatePasser(t *testing.T) {
+	tests := []struct {
+		name string
+		fen  string
+		sq   int
+		sd   int
+		want bool
+	}{
+		{
+			name: "white supported candidate",
+			fen:  "8/8/8/4p3/3P4/2P5/8/4K2k w - - 0 1",
+			sq:   square.D4,
+			sd:   WHITE,
+			want: true,
+		},
+		{
+			name: "white unsupported pawn",
+			fen:  "8/8/8/4p3/3P4/8/8/4K2k w - - 0 1",
+			sq:   square.D4,
+			sd:   WHITE,
+			want: false,
+		},
+		{
+			name: "black supported candidate",
+			fen:  "8/8/2p5/3p4/4P3/8/8/K6k b - - 0 1",
+			sq:   square.D5,
+			sd:   BLACK,
+			want: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			board.SetFen(test.fen, &bd)
+			if got := isCandidatePasser(test.sq, test.sd, &bd); got != test.want {
+				t.Fatalf("isCandidatePasser() = %v, want %v", got, test.want)
+			}
+		})
 	}
 }
 
