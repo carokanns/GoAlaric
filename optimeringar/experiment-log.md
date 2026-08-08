@@ -66,3 +66,11 @@ ligger under `artifacts/experiments/`, som är lokala och ignorerade av Git.
 - Nästa ändring: Test a narrower Alaric-style staged LazyEval only for the null-move gate.
 - Hypotes: A material, PST and pawn-hash subtotal can avoid full evaluation at clear null-move fail-high nodes without degrading other pruning decisions.
 - Orsak: All correctness tests passed, but screening scored 49.1% and SPRT rejected H0 after 2633 games at 49.4% with LLR -1.59. Candidate median depth fell from 15 to 14 and benchmark NPS fell 3.3%.
+
+## candidate-015-staged-lazy-eval
+
+- Status: `rejected`
+- Rekommendation: `reject`
+- Nästa ändring: Use a bounded SEE window in quiescence based on the current stand-pat and alpha margin, with full-SEE fallback at the boundary.
+- Hypotes: A narrower SEE window can reduce quiescence exchange work and increase useful search depth without changing clearly winning or losing capture decisions.
+- Orsak: All correctness stages passed and benchmark NPS improved 1.4%, but screening scored 49.2% at 10+0.1 and SPRT scored 49.3% after 2636 games at 20+0.2. LLR -1.59 crossed the negative boundary -1.57. Candidate depth was also lower: mean 13.12 versus baseline 13.84, with P25 11 versus 12.
