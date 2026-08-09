@@ -28,6 +28,12 @@ var passedMe [square.BoardSize][2]bit.BB
 var passedOpp [square.BoardSize][2]bit.BB
 var pair [square.BoardSize]bit.BB
 
+const (
+	backwardMGClosed = 8
+	backwardMGOpen   = 16
+	backwardEG       = 10
+)
+
 // ShelterFile returnerar 2 om en bonde står på filen fl rad 2, 1 om den står på rad 3, annars 0.
 func ShelterFile(fl, sd int, bd *board.Board) int {
 	if bd.SquareIs(square.MakeSd(fl, square.Rank2, sd), material.Pawn, sd) {
@@ -124,6 +130,63 @@ func (pawnHash *PawnHash) getEntry(bd *board.Board) *pawnEntry {
 func isPassed(sq, sd int, bd *board.Board) bool {
 	return (bd.PieceSd(material.Pawn, board.Opposite(sd))&passedOpp[sq][sd]) == 0 &&
 		(bd.PieceSd(material.Pawn, sd)&passedMe[sq][sd]) == 0
+}
+
+// isBackward mirrors Alaric's conservative pawn-chain test. A backward pawn
+// sits behind friendly pawns on both adjacent files and cannot safely join
+// their chain. The rank range deliberately stops at rank five: a pawn that
+// has advanced further is no longer treated as a backward pawn.
+func isBackward(sq, sd int, bd *board.Board) bool {
+	rank := square.RankSd(sq, sd)
+	if rank < square.Rank2 || rank > square.Rank5 || isPassed(sq, sd, bd) {
+		return false
+	}
+
+	file := square.File(sq)
+	adjacentFiles := bit.AdjFiles(file) & ^bit.File(file)
+	own := bd.PieceSd(material.Pawn, sd)
+	adjacentOwn := own & adjacentFiles
+	if adjacentOwn == 0 {
+		return false
+	}
+
+	// All neighbouring pawns must be ahead of this pawn in its direction of
+	// travel. A pawn with a neighbour level with or behind it is not backward.
+	behindOrLevel := bit.RearSd(sq, sd) | bit.Rank(square.Rank(sq))
+	if adjacentOwn&behindOrLevel != 0 {
+		return false
+	}
+
+	stop := square.Stop(sq, sd)
+	blocker := bd.Square(stop)
+	if blocker == material.None {
+		// With no piece on the stop square, the pawn is backward only when an
+		// opposing pawn makes the advance unsafe.
+		if PawnAttacksFrom(board.Opposite(sd), bd)&bit.Bit(stop) == 0 {
+			return false
+		}
+	} else if bd.SquareSide(stop) == sd {
+		// A friendly piece does not make a structural backward pawn.
+		return false
+	}
+
+	return true
+}
+
+func backwardPawnPenalty(rank int, open bool) (int, int) {
+	mg := backwardMGClosed
+	if open {
+		mg = backwardMGOpen
+	}
+
+	multiplier := 1
+	switch rank {
+	case square.Rank2:
+		multiplier = 3
+	case square.Rank3:
+		multiplier = 2
+	}
+	return mg * multiplier, backwardEG * multiplier
 }
 
 func passerUnstoppable(sq, sd int, bd *board.Board) bool {
@@ -262,6 +325,14 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 
 				entry.mg -= 10
 				entry.eg -= 20
+
+			} else if isBackward(sq, sd, bd) {
+
+				bit.Set(&weak, sq)
+				open := (bd.Piece(material.Pawn) & bit.File(int(fl)) & bit.FrontSd(sq, sd)) == 0
+				mgPenalty, egPenalty := backwardPawnPenalty(int(rk), open)
+				entry.mg -= int16(mgPenalty)
+				entry.eg -= int16(egPenalty)
 
 			} else if isWeak(sq, sd, bd) {
 

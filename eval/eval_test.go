@@ -109,6 +109,92 @@ func TestEval(t *testing.T) {
 	}
 }
 
+func TestBackwardPawn(t *testing.T) {
+	tests := []struct {
+		name string
+		fen  string
+		sq   int
+		sd   int
+		want bool
+	}{
+		{
+			name: "white backward pawn attacked on stop square",
+			fen:  "4k3/8/8/4p3/2P1P3/3P4/8/4K3 w - - 0 1",
+			sq:   square.D3,
+			sd:   WHITE,
+			want: true,
+		},
+		{
+			name: "white pawn can advance safely",
+			fen:  "4k3/8/8/8/2P1P3/3P4/8/4K3 w - - 0 1",
+			sq:   square.D3,
+			sd:   WHITE,
+			want: false,
+		},
+		{
+			name: "white backward pawn with piece blockade",
+			fen:  "4k3/8/8/4p3/2PnP3/3P4/8/4K3 w - - 0 1",
+			sq:   square.D3,
+			sd:   WHITE,
+			want: true,
+		},
+		{
+			name: "white passed pawn is not backward",
+			fen:  "4k3/8/8/8/2PnP3/3P4/8/4K3 w - - 0 1",
+			sq:   square.D3,
+			sd:   WHITE,
+			want: false,
+		},
+		{
+			name: "black backward pawn attacked on stop square",
+			fen:  "4k3/8/3p4/2p1p3/4P3/8/8/4K3 b - - 0 1",
+			sq:   square.D6,
+			sd:   BLACK,
+			want: true,
+		},
+		{
+			name: "isolated pawn is not backward",
+			fen:  "4k3/8/8/4p3/8/3P4/8/4K3 w - - 0 1",
+			sq:   square.D3,
+			sd:   WHITE,
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			board.SetFen(test.fen, &bd)
+			if got := isBackward(test.sq, test.sd, &bd); got != test.want {
+				t.Fatalf("isBackward() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestBackwardPawnPenalty(t *testing.T) {
+	tests := []struct {
+		name   string
+		rank   int
+		open   bool
+		wantMG int
+		wantEG int
+	}{
+		{name: "second rank closed", rank: square.Rank2, wantMG: 24, wantEG: 30},
+		{name: "second rank open", rank: square.Rank2, open: true, wantMG: 48, wantEG: 30},
+		{name: "third rank closed", rank: square.Rank3, wantMG: 16, wantEG: 20},
+		{name: "fifth rank open", rank: square.Rank5, open: true, wantMG: 16, wantEG: 10},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mg, eg := backwardPawnPenalty(test.rank, test.open)
+			if mg != test.wantMG || eg != test.wantEG {
+				t.Fatalf("backwardPawnPenalty() = (%v, %v), want (%v, %v)", mg, eg, test.wantMG, test.wantEG)
+			}
+		})
+	}
+}
+
 func TestCompAttacks(t *testing.T) {
 	type evalStruct struct {
 		fen       string
