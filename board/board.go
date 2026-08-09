@@ -59,6 +59,7 @@ type DrawReason int
 
 const (
 	NoDraw DrawReason = iota
+	DeadMaterialDraw
 	FiftyMoveDraw
 	ThreefoldRepetition
 	SearchRepetition
@@ -844,6 +845,9 @@ func (bd *Board) Recap() int {
 // DrawState distinguishes rule draws from the intentional twofold repetition
 // shortcut used only below the search root.
 func (bd *Board) DrawState() DrawReason {
+	if bd.IsDeadMaterial() {
+		return DeadMaterialDraw
+	}
 	if bd.copyStr.moves >= 100 { // TODO: check for mate
 		return FiftyMoveDraw
 	}
@@ -862,6 +866,35 @@ func (bd *Board) DrawState() DrawReason {
 		return SearchRepetition
 	}
 	return NoDraw
+}
+
+// IsDeadMaterial reports positions where checkmate is impossible for either
+// side solely because of the remaining material.
+func (bd *Board) IsDeadMaterial() bool {
+	for sd := WHITE; sd <= BLACK; sd++ {
+		if bd.Count(material.Pawn, sd) != 0 ||
+			bd.Count(material.Rook, sd) != 0 ||
+			bd.Count(material.Queen, sd) != 0 {
+			return false
+		}
+	}
+
+	knights := bd.Count(material.Knight, WHITE) + bd.Count(material.Knight, BLACK)
+	bishops := bd.Piece(material.Bishop)
+	if knights != 0 {
+		return bishops == 0 && knights == 1
+	}
+	if bishops == 0 {
+		return true
+	}
+
+	first := bit.First(bishops)
+	for remaining := bit.Rest(bishops); remaining != 0; remaining = bit.Rest(remaining) {
+		if !square.SameColor(first, bit.First(remaining)) {
+			return false
+		}
+	}
+	return true
 }
 
 // IsDraw reports whether the current position is treated as drawn.

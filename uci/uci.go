@@ -35,6 +35,7 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI(fmt.Sprintf("option name Hash type spin default %v  min 16 max 16384", search.Engine.Hash))
 			tellGUI(fmt.Sprintf("option name Ponder type check default %v", search.Engine.Ponder))
 			tellGUI(fmt.Sprintf("option name Threads type spin default %v min 1 max 16", search.Engine.Threads))
+			tellGUI(fmt.Sprintf("option name Contempt type spin default %v min 0 max 100", search.Engine.Contempt))
 			tellGUI(fmt.Sprintf("option name LogFile type check default %v", search.Engine.Log))
 
 			tellGUI("uciok")
@@ -395,6 +396,12 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 			return
 		}
 		search.Engine.Threads = int(threads)
+	case "contempt":
+		contempt, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || contempt < 0 || contempt > 100 {
+			return
+		}
+		search.Engine.Contempt = int(contempt)
 	case "log":
 		log, err := strconv.ParseBool(value)
 		if err != nil {

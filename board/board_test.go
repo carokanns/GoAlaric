@@ -252,6 +252,40 @@ func TestRepetitionUsesThreefoldAtRootAndTwofoldInSearch(t *testing.T) {
 	}
 }
 
+func TestDeadMaterial(t *testing.T) {
+	tests := []struct {
+		name string
+		fen  string
+		dead bool
+	}{
+		{name: "bare kings", fen: "8/8/8/8/8/8/2k5/4K3 w - - 0 1", dead: true},
+		{name: "bishop against king", fen: "8/8/8/8/8/8/2k5/2B1K3 w - - 0 1", dead: true},
+		{name: "knight against king", fen: "8/8/8/8/8/8/2k5/1N2K3 w - - 0 1", dead: true},
+		{name: "same color bishops", fen: "8/8/8/6b1/8/8/2k5/2B1K3 w - - 0 1", dead: true},
+		{name: "promoted same color bishops", fen: "8/b7/8/6B1/8/4B3/2k5/2B1K3 w - - 0 1", dead: true},
+		{name: "two knights can mate", fen: "8/8/8/8/8/8/2k5/1NN1K3 w - - 0 1", dead: false},
+		{name: "bishop and knight can mate", fen: "8/8/8/8/8/8/2k5/1NB1K3 w - - 0 1", dead: false},
+		{name: "opposite color bishops", fen: "8/8/8/5b2/8/8/2k5/2B1K3 w - - 0 1", dead: false},
+		{name: "knight each", fen: "8/8/8/5n2/8/8/2k5/1N2K3 w - - 0 1", dead: false},
+		{name: "pawn remains", fen: "8/8/8/8/8/8/P1k5/4K3 w - - 0 1", dead: false},
+		{name: "rook remains", fen: "8/8/8/8/8/8/2k5/R3K3 w - - 0 1", dead: false},
+		{name: "queen remains", fen: "8/8/8/8/8/8/2k5/Q3K3 w - - 0 1", dead: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var bd Board
+			SetFen(test.fen, &bd)
+			if got := bd.IsDeadMaterial(); got != test.dead {
+				t.Fatalf("IsDeadMaterial() = %v, want %v", got, test.dead)
+			}
+			if test.dead && bd.DrawState() != DeadMaterialDraw {
+				t.Fatalf("DrawState() = %v, want %v", bd.DrawState(), DeadMaterialDraw)
+			}
+		})
+	}
+}
+
 func TestRepetitionKeyIncludesCastlingAndEnPassant(t *testing.T) {
 	var bd Board
 	SetFen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", &bd)

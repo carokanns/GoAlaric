@@ -12,6 +12,7 @@ import (
 	"goalaric/gen"
 	"goalaric/hash"
 	"goalaric/move"
+	"goalaric/parms"
 )
 
 var tellGUI = func(line string) { fmt.Println(line) }
@@ -26,10 +27,11 @@ const (
 const defaultHash = 128
 
 type engineStruct struct {
-	Hash    int
-	Ponder  bool
-	Threads int
-	Log     bool
+	Hash     int
+	Ponder   bool
+	Threads  int
+	Log      bool
+	Contempt int
 }
 
 // Engine is the var holding engineStruct values
@@ -42,6 +44,7 @@ func init() {
 	Engine.Ponder = false
 	Engine.Threads = 1
 	Engine.Log = false
+	Engine.Contempt = parms.Search.Contempt
 	initLMRReductions()
 }
 
@@ -60,8 +63,6 @@ const maxPly = 100
 const nodeInterval = 1024
 const maxThreads = 16
 const maxQS = 2 // Max number of qs recursions
-const searchRepetitionContempt = 5
-
 const lmrMoveLimit = 64
 
 var lmrReductions [maxDepth + 1][lmrMoveLimit]int
@@ -819,10 +820,10 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	}
 
 	switch bd.DrawState() {
-	case board.FiftyMoveDraw, board.ThreefoldRepetition:
-		return 0
+	case board.DeadMaterialDraw, board.FiftyMoveDraw, board.ThreefoldRepetition:
+		return drawScore(bd.Ply())
 	case board.SearchRepetition:
-		return repetitionScore(bd.Ply())
+		return drawScore(bd.Ply())
 	}
 
 	stm := bd.Stm() // NOTE!! be aware of before and after move
@@ -1054,7 +1055,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 		if inCheck {
 			return -mateScore + bd.Ply()
 		}
-		return 0
+		return drawScore(bd.Ply())
 	}
 
 	//util.ASSERT(bs < beta)
@@ -1066,11 +1067,14 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	return bs
 }
 
-func repetitionScore(ply int) int {
-	if ply%2 == 0 {
-		return -searchRepetitionContempt
+func drawScore(ply int) int {
+	if ply == 0 {
+		return 0
 	}
-	return searchRepetitionContempt
+	if ply%2 == 0 {
+		return -Engine.Contempt
+	}
+	return Engine.Contempt
 }
 
 func initMvSearch(mv, pos, size int) {
