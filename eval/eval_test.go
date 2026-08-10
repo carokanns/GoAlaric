@@ -51,6 +51,45 @@ func TestInterpolation(t *testing.T) {
 	}
 }
 
+func TestShelterScoreAveragesPotentialCastle(t *testing.T) {
+	tests := []struct {
+		name string
+		fen  string
+		side int
+	}{
+		{
+			name: "white can castle into intact kingside shelter",
+			fen:  "4k3/8/8/8/8/8/5PPP/4K2R w K - 0 1",
+			side: WHITE,
+		},
+		{
+			name: "black can castle into intact kingside shelter",
+			fen:  "4k2r/5ppp/8/8/8/8/8/4K3 b k - 0 1",
+			side: BLACK,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var position board.Board
+			board.SetFen(test.fen, &position)
+			var pawnTable PawnHash
+			pawnTable.Clear()
+			entry := pawnTable.getEntry(&position)
+
+			if current := entry.Shelter[square.FileE][test.side]; current != 8 {
+				t.Fatalf("current shelter = %d, want 8", current)
+			}
+			if future := entry.Shelter[square.FileG][test.side]; future != 32 {
+				t.Fatalf("future shelter = %d, want 32", future)
+			}
+			if got := shelterScore(position.King(test.side), test.side, &position, entry); got != 20 {
+				t.Fatalf("shelterScore() = %d, want average 20", got)
+			}
+		})
+	}
+}
+
 func TestKBNK(t *testing.T) {
 	type evalStruct struct {
 		fen  string

@@ -1260,7 +1260,7 @@ func shelterScore(sq int, sd int, bd *board.Board, pi *pawnEntry) (int, int) {
 	}
 
 	if s1 > s0 {
-		return (s0 + s1) / Parms[71], (s0 + s1) //200
+		return 100 * (s0 + s1) / Parms[71], (s0 + s1) // divisor is scaled by 100 for tuning
 	}
 	return s0, s0
 

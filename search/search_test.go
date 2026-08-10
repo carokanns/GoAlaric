@@ -151,8 +151,8 @@ func TestQS(t *testing.T) {
 		{"rnbqkbnr/ppp1pppp/8/3b4/4Q3/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.BishopValue - 100, "Black is up a bishop"},
 		// Rook
 		{"rnb1kbnr/ppp1pppp/8/3p4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.RookValue + material.QueenValue + 150, "White is up Rook and queen"},
-		{"rnbqkbnr/ppp1pppp/8/3n4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.RookValue - material.KnightValue + 147, "White is up Rook vs knight"},
-		{"rnbqkbnr/ppp1pppp/8/3r1B2/8/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.RookValue + 13, "Black is up a Rook"},
+		{"rnbqkbnr/ppp1pppp/8/3n4/3R4/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.RookValue - material.KnightValue + 95, "White is up Rook vs knight with restored potential-castle shelter"},
+		{"rnbqkbnr/ppp1pppp/8/3r1B2/8/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1", material.RookValue + 80, "Black is up a Rook with restored potential-castle shelter"},
 		// Queen
 		{"rnbqkbnr/ppp1pppp/8/3p4/4Q3/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.QueenValue - material.PawnValue + 150, "White is up a Queen vs a Pawn"},
 		{"rnb1kbnr/ppp1pppp/8/3n4/2Q5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1", material.QueenValue*2 + 300, "White is up 2 Queens"},
