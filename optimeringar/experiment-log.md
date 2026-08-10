@@ -58,3 +58,11 @@ ligger under `artifacts/experiments/`, som är lokala och ignorerade av Git.
 - Nästa ändring: Inför en försiktig mittspelsvärdering av bondestorm mot motståndarens rockerade kung.
 - Hypotes: Valfri Syzygy-probering ger exakta fåpjäsbeslut när tabeller finns utan att försämra normalt spel eller det inbyggda remiskyddet när tabeller saknas.
 - Orsak: Alla korrekthetstester, den deterministiska Syzygy-sviten och den cgo-fria reservvägen godkändes. `IsDeadMaterial` körs före Syzygy i sökträdet och fungerar utan externa tabeller. Screeningen med Syzygy avstängt gav förväntat neutrala 49,6 procent över 400 partier. Den automatiskt startade SPRT-körningen stoppades vid 0 partier eftersom den inte kunde mäta Syzygy-funktionen.
+
+## candidate-020-shelter-average
+
+- Status: `promoted`
+- Rekommendation: `promote`
+- Nästa ändring: Inför en försiktig mittspelsvärdering av bondestorm mot motståndarens rockerade kung.
+- Hypotes: Återställd medelvärdesberäkning för möjlig rockad ger avsedd kungssäkerhetsvärdering utan att försämra spelstyrkan.
+- Orsak: Kandidaten korrigerar en regression där den möjliga rockadens bondeskydd i praktiken dividerades med 200 i stället för att medelvärdesbildas. Alla tester godkändes och screeningen slutade 109 vinster, 183 remier och 108 förluster (50,1 procent). Ändringen promoveras som korrekthetsbaseline trots neutral Elo.
