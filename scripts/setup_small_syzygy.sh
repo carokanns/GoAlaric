@@ -3,36 +3,60 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-target_dir="${1:-$repo_root/.tools/syzygy/small-3}"
-base_url="http://tablebase.sesse.net/syzygy/3-4-5"
+target_dir="${1:-$repo_root/.tools/syzygy/3-4}"
+base_url="https://tablebase.lichess.ovh/tables/standard"
 
 mkdir -p "$target_dir"
 
-# Complete useful three-piece set. KvK needs no table file.
-tables=(
-  "99bf9b05295781611cdd7c5c3d51bf85 KBvK.rtbw"
-  "88d5f823e67448b279bb045977a80a39 KBvK.rtbz"
-  "b6781a75ffe2ab41507f91151869a418 KNvK.rtbw"
-  "42893523156bbc5d8c3c7207a7710ad7 KNvK.rtbz"
-  "46f6ef491bd26696d7b20281e7c5b721 KPvK.rtbw"
-  "54460894c15f087cfd16670bf1513755 KPvK.rtbz"
-  "f06221548404795b6b33469e247b4560 KQvK.rtbw"
-  "ac866466e16eb19a4f8c796f8e1abd2b KQvK.rtbz"
-  "89a27823bfa03d0b0f25728c4f0fb571 KRvK.rtbw"
-  "9cb0795fa43904a3e91bf749971964b8 KRvK.rtbz"
-)
+declare -A expected_sizes expected_hashes
 
-for entry in "${tables[@]}"; do
-  read -r expected table <<<"$entry"
+while IFS=$'\t' read -r size table; do
+  table="${table%$'\r'}"
+  material="${table%.rtbw}"
+  material="${material%.rtbz}"
+  non_kings="${material//K/}"
+  non_kings="${non_kings//v/}"
+  if (( ${#non_kings} + 2 <= 4 )); then
+    expected_sizes["$table"]="$size"
+  fi
+done < <(curl -fsSL --retry 3 "$base_url/bytes.tsv")
+
+while read -r checksum table; do
+  table="${table%$'\r'}"
+  if [[ -n "${expected_sizes[$table]:-}" ]]; then
+    expected_hashes["$table"]="$checksum"
+  fi
+done < <(curl -fsSL --retry 3 "$base_url/sha256")
+
+if (( ${#expected_sizes[@]} != 70 || ${#expected_hashes[@]} != 70 )); then
+  echo "Expected 70 complete 3+4-piece WDL/DTZ files in the manifests" >&2
+  exit 1
+fi
+
+mapfile -t tables < <(printf '%s\n' "${!expected_sizes[@]}" | sort)
+for table in "${tables[@]}"; do
+  expected_size="${expected_sizes[$table]}"
+  expected_hash="${expected_hashes[$table]}"
   target="$target_dir/$table"
-  if [[ -s "$target" ]] && echo "$expected  $target" | md5sum --quiet --check -; then
+  if [[ -s "$target" ]] &&
+     [[ "$(stat -c %s "$target")" == "$expected_size" ]] &&
+     echo "$expected_hash  $target" | sha256sum --quiet --check -; then
     continue
   fi
   partial="$target.partial"
-  curl -fsSL --retry 3 -o "$partial" "$base_url/$table"
-  echo "$expected  $partial" | md5sum --check -
+  if [[ "$table" == *.rtbw ]]; then
+    source_dir="3-4-5-wdl"
+  else
+    source_dir="3-4-5-dtz"
+  fi
+  curl -fsSL --retry 3 -o "$partial" "$base_url/$source_dir/$table"
+  if [[ "$(stat -c %s "$partial")" != "$expected_size" ]]; then
+    echo "Wrong size for $table" >&2
+    exit 1
+  fi
+  echo "$expected_hash  $partial" | sha256sum --check -
   mv "$partial" "$target"
 done
 
-echo "Small Syzygy tablebase installed: $target_dir"
+echo "Complete 3+4-piece Syzygy tablebase installed: $target_dir"
 du -sh "$target_dir"

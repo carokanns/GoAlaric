@@ -16,8 +16,8 @@ En tom `SyzygyPath` stänger av probering. En felaktig sökväg ger ett
 `info string`-fel och lämnar motorn i avstängt, spelbart läge.
 
 GoAlaric räknar antalet pjäser före varje probe. Om ställningen har fler
-pjäser än den största inlästa tabellen anropas inte Fathom. Med den lilla
-trepjäsuppsättningen nedan probas alltså aldrig ställningar med fyra eller
+pjäser än den största inlästa tabellen anropas inte Fathom. Med uppsättningen
+för tre och fyra pjäser nedan probas alltså aldrig ställningar med fem eller
 fler pjäser.
 
 Vid roten används DTZ med halvdragsklockan för ett 50-dragsmedvetet dragval.
@@ -31,17 +31,17 @@ koordinatsystem och täcks av den deterministiska testsviten.
 
 ## Separata testlägen
 
-Hämta en liten uppsättning med samtliga relevanta trepjäsfall (WDL och DTZ):
+Hämta en komplett uppsättning för tre och fyra pjäser (WDL och DTZ):
 
 ```bash
 bash scripts/setup_small_syzygy.sh
 ```
 
-Tabellerna hamnar i `.tools/syzygy/small-3`, tar ungefär 26 KB och är
+Tabellerna hamnar i `.tools/syzygy/3-4`, tar ungefär 4,15 MiB och är
 ignorerade av Git. Aktivera dem med:
 
 ```text
-setoption name SyzygyPath value /absolut/sökväg/till/.tools/syzygy/small-3
+setoption name SyzygyPath value /absolut/sökväg/till/.tools/syzygy/3-4
 ```
 
 Installera de små, checksummekontrollerade testtabellerna:
