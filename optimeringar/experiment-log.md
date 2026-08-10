@@ -50,3 +50,11 @@ ligger under `artifacts/experiments/`, som är lokala och ignorerade av Git.
 - Nästa ändring: Run the 400-game paired screening at 20+0.2 before considering SPRT.
 - Hypotes: The completed LMR re-search ladder improves playing strength by avoiding unnecessary full-window searches despite lower fixed-depth NPS.
 - Orsak: All hard correctness gates passed. The candidate intentionally changes search behavior, with a -2.28% median NPS delta and four changed bestmoves in 14 fixed-depth positions. A strength match is required to determine whether the more selective re-search sequence is beneficial.
+
+## candidate-019-syzygy
+
+- Status: `promoted`
+- Rekommendation: `promote`
+- Nästa ändring: Inför en försiktig mittspelsvärdering av bondestorm mot motståndarens rockerade kung.
+- Hypotes: Valfri Syzygy-probering ger exakta fåpjäsbeslut när tabeller finns utan att försämra normalt spel eller det inbyggda remiskyddet när tabeller saknas.
+- Orsak: Alla korrekthetstester, den deterministiska Syzygy-sviten och den cgo-fria reservvägen godkändes. `IsDeadMaterial` körs före Syzygy i sökträdet och fungerar utan externa tabeller. Screeningen med Syzygy avstängt gav förväntat neutrala 49,6 procent över 400 partier. Den automatiskt startade SPRT-körningen stoppades vid 0 partier eftersom den inte kunde mäta Syzygy-funktionen.
