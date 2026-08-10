@@ -871,12 +871,8 @@ func (bd *Board) DrawState() DrawReason {
 // IsDeadMaterial reports positions where checkmate is impossible for either
 // side solely because of the remaining material.
 func (bd *Board) IsDeadMaterial() bool {
-	for sd := WHITE; sd <= BLACK; sd++ {
-		if bd.Count(material.Pawn, sd) != 0 ||
-			bd.Count(material.Rook, sd) != 0 ||
-			bd.Count(material.Queen, sd) != 0 {
-			return false
-		}
+	if bd.Piece(material.Pawn)|bd.Piece(material.Rook)|bd.Piece(material.Queen) != 0 {
+		return false
 	}
 
 	knights := bd.Count(material.Knight, WHITE) + bd.Count(material.Knight, BLACK)
