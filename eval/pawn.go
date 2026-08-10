@@ -28,6 +28,17 @@ var passedMe [square.BoardSize][2]bit.BB
 var passedOpp [square.BoardSize][2]bit.BB
 var pair [square.BoardSize]bit.BB
 
+// The entries for ranks 3-6 are the agreed middlegame storm bonuses. Rank 7
+// is capped at rank 6 because promotion threats are evaluated separately.
+var pawnStormSameWing = [8]int{0, 0, 0, 1, 4, 8, 8, 0}
+var pawnStormOppositeWing = [8]int{0, 0, 1, 6, 14, 22, 22, 0}
+
+const (
+	noKingWing = -1
+	queenWing  = 0
+	kingWing   = 1
+)
+
 // ShelterFile returnerar 2 om en bonde står på filen fl rad 2, 1 om den står på rad 3, annars 0.
 func ShelterFile(fl, sd int, bd *board.Board) int {
 	if bd.SquareIs(square.MakeSd(fl, square.Rank2, sd), material.Pawn, sd) {
@@ -124,6 +135,50 @@ func (pawnHash *PawnHash) getEntry(bd *board.Board) *pawnEntry {
 func isPassed(sq, sd int, bd *board.Board) bool {
 	return (bd.PieceSd(material.Pawn, board.Opposite(sd))&passedOpp[sq][sd]) == 0 &&
 		(bd.PieceSd(material.Pawn, sd)&passedMe[sq][sd]) == 0
+}
+
+func castledKingWing(sq, sd int) int {
+	if square.RankSd(sq, sd) > square.Rank2 {
+		return noKingWing
+	}
+	switch fl := square.File(sq); {
+	case fl <= square.FileC:
+		return queenWing
+	case fl >= square.FileF:
+		return kingWing
+	default:
+		return noKingWing
+	}
+}
+
+// pawnStormMg rewards advanced wing pawns only while the attacking queen is
+// present and the enemy king remains on a recognizable castled wing.
+func pawnStormMg(sd int, bd *board.Board) int {
+	if bd.Count(material.Queen, sd) == 0 {
+		return 0
+	}
+
+	xd := board.Opposite(sd)
+	targetWing := castledKingWing(bd.King(xd), xd)
+	if targetWing == noKingWing {
+		return 0
+	}
+
+	bonuses := &pawnStormSameWing
+	if ownWing := castledKingWing(bd.King(sd), sd); ownWing != noKingWing && ownWing != targetWing {
+		bonuses = &pawnStormOppositeWing
+	}
+
+	score := 0
+	for pawns := bd.PieceSd(material.Pawn, sd); pawns != 0; pawns = bit.Rest(pawns) {
+		sq := bit.First(pawns)
+		fl := square.File(sq)
+		if (targetWing == queenWing && fl > square.FileC) || (targetWing == kingWing && fl < square.FileF) {
+			continue
+		}
+		score += bonuses[square.RankSd(sq, sd)]
+	}
+	return score
 }
 
 func passerUnstoppable(sq, sd int, bd *board.Board) bool {

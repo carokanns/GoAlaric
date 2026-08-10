@@ -248,6 +248,7 @@ func CompEval(bd *board.Board, pawnHash *PawnHash) int { // NOTE: score for whit
 		kingPower := 0
 
 		// pawns
+		mg += pawnStormMg(sd, bd)
 
 		myPawns := bd.PieceSd(material.Pawn, sd)
 		front := bit.Front(square.Rank3)
@@ -515,6 +516,7 @@ func CompEvalGP(bd *board.Board, pawnHash *PawnHash) (int, []int) { // NOTE: sco
 		kingPower := 0
 
 		// PAWNS
+		mg += pawnStormMg(sd, bd)
 
 		myPawns := bd.PieceSd(material.Pawn, sd)
 		front := bit.Front(square.Rank3)

@@ -90,6 +90,32 @@ func TestShelterScoreAveragesPotentialCastle(t *testing.T) {
 	}
 }
 
+func TestPawnStormMg(t *testing.T) {
+	tests := []struct {
+		name string
+		fen  string
+		side int
+		want int
+	}{
+		{name: "opposite wings", fen: "6k1/8/8/7P/6P1/5P2/8/2KQ4 w - - 0 1", side: WHITE, want: 21},
+		{name: "same wing", fen: "6k1/8/8/7P/6P1/5P2/8/3Q2K1 w - - 0 1", side: WHITE, want: 5},
+		{name: "own king not castled", fen: "6k1/8/8/7P/6P1/5P2/8/3QK3 w - - 0 1", side: WHITE, want: 5},
+		{name: "queen required", fen: "6k1/8/8/7P/6P1/5P2/8/2K5 w - - 0 1", side: WHITE, want: 0},
+		{name: "target king not castled", fen: "4k3/8/8/7P/6P1/5P2/8/2KQ4 w - - 0 1", side: WHITE, want: 0},
+		{name: "black opposite wings", fen: "2kq4/8/5p2/6p1/7p/8/8/6K1 b - - 0 1", side: BLACK, want: 21},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var position board.Board
+			board.SetFen(test.fen, &position)
+			if got := pawnStormMg(test.side, &position); got != test.want {
+				t.Fatalf("pawnStormMg() = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
 func TestKBNK(t *testing.T) {
 	type evalStruct struct {
 		fen  string
@@ -131,7 +157,7 @@ func TestEval(t *testing.T) {
 	var evalTest = [...]evalStruct{
 		{"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 0, 0},
 		{"7k/8/8/8/8/5N2/5BK1/8 w - - 0 1", 1900, 2000},
-		{"3r2k1/5pp1/p7/P1qp1PP1/8/1P1R3K/3Q4/8 w - - 5 39", 5, 10},
+		{"3r2k1/5pp1/p7/P1qp1PP1/8/1P1R3K/3Q4/8 w - - 5 39", 10, 18},
 		{"3r2k1/5pp1/p7/P1qp1PP1/1P6/3R3K/3Q4/8 b - - 5 39", 50, 90},
 		{"3r2k1/5pp1/p7/P2p1PP1/1P6/3R3K/3Q4/6q1 w - - 1 40", -70, -40},
 	}
