@@ -375,6 +375,9 @@ func startAutomaticSPRT(cfg matchConfig, runDir string) error {
 		"--run-dir", runDir,
 		"--sprt",
 	}
+	if cfg.SyzygyPath != "" {
+		args = append(args, "--syzygy-path", cfg.SyzygyPath)
+	}
 	return startCommand(args)
 }
 

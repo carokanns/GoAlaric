@@ -30,6 +30,7 @@ import (
 const (
 	defaultFastchess         = ".tools/fastchess/bin/fastchess"
 	defaultOpenings          = ".tools/books/8moves_v3.pgn"
+	defaultSyzygyPath        = ".tools/syzygy/3-4"
 	minimumOpenings          = 100
 	defaultScreeningTC       = "10+0.1"
 	defaultSPRTTC            = "20+0.2"
@@ -120,6 +121,7 @@ type matchConfig struct {
 	DepthCacheDir string `json:"depth_cache_dir,omitempty"`
 	HashMB        int    `json:"hash_mb"`
 	Threads       int    `json:"threads"`
+	SyzygyPath    string `json:"syzygy_path,omitempty"`
 }
 
 type searchSample struct {
@@ -364,6 +366,9 @@ func startCommand(args []string) error {
 		return err
 	}
 	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", cfg.Openings, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--hash", strconv.Itoa(cfg.HashMB), "--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir}
+	if cfg.SyzygyPath != "" {
+		childArgs = append(childArgs, "--syzygy-path", cfg.SyzygyPath)
+	}
 	if cfg.SPRT {
 		childArgs = append(childArgs, "--sprt")
 	}
@@ -427,17 +432,18 @@ func runMatchCommand(args []string) error {
 	if cfg.DepthProfile {
 		logOptions = []string{"-log", "file=" + filepath.Join(cfg.RunDir, "fastchess.log"), "level=trace", "append=false", "realtime=true", "engine=true"}
 	}
-	fcArgs := []string{
-		"-engine", "cmd=" + cfg.Candidate, "name=Candidate", "option.Hash=" + strconv.Itoa(cfg.HashMB), "option.Threads=" + strconv.Itoa(cfg.Threads), "option.Ponder=false",
-		"-engine", "cmd=" + cfg.Baseline, "name=Baseline", "option.Hash=" + strconv.Itoa(cfg.HashMB), "option.Threads=" + strconv.Itoa(cfg.Threads), "option.Ponder=false",
-		"-each", "tc=" + cfg.TC,
-		"-openings", "file=" + cfg.Openings, "format=" + cfg.BookFormat, "order=random",
+	fcArgs := []string{}
+	fcArgs = append(fcArgs, fastchessEngineArgs(cfg.Candidate, "Candidate", cfg)...)
+	fcArgs = append(fcArgs, fastchessEngineArgs(cfg.Baseline, "Baseline", cfg)...)
+	fcArgs = append(fcArgs,
+		"-each", "tc="+cfg.TC,
+		"-openings", "file="+cfg.Openings, "format="+cfg.BookFormat, "order=random",
 		"-srand", strconv.FormatInt(cfg.Seed, 10), "-rounds", strconv.Itoa(rounds), "-repeat", "-concurrency", strconv.Itoa(cfg.Concurrency),
-		"-resign", "movecount=3", "score=" + strconv.Itoa(defaultResignScore), "twosided=true",
+		"-resign", "movecount=3", "score="+strconv.Itoa(defaultResignScore), "twosided=true",
 		"-draw", "movenumber=40", "movecount=8", "score=10", "-maxmoves", "200",
 		"-recover", "-autosaveinterval", "10", "-strict",
-		"-pgnout", "file=" + filepath.Join(cfg.RunDir, "games.pgn"), "append=false", "notation=uci", "nodes=true", "nps=true",
-	}
+		"-pgnout", "file="+filepath.Join(cfg.RunDir, "games.pgn"), "append=false", "notation=uci", "nodes=true", "nps=true",
+	)
 	fcArgs = append(fcArgs, logOptions...)
 	fcArgs = append(fcArgs,
 		"-output", "format=cutechess", "-scoreinterval", "1",
@@ -722,6 +728,7 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.DepthCacheDir, "depth-cache-dir", "", "directory for cached depth profiles")
 	fs.IntVar(&cfg.HashMB, "hash", 128, "engine hash in MB")
 	fs.IntVar(&cfg.Threads, "threads", 1, "threads per engine")
+	fs.StringVar(&cfg.SyzygyPath, "syzygy-path", "", "Syzygy tablebase directory; local .tools/syzygy/3-4 is used when available, or use off")
 	if err := fs.Parse(args); err != nil {
 		return cfg, err
 	}
@@ -773,6 +780,12 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 	if cfg.SPRTTC == "" {
 		cfg.SPRTTC = defaultSPRTTC
 	}
+	if cfg.RepoRoot, err = existingAbs(cfg.RepoRoot); err != nil {
+		return cfg, err
+	}
+	if cfg.SyzygyPath, err = resolveSyzygyPath(cfg.RepoRoot, cfg.SyzygyPath); err != nil {
+		return cfg, err
+	}
 	if cfg.TC == "" {
 		cfg.TC = defaultScreeningTC
 		if cfg.SPRT {
@@ -789,9 +802,6 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 		}
 	}
 	if cfg.AutoEvaluate {
-		if cfg.RepoRoot, err = existingAbs(cfg.RepoRoot); err != nil {
-			return cfg, err
-		}
 		if cfg.Codex, err = resolveExecutable(cfg.Codex); err != nil {
 			return cfg, err
 		}
@@ -800,9 +810,6 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 		}
 	}
 	if cfg.DepthProfile {
-		if cfg.RepoRoot, err = existingAbs(cfg.RepoRoot); err != nil {
-			return cfg, err
-		}
 		if cfg.DepthCacheDir == "" {
 			cfg.DepthCacheDir = filepath.Join(cfg.RepoRoot, "artifacts", "depth-profiles", "cache")
 		} else if !filepath.IsAbs(cfg.DepthCacheDir) {
@@ -841,6 +848,42 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 		cfg.RunDir, err = filepath.Abs(cfg.RunDir)
 	}
 	return cfg, err
+}
+
+func resolveSyzygyPath(repoRoot, configured string) (string, error) {
+	configured = strings.TrimSpace(configured)
+	if strings.EqualFold(configured, "off") {
+		return "", nil
+	}
+	if configured == "" {
+		configured = filepath.Join(repoRoot, defaultSyzygyPath)
+	} else if !filepath.IsAbs(configured) {
+		configured = filepath.Join(repoRoot, configured)
+	}
+	info, err := os.Stat(configured)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) && configured == filepath.Join(repoRoot, defaultSyzygyPath) {
+			return "", nil
+		}
+		return "", fmt.Errorf("Syzygy path %q: %w", configured, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("Syzygy path %q is not a directory", configured)
+	}
+	return filepath.Abs(configured)
+}
+
+func fastchessEngineArgs(engine, name string, cfg matchConfig) []string {
+	args := []string{
+		"-engine", "cmd=" + engine, "name=" + name,
+		"option.Hash=" + strconv.Itoa(cfg.HashMB),
+		"option.Threads=" + strconv.Itoa(cfg.Threads),
+		"option.Ponder=false",
+	}
+	if cfg.SyzygyPath != "" {
+		args = append(args, "option.SyzygyPath="+cfg.SyzygyPath)
+	}
+	return args
 }
 
 func initialStatus(cfg matchConfig) matchStatus {

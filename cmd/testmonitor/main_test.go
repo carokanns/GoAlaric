@@ -97,6 +97,53 @@ func TestProgressIntervalDefaults(t *testing.T) {
 	}
 }
 
+func TestSyzygyPathUsesLocalTablesByDefault(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"fastchess", "baseline", "candidate"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("test"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	book := filepath.Join(dir, "book.epd")
+	var openings []string
+	for ix := 0; ix < 100; ix++ {
+		openings = append(openings, "8/8/8/8/8/8/8/8 w - - id "+strconv.Itoa(ix))
+	}
+	if err := os.WriteFile(book, []byte(strings.Join(openings, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tables := filepath.Join(dir, defaultSyzygyPath)
+	if err := os.MkdirAll(tables, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := normalizeConfig(matchConfig{
+		Fastchess: filepath.Join(dir, "fastchess"), Baseline: filepath.Join(dir, "baseline"), Candidate: filepath.Join(dir, "candidate"),
+		Openings: book, Games: 100, Concurrency: 1, RunDir: filepath.Join(dir, "run"), RepoRoot: dir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SyzygyPath != tables {
+		t.Fatalf("Syzygy path = %q, want %q", cfg.SyzygyPath, tables)
+	}
+	for _, engine := range []string{cfg.Candidate, cfg.Baseline} {
+		if !strings.Contains(strings.Join(fastchessEngineArgs(engine, "test", cfg), " "), "option.SyzygyPath="+tables) {
+			t.Fatalf("Fastchess arguments omitted SyzygyPath for %s", engine)
+		}
+	}
+}
+
+func TestSyzygyPathCanBeDisabled(t *testing.T) {
+	dir := t.TempDir()
+	path, err := resolveSyzygyPath(dir, "off")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "" {
+		t.Fatalf("disabled Syzygy path = %q, want empty", path)
+	}
+}
+
 func TestDefaultSPRTPolicy(t *testing.T) {
 	alpha, err := strconv.ParseFloat(defaultSPRTAlpha, 64)
 	if err != nil {
