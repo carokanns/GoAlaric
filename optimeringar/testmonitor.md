@@ -83,6 +83,12 @@ fördel för samma sida under tre på varandra följande bedömningar. Det motsv
 ungefär värdet av ett torn. Remiavdömningen börjar efter drag 40 och kräver åtta
 bedömningar inom ±10 centipawns; drag 200 avslutar återstående partier som remi.
 
+Om den lokala tabellmappen `.tools/syzygy/3-4` finns, skickar testmonitor
+automatiskt samma `SyzygyPath` till både baseline och kandidat i screening,
+SPRT och depth pre-scan. Den faktiska sökvägen sparas i `monitor-config.json`.
+För en enskild körning kan det stängas av med `--syzygy-path off`, eller peka
+ut en annan tabellmapp med `--syzygy-path <sökväg>`.
+
 ## Fristående depth pre-scan
 
 Pre-scanningen mäter sista kompletta UCI-`depth` före varje `bestmove`. Den
