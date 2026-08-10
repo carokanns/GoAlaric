@@ -228,6 +228,17 @@ func TestMakeFenMveUndoRestoresState(t *testing.T) {
 	}
 }
 
+func TestFenHalfmoveClock(t *testing.T) {
+	var bd Board
+	SetFen("8/8/8/8/8/8/4K3/7k w - - 99 50", &bd)
+	if got := bd.HalfmoveClock(); got != 99 {
+		t.Fatalf("HalfmoveClock() = %d, want 99", got)
+	}
+	if got := bd.CreateFen(); !strings.HasSuffix(got, " 99") {
+		t.Fatalf("CreateFen() = %q, want halfmove clock 99", got)
+	}
+}
+
 func TestRepetitionUsesThreefoldAtRootAndTwofoldInSearch(t *testing.T) {
 	cycle := []string{"g1f3", "g8f6", "f3g1", "f6g8"}
 

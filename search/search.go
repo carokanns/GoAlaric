@@ -13,6 +13,7 @@ import (
 	"goalaric/hash"
 	"goalaric/move"
 	"goalaric/parms"
+	"goalaric/syzygy"
 )
 
 var tellGUI = func(line string) { fmt.Println(line) }
@@ -27,11 +28,13 @@ const (
 const defaultHash = 128
 
 type engineStruct struct {
-	Hash     int
-	Ponder   bool
-	Threads  int
-	Log      bool
-	Contempt int
+	Hash             int
+	Ponder           bool
+	Threads          int
+	Log              bool
+	Contempt         int
+	SyzygyPath       string
+	SyzygyProbeDepth int
 }
 
 // Engine is the var holding engineStruct values
@@ -45,6 +48,7 @@ func init() {
 	Engine.Threads = 1
 	Engine.Log = false
 	Engine.Contempt = parms.Search.Contempt
+	Engine.SyzygyProbeDepth = 1
 	initLMRReductions()
 }
 
@@ -64,6 +68,7 @@ const nodeInterval = 1024
 const maxThreads = 16
 const maxQS = 2 // Max number of qs recursions
 const lmrMoveLimit = 64
+const tablebaseWinScore = EvalMAX - maxPly
 
 var lmrReductions [maxDepth + 1][lmrMoveLimit]int
 
@@ -551,6 +556,7 @@ func searchGo(bd *board.Board) {
 	//	fmt.Println("Search_go")
 	//	defer fmt.Println("exit Search_go")
 	clear()
+	syzygy.ResetHits()
 	initSg()
 
 	for id := 0; id < Engine.Threads; id++ {
@@ -596,6 +602,13 @@ func searchID(bd *board.Board) {
 	///// move generation /////
 
 	var ml gen.ScMvList
+	if syzygy.Enabled() {
+		gen.LegalMoves(&ml, &sl.Board)
+		if useRootTablebase(bd, &ml) {
+			slPop(sl)
+			return
+		}
+	}
 	genAndSortLegals(sl, &ml) // generate legal and sort
 	//util.ASSERT(ml.Size() != 0)
 	Best.move = ml.Move(0)
@@ -861,6 +874,13 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			}
 		}
 	}
+	if wdl, ok := syzygy.ProbeWDL(bd, depth, Engine.SyzygyProbeDepth); ok {
+		sc := tablebaseScore(wdl, bd.Ply())
+		if useTrans {
+			SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, scoreTypeBetween)
+		}
+		return sc
+	}
 
 	// ply limit
 	if bd.Ply() >= maxPly || bStop {
@@ -1075,6 +1095,39 @@ func drawScore(ply int) int {
 		return -Engine.Contempt
 	}
 	return Engine.Contempt
+}
+
+func tablebaseScore(wdl syzygy.WDL, ply int) int {
+	switch wdl {
+	case syzygy.Win:
+		return tablebaseWinScore
+	case syzygy.CursedWin:
+		return 1
+	case syzygy.BlessedLoss:
+		return -1
+	case syzygy.Loss:
+		return -tablebaseWinScore
+	default:
+		return drawScore(ply)
+	}
+}
+
+func useRootTablebase(bd *board.Board, ml *gen.ScMvList) bool {
+	result, ok := syzygy.ProbeRoot(bd)
+	if !ok {
+		return false
+	}
+	mv := board.FromString(result.Move, bd)
+	if !ml.Contain(mv) {
+		return false
+	}
+	Best.depth = 0
+	Best.move = mv
+	Best.Score = tablebaseScore(result.WDL, 0)
+	Best.scoreType = scoreTypeBetween
+	Best.pv.clear()
+	Best.pv.mvAdd(mv)
+	return true
 }
 
 func initMvSearch(mv, pos, size int) {
@@ -1394,6 +1447,7 @@ func infoToGUI() {
 		line += fmt.Sprintf("nps %v ", current.speed)
 	}
 	line += fmt.Sprintf("hashfull %v ", SG.Trans.Used())
+	line += fmt.Sprintf("tbhits %v ", syzygy.Hits())
 
 	tellGUI(line)
 }
@@ -1455,6 +1509,7 @@ func writePV(best *bestStruct) {
 
 	line := fmt.Sprintf("info depth %v seldepth %v ", best.depth, current.maxPly)
 	line += fmt.Sprintf("nodes %v time %v ", current.node, current.time)
+	line += fmt.Sprintf("tbhits %v ", syzygy.Hits())
 	if IsMateScore(best.Score) {
 		line += fmt.Sprintf(" score mate %v ", mateWithSign(best.Score))
 	} else {

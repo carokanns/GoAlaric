@@ -4,11 +4,34 @@ import (
 	"testing"
 
 	"goalaric/parms"
+	"goalaric/syzygy"
 )
 
 func TestDefaultContemptComesFromParameters(t *testing.T) {
 	if Engine.Contempt != parms.Search.Contempt {
 		t.Fatalf("default contempt = %d, parameter = %d", Engine.Contempt, parms.Search.Contempt)
+	}
+}
+
+func TestTablebaseScore(t *testing.T) {
+	original := Engine.Contempt
+	Engine.Contempt = 5
+	t.Cleanup(func() { Engine.Contempt = original })
+
+	if got := tablebaseScore(syzygy.Win, 7); got != tablebaseWinScore {
+		t.Fatalf("win score = %d", got)
+	}
+	if got := tablebaseScore(syzygy.Loss, 7); got != -tablebaseWinScore {
+		t.Fatalf("loss score = %d", got)
+	}
+	if got := tablebaseScore(syzygy.CursedWin, 7); got != 1 {
+		t.Fatalf("cursed win score = %d", got)
+	}
+	if got := tablebaseScore(syzygy.BlessedLoss, 7); got != -1 {
+		t.Fatalf("blessed loss score = %d", got)
+	}
+	if got := tablebaseScore(syzygy.Draw, 1); got != Engine.Contempt {
+		t.Fatalf("draw score = %d", got)
 	}
 }
 

@@ -4,6 +4,8 @@ package search
 import (
 	"fmt"
 	"log"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +15,35 @@ import (
 	"goalaric/gen"
 	"goalaric/material"
 	"goalaric/move"
+	"goalaric/syzygy"
 )
+
+func TestSyzygyRootMove(t *testing.T) {
+	path := os.Getenv("GOALARIC_SYZYGY_PATH")
+	if path == "" {
+		t.Skip("GOALARIC_SYZYGY_PATH is not set")
+	}
+	if err := syzygy.SetPath(path); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syzygy.SetPath("") })
+
+	var position board.Board
+	board.SetFen("8/8/8/8/8/8/8/QK1k4 w - - 0 1", &position)
+	var moves gen.ScMvList
+	gen.LegalMoves(&moves, &position)
+	syzygy.ResetHits()
+	if !useRootTablebase(&position, &moves) {
+		t.Fatal("root tablebase was not used")
+	}
+	accepted := []string{"b1a2", "b1b2", "a1a2", "a1b2", "a1a3", "a1c3", "a1a4", "a1d4", "a1a5", "a1e5", "a1a6", "a1f6", "a1a7", "a1g7", "a1a8", "a1h8"}
+	if got := move.ToString(Best.move); !slices.Contains(accepted, got) {
+		t.Fatalf("bestmove = %s, want Syzygy-optimal move", got)
+	}
+	if Best.Score != tablebaseWinScore || syzygy.Hits() != 1 {
+		t.Fatalf("score=%d tbhits=%d", Best.Score, syzygy.Hits())
+	}
+}
 
 var bd board.Board
 var sl Local

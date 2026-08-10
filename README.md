@@ -18,6 +18,7 @@ Trying to restore an old chesspogram in Go
 - `go run ./cmd/testmonitor start --baseline <bin> --candidate <bin> --candidate-id <id> --auto-evaluate` (utvärdera screening efter avslut och starta godkänd SPRT automatiskt)
 - `go run ./cmd/testmonitor retry-evaluation --run-dir <match-directory>` (försök om ett misslyckat modell-anrop uttryckligen)
 - `go run ./cmd/testmonitor prescan --engine <bin> --role baseline --minimum-depth <ply>` (fristående 40-partiers djupprofil och cache)
+- `bash scripts/run_syzygy_tests.sh <table-directory>` (separata deterministiska tester med och utan Syzygy)
 - `scripts/start_candidate_campaign.sh ...` (bygg, testa och starta en godkänd kandidats frikopplade screening/SPRT-kedja under `systemd --user`)
 - `scripts/campaign_status.sh` (visa kampanjens kompakta status och bakgrundstjänst)
 

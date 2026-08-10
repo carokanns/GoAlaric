@@ -46,6 +46,10 @@ tables=(
   "ced507ec717b6031f42ef53cd1df860b KRvKB.rtbz"
   "5f2c91dd8fa2e6fdf2664560d4d02bc2 KRvKN.rtbw"
   "f8b6e95250e5f6657e0333a43dc43251 KRvKN.rtbz"
+  "e9390be76079250caba06f353f758536 KPvKP.rtbw"
+  "17cec6d51197c92b97b3ad9bc5559ee0 KPvKP.rtbz"
+  "46f6ef491bd26696d7b20281e7c5b721 KPvK.rtbw"
+  "54460894c15f087cfd16670bf1513755 KPvK.rtbz"
 )
 for entry in "${tables[@]}"; do
   read -r expected table <<<"$entry"

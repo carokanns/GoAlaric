@@ -14,6 +14,7 @@ import (
 	"goalaric/gen"
 	"goalaric/move"
 	"goalaric/search" //	"../sort"
+	"goalaric/syzygy"
 )
 
 var tellGUI = func(line string) { fmt.Println(line) }
@@ -36,6 +37,8 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI(fmt.Sprintf("option name Ponder type check default %v", search.Engine.Ponder))
 			tellGUI(fmt.Sprintf("option name Threads type spin default %v min 1 max 16", search.Engine.Threads))
 			tellGUI(fmt.Sprintf("option name Contempt type spin default %v min 0 max 100", search.Engine.Contempt))
+			tellGUI("option name SyzygyPath type string default <empty>")
+			tellGUI(fmt.Sprintf("option name SyzygyProbeDepth type spin default %v min 1 max 100", search.Engine.SyzygyProbeDepth))
 			tellGUI(fmt.Sprintf("option name LogFile type check default %v", search.Engine.Log))
 
 			tellGUI("uciok")
@@ -358,20 +361,21 @@ func pickNumber(line string, cmd string) (int64, bool) {
 }
 
 func setOption(words []string) { // NOTE: "setoption" is already removed from the parameter words
-	word := strings.ToLower(strings.TrimSpace(words[0]))
-	if word != "name" {
+	if len(words) < 2 || !strings.EqualFold(strings.TrimSpace(words[0]), "name") {
 		return
 	}
-	if len(words) < 4 {
+	valueAt := -1
+	for i := 1; i < len(words); i++ {
+		if strings.EqualFold(strings.TrimSpace(words[i]), "value") {
+			valueAt = i
+			break
+		}
+	}
+	if valueAt < 2 {
 		return
 	}
-	word = strings.ToLower(strings.TrimSpace(words[2]))
-	if word != "value" {
-		return
-	}
-
-	word = strings.ToLower(strings.TrimSpace(words[1]))
-	value := strings.ToLower(strings.TrimSpace(words[3]))
+	word := strings.ToLower(strings.Join(words[1:valueAt], " "))
+	value := strings.TrimSpace(strings.Join(words[valueAt+1:], " "))
 	switch word {
 	case "hash":
 		fmt.Println("info string Hash before:", search.Engine.Hash)
@@ -402,7 +406,29 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 			return
 		}
 		search.Engine.Contempt = int(contempt)
-	case "log":
+	case "syzygypath":
+		path := syzygy.NormalizePath(value)
+		err := syzygy.SetPath(path)
+		search.SG.Trans.IncDate()
+		if err != nil {
+			search.Engine.SyzygyPath = ""
+			tellGUI("info string Syzygy disabled: " + err.Error())
+			return
+		}
+		search.Engine.SyzygyPath = path
+		if path == "" {
+			tellGUI("info string Syzygy disabled")
+		} else {
+			tellGUI(fmt.Sprintf("info string Syzygy loaded: path=%s pieces=%d", path, syzygy.Largest()))
+		}
+	case "syzygyprobedepth":
+		depth, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || depth < 1 || depth > 100 {
+			return
+		}
+		search.Engine.SyzygyProbeDepth = int(depth)
+		search.SG.Trans.IncDate()
+	case "log", "logfile":
 		log, err := strconv.ParseBool(value)
 		if err != nil {
 			return

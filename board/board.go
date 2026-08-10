@@ -188,6 +188,13 @@ func SetFen(fen string, bd *Board) {
 		}
 	}
 
+	// halfmove clock (optional in the EPD-like positions used by tests)
+	if fields := strings.Fields(fen[pos:]); len(fields) != 0 {
+		if moves, err := strconv.Atoi(fields[0]); err == nil && moves >= 0 {
+			bd.copyStr.moves = moves
+		}
+	}
+
 	bd.update()
 
 }
@@ -453,6 +460,12 @@ func (bd *Board) EpSq() int {
 // Flags returns castling flags for the position
 func (bd *Board) Flags() int {
 	return bd.copyStr.flags
+}
+
+// HalfmoveClock returns the number of reversible halfmoves since the last
+// pawn move or capture, as used by the fifty-move rule.
+func (bd *Board) HalfmoveClock() int {
+	return bd.copyStr.moves
 }
 
 // Empty returns a bitboard with all empty squares
@@ -1115,7 +1128,7 @@ func (bd *Board) CreateFen() string {
 		epStr = strings.ToLower(square.ToString(bd.EpSq()))
 	}
 
-	epd += fmt.Sprintf(" %v %v %v 0", strturn, castlStr, epStr)
+	epd += fmt.Sprintf(" %v %v %v %d", strturn, castlStr, epStr, bd.HalfmoveClock())
 
 	return epd
 }
