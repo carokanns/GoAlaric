@@ -62,7 +62,7 @@ func ProbeWDL(bd *board.Board, depth, probeDepth int) (WDL, bool) {
 	}
 	count := bits.OnesCount64(uint64(bd.All()))
 	largest := fathom.Largest()
-	if count > largest || (count == largest && depth < probeDepth) {
+	if !withinTableCardinality(count, largest) || (count == largest && depth < probeDepth) {
 		return Draw, false
 	}
 	result, ok := fathom.ProbeWDL(position(bd))
@@ -75,7 +75,7 @@ func ProbeWDL(bd *board.Board, depth, probeDepth int) (WDL, bool) {
 
 // ProbeRoot returns a 50-move-aware DTZ move for a root tablebase position.
 func ProbeRoot(bd *board.Board) (RootResult, bool) {
-	if !fathom.Enabled() || bd.Flags() != 0 || bits.OnesCount64(uint64(bd.All())) > fathom.Largest() {
+	if !fathom.Enabled() || bd.Flags() != 0 || !withinTableCardinality(bits.OnesCount64(uint64(bd.All())), fathom.Largest()) {
 		return RootResult{}, false
 	}
 	result, ok := fathom.ProbeRoot(position(bd))
@@ -86,6 +86,13 @@ func ProbeRoot(bd *board.Board) (RootResult, bool) {
 	move += promotionSuffix(result.Promotion)
 	hits.Add(1)
 	return RootResult{Move: move, WDL: WDL(result.WDL - fathom.Draw), DTZ: result.DTZ}, true
+}
+
+// withinTableCardinality is checked before entering Fathom. A small local
+// table set therefore never receives probes for positions with more pieces
+// than the largest table it loaded.
+func withinTableCardinality(pieceCount, largest int) bool {
+	return largest > 0 && pieceCount <= largest
 }
 
 func position(bd *board.Board) fathom.Position {

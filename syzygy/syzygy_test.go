@@ -28,6 +28,44 @@ func TestSquareAndBitboardTranspose(t *testing.T) {
 	}
 }
 
+func TestTableCardinalityGate(t *testing.T) {
+	if !withinTableCardinality(3, 3) {
+		t.Fatal("a position matching the largest loaded table should be probeable")
+	}
+	if withinTableCardinality(4, 3) {
+		t.Fatal("a four-piece position must not reach a three-piece tablebase")
+	}
+	if withinTableCardinality(2, 0) {
+		t.Fatal("probing must remain disabled when no tables are loaded")
+	}
+}
+
+func TestConfiguredTablesRejectExcessCardinality(t *testing.T) {
+	path := os.Getenv("GOALARIC_SYZYGY_PATH")
+	if path == "" {
+		t.Skip("GOALARIC_SYZYGY_PATH is not set")
+	}
+	if err := SetPath(path); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = SetPath("") })
+
+	// Eight pieces is above Fathom's supported table cardinality and above
+	// the small local set. The wrapper must reject it before Fathom is called.
+	var bd board.Board
+	board.SetFen("kqrb4/8/8/8/8/8/8/KQRB4 w - - 0 1", &bd)
+	ResetHits()
+	if _, ok := ProbeWDL(&bd, 100, 1); ok {
+		t.Fatal("WDL probe above loaded cardinality succeeded")
+	}
+	if _, ok := ProbeRoot(&bd); ok {
+		t.Fatal("root probe above loaded cardinality succeeded")
+	}
+	if Hits() != 0 {
+		t.Fatalf("Hits() = %d after rejected probes, want 0", Hits())
+	}
+}
+
 func TestTablebaseOracle(t *testing.T) {
 	path := os.Getenv("GOALARIC_SYZYGY_PATH")
 	if path == "" {

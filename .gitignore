@@ -20,3 +20,7 @@ search.log
 # Local test runners and generated benchmark/match artifacts
 .tools/
 artifacts/
+# Local Syzygy tablebase data (may be very large)
+.tools/syzygy/
+*.rtbw
+*.rtbz
