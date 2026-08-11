@@ -6,6 +6,7 @@ package main
 import (
 	"bufio"
 	"crypto/sha256"
+	"debug/buildinfo"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -516,31 +517,26 @@ func identifyExperimentBinary(path string) (experimentIdentity, error) {
 	if err != nil {
 		return experimentIdentity{}, err
 	}
-	id := experimentIdentity{Path: path, SHA256: digest(data)}
-	root := nearestGitRoot(filepath.Dir(path))
-	if root == "" {
+
+	id := experimentIdentity{
+		Path:   path,
+		SHA256: digest(data),
+	}
+
+	info, err := buildinfo.ReadFile(path)
+	if err != nil {
+		// Äldre eller icke-Go-binärer identifieras fortfarande säkert med SHA-256.
 		return id, nil
 	}
-	id.GitRoot = root
-	id.GitCommit = gitValue(root, "rev-parse", "HEAD")
-	id.GitBranch = gitValue(root, "symbolic-ref", "--short", "HEAD")
-	if diff := gitOutput(root, "diff", "--binary", "HEAD", "--"); diff != "" {
-		id.DiffSHA256 = digest([]byte(diff))
-	}
-	return id, nil
-}
 
-func nearestGitRoot(path string) string {
-	for {
-		if info, err := os.Stat(filepath.Join(path, ".git")); err == nil && (info.IsDir() || info.Mode().IsRegular()) {
-			return path
+	for _, setting := range info.Settings {
+		if setting.Key == "vcs.revision" {
+			id.GitCommit = setting.Value
+			break
 		}
-		parent := filepath.Dir(path)
-		if parent == path {
-			return ""
-		}
-		path = parent
 	}
+
+	return id, nil
 }
 
 func gitValue(root string, args ...string) string { return strings.TrimSpace(gitOutput(root, args...)) }

@@ -101,3 +101,35 @@ func TestRunExperimentRejectsIdenticalBinariesBeforeTests(t *testing.T) {
 		t.Fatalf("identical binaries reached the experiment pipeline: %v", err)
 	}
 }
+
+func TestIdentifyBinaryDoesNotInferCommitFromStorageDirectory(t *testing.T) {
+	file, err := os.CreateTemp(".", "identity-without-vcs-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := filepath.Abs(file.Name())
+	if err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Remove(path) })
+
+	if _, err := file.WriteString("binary without embedded VCS metadata"); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	id, err := identifyExperimentBinary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id.GitCommit != "" {
+		t.Fatalf(
+			"binary inherited enclosing repository commit %q",
+			id.GitCommit,
+		)
+	}
+}
