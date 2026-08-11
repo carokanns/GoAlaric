@@ -5,6 +5,7 @@ package uci
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ import (
 
 var tellGUI = func(line string) { fmt.Println(line) }
 var trim = strings.TrimSpace
+var tablebaseStatsGameStarted bool
 
 // Bd is the board on top of the whole session
 var Bd board.Board
@@ -39,6 +41,7 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI(fmt.Sprintf("option name Contempt type spin default %v min 0 max 100", search.Engine.Contempt))
 			tellGUI("option name SyzygyPath type string default <empty>")
 			tellGUI(fmt.Sprintf("option name SyzygyProbeDepth type spin default %v min 1 max 100", search.Engine.SyzygyProbeDepth))
+			tellGUI("option name TablebaseStatsFile type string default <empty>")
 			tellGUI(fmt.Sprintf("option name LogFile type check default %v", search.Engine.Log))
 
 			tellGUI("uciok")
@@ -56,6 +59,7 @@ func HandleInput(line string, chSearch *chan int) string {
 			search.SetStop(true)
 			return "stop"
 		case "quit", "q":
+			flushTablebaseGameStats()
 			search.SetStop(true)
 			return "quit"
 		case "ucinewgame":
@@ -271,16 +275,17 @@ func mirror(epd string) string {
 
 // HandleGo handles the go-command from GUI
 func HandleGo(line string, chSearch *chan int) {
-	if search.Status == search.Running {
+	if search.SearchStatus() == search.Running {
 		tellGUI("info string Inte en go till innan search klar")
 		return
 	}
 	search.NewSearch()
+	tablebaseStatsGameStarted = true
 
 	line = strings.ToLower(strings.TrimSpace(line))
 
 	if strings.Contains(line, "infinite") {
-		search.Infinite = true
+		search.SetInfinite(true)
 	}
 
 	if strings.Contains(line, "ponder") {
@@ -428,6 +433,8 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 		}
 		search.Engine.SyzygyProbeDepth = int(depth)
 		search.SG.Trans.IncDate()
+	case "tablebasestatsfile":
+		search.Engine.TablebaseStatsFile = value
 	case "log", "logfile":
 		log, err := strconv.ParseBool(value)
 		if err != nil {
@@ -513,9 +520,28 @@ func isLegal(strMve string, ml *gen.ScMvList) bool {
 
 // initGame görs efter varje ucinewgame
 func initGame() {
+	flushTablebaseGameStats()
 	SetPosition("position startpos")
 	search.SG.Trans.Clear()
 	search.SG.History.Clear()
+}
+
+func flushTablebaseGameStats() {
+	if !tablebaseStatsGameStarted {
+		return
+	}
+	tablebaseStatsGameStarted = false
+	hits, rootWins := search.ConsumeTablebaseGameStats()
+	path := search.Engine.TablebaseStatsFile
+	if path == "" {
+		return
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	_, _ = fmt.Fprintf(file, "hits=%d root_wins=%d\n", hits, rootWins)
+	_ = file.Close()
 }
 
 //////////////// för testande /////////////////////

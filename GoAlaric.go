@@ -35,7 +35,7 @@ func main() {
 	go getInput(chInput)
 	go search.StartSearch(chSearch, chBestmove, &uci.Bd)
 
-	search.Infinite = false
+	search.SetInfinite(false)
 	savedBm := ""
 	uci.SetPosition("position startpos")
 
@@ -44,7 +44,7 @@ func main() {
 		line := ""
 		select {
 		case bm = <-chBestmove:
-			if search.Infinite {
+			if search.IsInfinite() {
 				savedBm = bm // Save Bestmove until GUI sends "stop"
 				// nothing more should come from the engine now
 			} else {
@@ -52,10 +52,10 @@ func main() {
 			}
 		case line = <-chInput:
 			s = uci.HandleInput(line, &chSearch)
-			if search.Infinite && (s == "stop" || //we are waiting for "stop" in order to send bestmove
+			if search.IsInfinite() && (s == "stop" || //we are waiting for "stop" in order to send bestmove
 				s == "s") {
 				tellGUI(savedBm)
-				search.Infinite = false
+				search.SetInfinite(false)
 			}
 		}
 	}
@@ -85,7 +85,7 @@ func initSession() {
 	// Reset per-session search state so a new GUI session starts clean.
 	search.NewSearch()
 	search.SetStop(false)
-	search.Infinite = false
+	search.SetInfinite(false)
 }
 
 // tellGUI skriver en rad till stdout (GUI:t).

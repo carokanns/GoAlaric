@@ -189,14 +189,14 @@ func TestQS(t *testing.T) {
 func TestRootSearch(t *testing.T) {
 	chSearch := make(chan int)
 	chBestmove := make(chan string)
-	Infinite = false
+	SetInfinite(false)
 	board.SetFen("8/7p/5pk1/3n2pq/3N1nR1/1P3P2/P6P/4QK2 w - - 0 1" /*board.Start_fen*/, &bd)
 	//	var moves = []string{"e2e4", "f7f5", "d2d4", "g7g5", "d1e2"}
 	//	board.FenMoves(moves, &bd)
 	go StartSearch(chSearch, chBestmove, &bd)
 
 	// search condition
-	Infinite = true
+	SetInfinite(true)
 	chSearch <- Simple
 	var bm = "     "
 	for ix := 0; ix < 5; ix++ {
@@ -211,6 +211,39 @@ func TestRootSearch(t *testing.T) {
 		}
 	}
 	fmt.Println(bm)
+}
+
+func TestSearchKeepsLastCompletedIterationAfterStop(t *testing.T) {
+	board.SetFen("r3k2r/ppp1bppp/2n1bn2/3p4/3P4/2N1PN2/PPP1BPPP/R3K2R w KQkq - 0 1", &bd)
+	NewSearch()
+	SetMaxDepth(4)
+	SetStop(false)
+	originalHook := afterCompletedIteration
+	t.Cleanup(func() {
+		afterCompletedIteration = originalHook
+		SetStop(false)
+	})
+	afterCompletedIteration = func(depth int) {
+		if depth == 2 {
+			SetStop(true)
+		}
+	}
+
+	searchGo(&bd)
+	if Best.depth != 2 {
+		t.Fatalf("best depth after stop = %d, want last completed depth 2", Best.depth)
+	}
+}
+
+func TestFirstRootMoveUsesFullWindow(t *testing.T) {
+	alpha, beta, full := rootSearchWindow(0, -50, 75)
+	if !full || alpha != -75 || beta != 50 {
+		t.Fatalf("first root move window = (%d, %d, full=%v), want (-75, 50, true)", alpha, beta, full)
+	}
+	alpha, beta, full = rootSearchWindow(1, -50, 75)
+	if full || alpha != 49 || beta != 50 {
+		t.Fatalf("later root move window = (%d, %d, full=%v), want (49, 50, false)", alpha, beta, full)
+	}
 }
 
 // TestSetHard kontrollerar att hårda tidsgränser beräknas och flaggas korrekt.
@@ -244,12 +277,12 @@ func TestSetHard(t *testing.T) {
 func BenchmarkSearch(b *testing.B) {
 	chSearch := make(chan int)
 	chBestmove := make(chan string)
-	Infinite = false
+	SetInfinite(false)
 	board.SetFen(board.StartFen, &bd)
 	go StartSearch(chSearch, chBestmove, &bd)
 
 	// search condition
-	Infinite = true
+	SetInfinite(true)
 	chSearch <- Simple
 	var bm = "     "
 l:

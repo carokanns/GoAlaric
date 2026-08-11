@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"goalaric/bit"
@@ -28,17 +29,28 @@ const (
 const defaultHash = 128
 
 type engineStruct struct {
-	Hash             int
-	Ponder           bool
-	Threads          int
-	Log              bool
-	Contempt         int
-	SyzygyPath       string
-	SyzygyProbeDepth int
+	Hash               int
+	Ponder             bool
+	Threads            int
+	Log                bool
+	Contempt           int
+	SyzygyPath         string
+	SyzygyProbeDepth   int
+	TablebaseStatsFile string
 }
 
 // Engine is the var holding engineStruct values
 var Engine engineStruct
+
+var tablebaseGameHits atomic.Uint64
+var tablebaseGameRootWins atomic.Uint64
+var afterCompletedIteration func(int)
+
+// ConsumeTablebaseGameStats returns and resets the successful tablebase
+// probes accumulated since the previous UCI game boundary.
+func ConsumeTablebaseGameStats() (uint64, uint64) {
+	return tablebaseGameHits.Swap(0), tablebaseGameRootWins.Swap(0)
+}
 
 // Init the engine valuse
 func init() {
@@ -244,17 +256,21 @@ var Best bestStruct
 
 //var pv pvStruct
 
-var bPonderHit bool
-var bStop bool
+var bPonderHit atomic.Bool
+var bStop atomic.Bool
 
 //var bQuit bool
 
-// Status of the search middleGame/endGame
-// Infinite is true when we search until stop from the GUI
-var (
-	Status   int
-	Infinite bool
-)
+// Search status is written by the worker and read by the UCI goroutine.
+var status atomic.Int32
+
+// Infinite is controlled by the UCI loop while it waits for an explicit stop.
+var infinite atomic.Bool
+
+func SearchStatus() int         { return int(status.Load()) }
+func setSearchStatus(value int) { status.Store(int32(value)) }
+func IsInfinite() bool          { return infinite.Load() }
+func SetInfinite(value bool)    { infinite.Store(value) }
 
 type searchGlobal struct { ////////: public util::Lockable {
 
@@ -363,7 +379,7 @@ func init() {
 	SG.Trans.InitTable()
 	SG.Trans.SetSize(Engine.Hash)
 	SG.Trans.Alloc()
-	Status = idle
+	setSearchStatus(idle)
 }
 
 func clear() {
@@ -508,7 +524,7 @@ func StartSearch(searchType chan int, bestmove chan string, bd *board.Board) {
 	//  Vi kommer att stå blockade här i väntan på return från RootSearch
 	//  Uci tar hand om quit som bryter, stop och ponderhit skickas vidare
 	//  till search.bStop resp bPonderHit
-	if Status == Running {
+	if SearchStatus() == Running {
 		fmt.Println("StartSearch - already running.... error")
 		return
 	}
@@ -516,19 +532,19 @@ func StartSearch(searchType chan int, bestmove chan string, bd *board.Board) {
 
 		switch st {
 		case Simple: // infinite, depth, nodes, movetime
-			Status = Running
+			setSearchStatus(Running)
 			fmt.Println("info string simple search started!")
 			searchGo(bd) // start search - polling for stop during search
 		case Hard: // time is computed with increments. movestogo etc
-			Status = Running
+			setSearchStatus(Running)
 			fmt.Println("info string time constrained search started!")
 			searchGo(bd) // start search - polling for stop during search
 		case MateSearch:
-			Status = Running
+			setSearchStatus(Running)
 			//start search - polling for stop during search
 			fmt.Println("info string mate search not yet ready! ")
 		case Profiling:
-			Status = idle
+			setSearchStatus(idle)
 			return
 		default:
 			fmt.Printf("info string Invalid searchtype: %v", st)
@@ -546,7 +562,7 @@ func StartSearch(searchType chan int, bestmove chan string, bd *board.Board) {
 		//	fmt.Println("bestscore ", best.score)
 		SetStop(false)
 		bestmove <- bestmv + ponder
-		Status = idle
+		setSearchStatus(idle)
 	}
 }
 
@@ -572,7 +588,7 @@ func searchGo(bd *board.Board) {
 	slInitLate(&slEntries[0])
 
 	searchID(bd)
-	if bStop {
+	if bStop.Load() {
 		sgAbort() // vänta in trådarna
 	}
 
@@ -581,6 +597,7 @@ func searchGo(bd *board.Board) {
 	}
 
 	searchEnd()
+	tablebaseGameHits.Add(syzygy.Hits())
 }
 
 func initSg() {
@@ -618,13 +635,19 @@ func searchID(bd *board.Board) {
 	easyMove := ml.Move(0)
 
 	limit.lastScore = noScore
+	completed := Best
 
 	///// iterative deepening /////
 	for depth := 1; depth <= limit.depth; depth++ {
 		depthStart(depth)
 		searchAsp(&ml, depth)
-		if bStop {
+		if bStop.Load() {
+			Best = completed
 			return
+		}
+		completed = Best
+		if afterCompletedIteration != nil {
+			afterCompletedIteration(depth)
 		}
 		//p_time.drop = (best.score <= p_time.last_score-50) // moved to update_best()
 		limit.lastScore = Best.Score
@@ -653,15 +676,16 @@ func searchID(bd *board.Board) {
 				if limit.ponder {
 					limit.flag = true
 				} else {
-					bStop = true
+					bStop.Store(true)
 					break
 				}
 			}
 		}
-		if bStop {
+		if bStop.Load() {
 			break
 		}
 	}
+	Best = completed
 
 	slPop(sl) //räkna in alla fåren
 }
@@ -686,7 +710,7 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 			//util.ASSERT(EVAL_MIN <= a && a < b && b <= EVAL_MAX)
 
 			searchRoot(sl, ml, depth, a, b)
-			if bStop {
+			if bStop.Load() {
 				return
 			}
 
@@ -748,11 +772,12 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 
 		slMove(sl, mv)
 		//write_info()
-		if !bStop {
-			if (searchedSize == 0) && red != 0 {
-				sc = -search(sl, depth-1+ext, -beta, -alpha, &npv)
+		if !bStop.Load() {
+			childAlpha, childBeta, fullWindow := rootSearchWindow(searchedSize, alpha, beta)
+			if fullWindow {
+				sc = -search(sl, depth-1+ext, childAlpha, childBeta, &npv)
 			} else {
-				sc = -search(sl, depth-1+ext-red, -alpha-1, -alpha, &npv)
+				sc = -search(sl, depth-1+ext-red, childAlpha, childBeta, &npv)
 				if sc > alpha { // PVS/LMR re-search
 					failHighTrue()
 					sc = -search(sl, depth-1+ext, -beta, -alpha, &npv)
@@ -762,7 +787,7 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 		undo(sl)
 		failHighFalse()
 		searchedSize++
-		if bStop {
+		if bStop.Load() {
 			return
 		}
 
@@ -804,6 +829,13 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 		///// Search_Global här
 		SG.Trans.Store(key, depth, bd.Ply(), bm, bs, scoreType(bs, oldAlpha, beta))
 	}
+}
+
+func rootSearchWindow(searchedSize, alpha, beta int) (int, int, bool) {
+	if searchedSize == 0 {
+		return -beta, -alpha, true
+	}
+	return -alpha - 1, -alpha, false
 }
 
 // search is searching the nodes in all depths below the current position
@@ -883,7 +915,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	}
 
 	// ply limit
-	if bd.Ply() >= maxPly || bStop {
+	if bd.Ply() >= maxPly || bStop.Load() {
 		return evalByColor(stm, sl)
 	}
 
@@ -930,7 +962,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 				}
 				return sc
 			}
-			if bStop {
+			if bStop.Load() {
 				return sc
 			}
 		}
@@ -1028,7 +1060,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 
 		if (pvNode && searched.Size() != 0) || red != 0 {
 			sc = -search(sl, depth+ext-red-1, -alpha-1, -alpha, &npv)
-			if !bStop {
+			if !bStop.Load() {
 				if sc > alpha { // PVS/LMR re-search
 					sc = -search(sl, depth+ext-1, -beta, -alpha, &npv)
 				}
@@ -1065,7 +1097,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 				}
 			}
 		}
-		if bStop {
+		if bStop.Load() {
 			return alpha
 		}
 
@@ -1120,6 +1152,9 @@ func useRootTablebase(bd *board.Board, ml *gen.ScMvList) bool {
 	mv := board.FromString(result.Move, bd)
 	if !ml.Contain(mv) {
 		return false
+	}
+	if result.WDL == syzygy.Win {
+		tablebaseGameRootWins.Add(1)
 	}
 	Best.depth = 0
 	Best.move = mv
@@ -1299,7 +1334,7 @@ func updateCurrent() {
 
 // SetStop (true) in order to stop search as quick as possible
 func SetStop(s bool) {
-	bStop = s
+	bStop.Store(s)
 }
 func searchEnd() {
 	limit.timer.stop()
@@ -1356,7 +1391,7 @@ func incNode(sl *Local, cnt int) {
 		if abort {
 			// Search_Global här
 			sgAbort() // vänta in trådarna
-			bStop = true
+			bStop.Store(true)
 		}
 	}
 
@@ -1372,10 +1407,10 @@ func poll() bool {
 	//fmt.Println("\nsg.lock() ")
 	//defer fmt.Println("sg.unlock() ")
 
-	if bStop {
+	if bStop.Load() {
 		//Infinite = false
 		return true
-	} else if bPonderHit {
+	} else if bPonderHit.Load() {
 		//Infinite = false
 		limit.ponder = false
 		return limit.flag

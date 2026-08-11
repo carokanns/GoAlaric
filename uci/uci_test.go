@@ -70,7 +70,7 @@ func TestSetoptionSyzygy(t *testing.T) {
 func Test_GoCommand(t *testing.T) {
 
 	HandleGo("go infinite test", &chSearch)
-	if !search.Infinite {
+	if !search.IsInfinite() {
 		t.Errorf("Infinite borde vara satt till true men är false")
 	}
 }

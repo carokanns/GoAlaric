@@ -41,12 +41,11 @@ const sizeEntry = 16
 type entry struct { // 16 bytes
 	lock      uint32
 	move      uint32 // TODO: maybe uint16 (fr+to+pr)
-	_         uint16 // endast utfyllnad
 	score     int16
-	date      uint8
+	date      uint16
 	depth     int8
 	scoreType uint8
-	_         uint8 // endast utfyllnad
+	_         uint16 // endast utfyllnad
 }
 
 // Table is a "header" to hash tables
@@ -62,7 +61,14 @@ type transTable struct {
 
 // IncDate bump:ar generationen så nya poster markeras som färska.
 func (t *transTable) IncDate() {
-	t.generation = (t.generation + 1) % 256
+	if t.generation >= 65535 {
+		for ix := range t.entries {
+			t.entries[ix] = entry{}
+		}
+		t.generation = 1
+	} else {
+		t.generation++
+	}
 	t.cntUsed = 0
 }
 
@@ -118,9 +124,14 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, scoreType int) {
 		entry := &t.entries[idx]
 
 		if entry.lock == lock {
-			if int(entry.date) != t.generation {
-				entry.date = uint8(t.generation)
+			if entry.date != uint16(t.generation) {
 				t.cntUsed++
+				entry.date = uint16(t.generation)
+				entry.move = uint32(mv)
+				entry.depth = int8(depth)
+				entry.score = int16(sc)
+				entry.scoreType = uint8(scoreType)
+				return
 			}
 
 			if depth >= int(entry.depth) {
@@ -141,7 +152,7 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, scoreType int) {
 		}
 
 		sc2 := 99 - int(entry.depth) // NOTE: entry.depth can be -1
-		if entry.date != uint8(t.generation) {
+		if entry.date != uint16(t.generation) {
 			sc2 += 101
 		}
 		//util.ASSERT(sc2 >= 0 && sc2 < 202)
@@ -154,12 +165,12 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, scoreType int) {
 
 	//util.ASSERT(be != nil)
 
-	if be.date != uint8(t.generation) {
+	if be.date != uint16(t.generation) {
 		t.cntUsed++
 	}
 
 	be.lock = lock
-	be.date = uint8(t.generation)
+	be.date = uint16(t.generation)
 	be.move = uint32(mv)
 	be.depth = int8(depth)
 	be.score = int16(sc)
@@ -210,7 +221,7 @@ func (t *transTable) Retrieve(key hash.Key, depth, ply int, mv *int, sc *int, fl
 		//util.ASSERT(idx < t.p_size)
 		entry := &t.entries[idx]
 
-		if entry.lock == lock && entry.date == uint8(t.generation) { // only use current generation
+		if entry.lock == lock && entry.date == uint16(t.generation) { // only use current generation
 			*mv = int(entry.move)
 			*sc = AddMatePly(int(entry.score), ply)
 			*flags = int(entry.scoreType)
