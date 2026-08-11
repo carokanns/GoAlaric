@@ -15,12 +15,20 @@ go run ./cmd/testmonitor pipeline \
 ```
 
 Pipelineordningen är `go test`, perft, UCI-smoke, fixed-depth benchmark och
-movetime. Ett korrekthetsfel stoppar senare steg. Fastdjupsresultat måste vara
-identiska som standard; använd `--semantic-preserving=false` för en kandidat
-som uttryckligen ändrar söksemantiken.
-Det kompakta modellunderlaget innehåller alltid denna flagga. `semantic_ok` är
-bara ett korrekthetskrav när `semantic_preserving` är `true`; annars är ändrade
-noder, scores och bestmoves diagnostik och förväntade effekter av kandidaten.
+movetime. Ett korrekthetsfel stoppar senare steg. Varje kandidat har en
+`--change-class`: `implementation`, `eval`, `search`, `correctness` eller
+`mixed`. Den gemensamma resolvern använder `exact-equivalence` för
+`implementation` (identiska bestmove, score och noder) och `behavioral` för
+alla andra klasser (skillnader rapporteras men är inte ett hårt fel).
+Den upplösta klassen och policyn sparas i experiment- och kampanjrapporten
+och kopieras sedan oförändrade till matchens `status.json` som `change_class`
+och `validation_policy`.
+
+`--semantic-preserving` finns kvar som bakåtkompatibel explicit override. Den
+måste dock stämma med kandidatklassen; en motsägelse avvisas. `semantic_ok` är
+bara ett korrekthetskrav när den upplösta policyn är `exact-equivalence`. Äldre
+anrop utan `--change-class` och med `--semantic-preserving=false` klassas som
+`mixed` för att bevara tidigare beteende.
 
 Screening kan startas explicit:
 
@@ -81,7 +89,7 @@ scripts/start_candidate_campaign.sh \
   --baseline <baseline-binär> \
   --hypothesis "<hypotes>" \
   --change "<ändring>" \
-  --semantic-preserving=false \
+  --change-class search \
   --prescan full --minimum-depth 8
 ```
 

@@ -16,7 +16,7 @@ const (
 	campaignSchemaVersion = 2
 	defaultCampaignState  = "artifacts/automation/active-campaign.json"
 	defaultCampaignPoll   = 10 * time.Second
-	defaultPreScanTCs     = "20+0.2,30+0.3,45+0.45,60+0.6"
+	defaultPreScanTCs     = "10+0.1,20+0.2,30+0.3,45+0.45,60+0.6"
 )
 
 type campaignConfig struct {
@@ -27,6 +27,8 @@ type campaignConfig struct {
 	Baseline           string   `json:"baseline"`
 	Hypothesis         string   `json:"hypothesis"`
 	Change             string   `json:"change"`
+	ChangeClass        string   `json:"change_class"`
+	ComparisonPolicy   string   `json:"comparison_policy"`
 	SemanticPreserving bool     `json:"semantic_preserving"`
 	RepoRoot           string   `json:"repo_root"`
 	Fastchess          string   `json:"fastchess"`
@@ -101,10 +103,11 @@ type campaignState struct {
 }
 
 var (
-	campaignBuildCandidate = buildCampaignCandidate
-	campaignRunPipeline    = runCampaignPipeline
-	campaignStartScreening = startCampaignScreening
-	campaignStartPreScan   = startCampaignPreScan
+	campaignBuildCandidate  = buildCampaignCandidate
+	campaignRunPipeline     = runCampaignPipeline
+	campaignStartScreening  = startCampaignScreening
+	campaignStartPreScan    = startCampaignPreScan
+	campaignPipelineCommand = pipelineCommand
 )
 
 func campaignInitCommand(args []string) error {
@@ -115,6 +118,7 @@ func campaignInitCommand(args []string) error {
 	baseline := fs.String("baseline", "", "promoted baseline engine")
 	hypothesis := fs.String("hypothesis", "", "candidate hypothesis")
 	change := fs.String("change", "", "short candidate change description")
+	changeClass := fs.String("change-class", "", "candidate change class: implementation, eval, search, correctness or mixed")
 	semantic := fs.Bool("semantic-preserving", true, "require identical fixed-depth results")
 	repoRoot := fs.String("repo-root", ".", "GoAlaric repository root")
 	fastchess := fs.String("fastchess", defaultFastchess, "Fastchess executable")
@@ -137,6 +141,10 @@ func campaignInitCommand(args []string) error {
 	}
 	if !candidateIDPattern.MatchString(*candidateID) {
 		return errors.New("candidate-id contains unsafe characters")
+	}
+	definition, err := campaignCandidateDefinition(*changeClass, boolFlagOverride(fs, "semantic-preserving", *semantic))
+	if err != nil {
+		return err
 	}
 	if *preScanMode != "full" && *preScanMode != "baseline" && *preScanMode != "skip" {
 		return errors.New("--prescan must be full, baseline or skip")
@@ -222,7 +230,8 @@ func campaignInitCommand(args []string) error {
 			CandidateCommit: gitValue(worktreeAbs, "rev-parse", "HEAD"),
 			CandidateBinary: filepath.Join(worktreeAbs, "artifacts", "candidate", "goalaric-"+*candidateID),
 			Baseline:        base, Hypothesis: strings.TrimSpace(*hypothesis), Change: strings.TrimSpace(*change),
-			SemanticPreserving: *semantic, RepoRoot: root, Fastchess: fastchessAbs,
+			ChangeClass: definition.ChangeClass, ComparisonPolicy: definition.ComparisonPolicy,
+			SemanticPreserving: policyRequiresExactEquivalence(definition.ComparisonPolicy), RepoRoot: root, Fastchess: fastchessAbs,
 			Openings: openingsAbs, Codex: codexAbs, Go: goAbs,
 			PreScanMode: *preScanMode, PreScanSkipReason: strings.TrimSpace(*preScanSkipReason),
 			MinimumDepth: *minimumDepth, PreScanGames: *preScanGames, PreScanTCs: timeControls,
@@ -436,17 +445,23 @@ func buildCampaignCandidate(state campaignState) error {
 }
 
 func runCampaignPipeline(state campaignState) error {
-	return pipelineCommand([]string{
+	args := []string{
 		"--baseline", state.Config.Baseline,
 		"--candidate", state.Config.CandidateBinary,
 		"--candidate-id", state.Config.CandidateID,
 		"--repo-root", state.Config.RepoRoot,
 		"--hypothesis", state.Config.Hypothesis,
 		"--change", state.Config.Change,
-		"--semantic-preserving=" + strconv.FormatBool(state.Config.SemanticPreserving),
 		"--fastchess", state.Config.Fastchess,
 		"--openings", state.Config.Openings,
-	})
+	}
+	if state.Config.ChangeClass == "" {
+		// Campaign states written before change_class retain their explicit flag.
+		args = append(args, "--semantic-preserving="+strconv.FormatBool(state.Config.SemanticPreserving))
+	} else {
+		args = append(args, "--change-class", state.Config.ChangeClass)
+	}
+	return campaignPipelineCommand(args)
 }
 
 func startCampaignScreening(state campaignState) error {
@@ -454,10 +469,12 @@ func startCampaignScreening(state campaignState) error {
 	if tc == "" {
 		tc = defaultScreeningTC
 	}
-	return startCommand([]string{
+	return startMatchCommand([]string{
 		"--fastchess", state.Config.Fastchess,
 		"--baseline", state.Config.Baseline,
 		"--candidate", state.Config.CandidateBinary,
+		"--change-class", state.Config.ChangeClass,
+		"--validation-policy", state.Config.ComparisonPolicy,
 		"--candidate-id", state.Config.CandidateID,
 		"--auto-evaluate",
 		"--codex", state.Config.Codex,
@@ -465,6 +482,7 @@ func startCampaignScreening(state campaignState) error {
 		"--openings", state.Config.Openings,
 		"--games", "400",
 		"--tc", tc,
+		"--sprt-tc", defaultSPRTTC,
 		"--concurrency", strconv.Itoa(state.Config.Concurrency),
 		"--hash", strconv.Itoa(state.Config.HashMB),
 		"--threads", strconv.Itoa(state.Config.Threads),
@@ -581,6 +599,7 @@ func startCampaignPreScan(cfg matchConfig) error {
 		"--concurrency", strconv.Itoa(cfg.Concurrency), "--hash", strconv.Itoa(cfg.HashMB),
 		"--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir,
 		"--repo-root", cfg.RepoRoot, "--depth-profile", "--profile-role", cfg.ProfileRole,
+		"--allow-identical-binaries",
 		"--minimum-depth", strconv.Itoa(cfg.MinimumDepth), "--depth-cache-dir", cfg.DepthCacheDir,
 		"--seed", strconv.FormatInt(cfg.Seed, 10),
 	})

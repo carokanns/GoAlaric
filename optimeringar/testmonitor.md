@@ -35,6 +35,12 @@ kapar sedan den blandade listan till antalet matchrundor, så en öppning
 Monitoreringen vägrar starta om boken har färre än 100 öppningar eller om
 antalet begärda öppningspar är större än boken.
 
+Före varje vanlig match beräknas SHA-256 för baseline och kandidat. Identiska
+binärer avvisas, så att en gammal eller felbyggd kandidat inte kan ge ett
+meningslöst 0-Elo-resultat. Båda identiteterna (sökväg, SHA-256 och Git-data)
+sparas i `status.json`. Endast ett uttryckligt diagnostiskt självspel, till
+exempel depth pre-scan, använder `--allow-identical-binaries`.
+
 Läs status utan att störa matchen:
 
 ```bash
@@ -82,6 +88,15 @@ Fastchess dömer vinst när båda motorerna är överens om minst 500 centipawns
 fördel för samma sida under tre på varandra följande bedömningar. Det motsvarar
 ungefär värdet av ett torn. Remiavdömningen börjar efter drag 40 och kräver åtta
 bedömningar inom ±10 centipawns; drag 200 avslutar återstående partier som remi.
+
+Om den lokala tabellmappen `.tools/syzygy/3-4` finns, skickar testmonitor
+automatiskt samma `SyzygyPath` till både baseline och kandidat i screening,
+SPRT och depth pre-scan. Den faktiska sökvägen sparas i `monitor-config.json`.
+För en enskild körning kan det stängas av med `--syzygy-path off`, eller peka
+ut en annan tabellmapp med `--syzygy-path <sökväg>`.
+`--candidate-syzygy-path` och `--baseline-syzygy-path` kan användas för ett
+A/B-test där bara den ena motorn har tabeller. Remiavdömningens startdrag kan
+ändras med `--draw-movenumber`; standardvärdet är fortsatt 40.
 
 ## Fristående depth pre-scan
 

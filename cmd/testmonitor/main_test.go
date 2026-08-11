@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"math"
 	"os"
@@ -29,6 +30,16 @@ func TestScreeningProgressEveryTenGames(t *testing.T) {
 	}
 	if len(snapshots) != 1 || snapshots[0].Games != 10 || snapshots[0].ScorePercent != 55 {
 		t.Fatalf("unexpected progress snapshots: %+v", snapshots)
+	}
+}
+
+func TestReadableProgressOmitsRedundantCompletionPercent(t *testing.T) {
+	line := formatProgress(matchStatus{Games: 1750, TargetGames: 10000, Wins: 400, Draws: 950, Losses: 400, Score: 50, State: "running"})
+	if strings.Contains(line, "(17.5%)") {
+		t.Fatalf("progress contains redundant completion percentage: %s", line)
+	}
+	if !strings.Contains(line, "games=1750/10000 W-D-L=400-950-400") {
+		t.Fatalf("unexpected progress line: %s", line)
 	}
 }
 
@@ -97,6 +108,135 @@ func TestProgressIntervalDefaults(t *testing.T) {
 	}
 }
 
+func TestMatchBinaryIdentitiesRejectsIdenticalCandidate(t *testing.T) {
+	dir := t.TempDir()
+	baseline := filepath.Join(dir, "baseline")
+	candidate := filepath.Join(dir, "candidate")
+	for _, path := range []string{baseline, candidate} {
+		if err := os.WriteFile(path, []byte("same-engine"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, _, err := matchBinaryIdentities(matchConfig{Baseline: baseline, Candidate: candidate})
+	if err == nil || !strings.Contains(err.Error(), "identical SHA-256") {
+		t.Fatalf("identical binaries were accepted: %v", err)
+	}
+
+	baselineID, candidateID, err := matchBinaryIdentities(matchConfig{
+		Baseline: baseline, Candidate: candidate, AllowIdenticalBinaries: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baselineID.SHA256 == "" || baselineID.SHA256 != candidateID.SHA256 {
+		t.Fatalf("unexpected diagnostic identities: baseline=%+v candidate=%+v", baselineID, candidateID)
+	}
+	status := initialStatus(matchConfig{Baseline: baseline, Candidate: candidate, RunDir: dir})
+	status.BaselineIdentity = &baselineID
+	status.CandidateIdentity = &candidateID
+	encoded, err := json.Marshal(status)
+	if err != nil || !strings.Contains(string(encoded), `"baseline_identity"`) || !strings.Contains(string(encoded), baselineID.SHA256) {
+		t.Fatalf("status did not preserve binary identities: %s err=%v", encoded, err)
+	}
+}
+
+func TestMatchStatusCopiesResolvedValidationPolicy(t *testing.T) {
+	cases := []struct {
+		name, changeClass, policy string
+	}{
+		{name: "implementation", changeClass: "implementation", policy: comparisonPolicyExactEquivalence},
+		{name: "search", changeClass: "search", policy: comparisonPolicyBehavioral},
+		{name: "legacy behavioral", changeClass: "mixed", policy: comparisonPolicyBehavioral},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			status := initialStatus(matchConfig{RunDir: t.TempDir(), ChangeClass: tc.changeClass, ValidationPolicy: tc.policy})
+			if status.ChangeClass != tc.changeClass || status.ValidationPolicy != tc.policy {
+				t.Fatalf("status copied class=%q policy=%q, want class=%q policy=%q", status.ChangeClass, status.ValidationPolicy, tc.changeClass, tc.policy)
+			}
+			encoded, err := json.Marshal(status)
+			if err != nil || !strings.Contains(string(encoded), `"change_class":"`+tc.changeClass+`"`) || !strings.Contains(string(encoded), `"validation_policy":"`+tc.policy+`"`) {
+				t.Fatalf("status JSON omitted copied policy: %s err=%v", encoded, err)
+			}
+		})
+	}
+}
+
+func TestSyzygyPathUsesLocalTablesByDefault(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"fastchess", "baseline", "candidate"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("test"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	book := filepath.Join(dir, "book.epd")
+	var openings []string
+	for ix := 0; ix < 100; ix++ {
+		openings = append(openings, "8/8/8/8/8/8/8/8 w - - id "+strconv.Itoa(ix))
+	}
+	if err := os.WriteFile(book, []byte(strings.Join(openings, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tables := filepath.Join(dir, defaultSyzygyPath)
+	if err := os.MkdirAll(tables, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := normalizeConfig(matchConfig{
+		Fastchess: filepath.Join(dir, "fastchess"), Baseline: filepath.Join(dir, "baseline"), Candidate: filepath.Join(dir, "candidate"),
+		Openings: book, Games: 100, Concurrency: 1, RunDir: filepath.Join(dir, "run"), RepoRoot: dir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SyzygyPath != tables {
+		t.Fatalf("Syzygy path = %q, want %q", cfg.SyzygyPath, tables)
+	}
+	if cfg.DrawMoveNumber != defaultDrawMoveNumber {
+		t.Fatalf("draw adjudication starts at move %d, want %d", cfg.DrawMoveNumber, defaultDrawMoveNumber)
+	}
+	for _, engine := range []string{cfg.Candidate, cfg.Baseline} {
+		if !strings.Contains(strings.Join(fastchessEngineArgs(engine, "test", tables, cfg), " "), "option.SyzygyPath="+tables) {
+			t.Fatalf("Fastchess arguments omitted SyzygyPath for %s", engine)
+		}
+	}
+}
+
+func TestSyzygyPathCanDifferByEngine(t *testing.T) {
+	tables := filepath.Join(t.TempDir(), "tables")
+	if err := os.MkdirAll(tables, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	candidatePath, err := resolveSyzygyPath(".", tables)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baselinePath, err := resolveSyzygyPath(".", "off")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := matchConfig{HashMB: 128, Threads: 1}
+	candidateArgs := strings.Join(fastchessEngineArgs("candidate", "Candidate", candidatePath, cfg), " ")
+	baselineArgs := strings.Join(fastchessEngineArgs("baseline", "Baseline", baselinePath, cfg), " ")
+	if !strings.Contains(candidateArgs, "option.SyzygyPath="+tables) {
+		t.Fatalf("candidate arguments omitted SyzygyPath: %s", candidateArgs)
+	}
+	if strings.Contains(baselineArgs, "option.SyzygyPath=") {
+		t.Fatalf("baseline arguments unexpectedly enable Syzygy: %s", baselineArgs)
+	}
+}
+
+func TestSyzygyPathCanBeDisabled(t *testing.T) {
+	dir := t.TempDir()
+	path, err := resolveSyzygyPath(dir, "off")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "" {
+		t.Fatalf("disabled Syzygy path = %q, want empty", path)
+	}
+}
+
 func TestDefaultSPRTPolicy(t *testing.T) {
 	alpha, err := strconv.ParseFloat(defaultSPRTAlpha, 64)
 	if err != nil {
@@ -111,14 +251,21 @@ func TestDefaultSPRTPolicy(t *testing.T) {
 	if math.Abs(lower-(-1.5686159)) > 0.0001 || math.Abs(upper-2.9957323) > 0.0001 {
 		t.Fatalf("SPRT bounds = [%.6f, %.6f], want about [-1.57, 3.00]", lower, upper)
 	}
-	if defaultSPRTTC != defaultScreeningTC {
-		t.Fatalf("SPRT time control = %q, want screening time %q", defaultSPRTTC, defaultScreeningTC)
+	if defaultScreeningTC != "10+0.1" {
+		t.Fatalf("screening time control = %q, want 10+0.1", defaultScreeningTC)
 	}
 	if defaultSPRTTC != "20+0.2" {
 		t.Fatalf("SPRT time control = %q, want 20+0.2", defaultSPRTTC)
 	}
 	if defaultResignScore != 500 {
 		t.Fatalf("resign adjudication score = %d, want 500", defaultResignScore)
+	}
+}
+
+func TestAutomaticSPRTKeepsLongerTimeControl(t *testing.T) {
+	cfg := matchConfig{TC: "10+0.1", SPRTTC: "20+0.2"}
+	if got := automaticSPRTTimeControl(cfg); got != "20+0.2" {
+		t.Fatalf("automatic SPRT time control = %q, want 20+0.2", got)
 	}
 }
 

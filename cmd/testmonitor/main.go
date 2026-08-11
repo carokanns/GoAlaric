@@ -30,48 +30,55 @@ import (
 const (
 	defaultFastchess         = ".tools/fastchess/bin/fastchess"
 	defaultOpenings          = ".tools/books/8moves_v3.pgn"
+	defaultSyzygyPath        = ".tools/syzygy/3-4"
 	minimumOpenings          = 100
-	defaultScreeningTC       = "20+0.2"
+	defaultScreeningTC       = "10+0.1"
 	defaultSPRTTC            = "20+0.2"
 	defaultSPRTAlpha         = "0.04"
 	defaultSPRTBeta          = "0.20"
 	defaultResignScore       = 500
+	defaultDrawMoveNumber    = 40
 	defaultProgressInterval  = "1m"
 	defaultScreeningProgress = 10
 	defaultSPRTProgress      = 50
 )
 
 type matchStatus struct {
-	RunID         string              `json:"run_id"`
-	State         string              `json:"state"`
-	Stage         string              `json:"stage"`
-	PID           int                 `json:"pid,omitempty"`
-	StartedAt     time.Time           `json:"started_at"`
-	UpdatedAt     time.Time           `json:"updated_at"`
-	FinishedAt    time.Time           `json:"finished_at,omitempty"`
-	Baseline      string              `json:"baseline"`
-	Candidate     string              `json:"candidate"`
-	TimeControl   string              `json:"time_control"`
-	TargetGames   int                 `json:"target_games"`
-	ProgressEvery int                 `json:"progress_every_games"`
-	ProgressTime  string              `json:"progress_interval"`
-	OpeningFile   string              `json:"opening_file"`
-	OpeningCount  int                 `json:"opening_count"`
-	RandomSeed    int64               `json:"random_seed"`
-	Games         int                 `json:"games"`
-	Wins          int                 `json:"wins"`
-	Losses        int                 `json:"losses"`
-	Draws         int                 `json:"draws"`
-	Score         float64             `json:"score_percent"`
-	SPRTLLR       float64             `json:"sprt_llr,omitempty"`
-	SPRTLower     float64             `json:"sprt_lower,omitempty"`
-	SPRTUpper     float64             `json:"sprt_upper,omitempty"`
-	Decision      string              `json:"decision,omitempty"`
-	PGNAudit      *pgnAudit           `json:"pgn_audit,omitempty"`
-	DepthProfile  *depthProfileReport `json:"depth_profile,omitempty"`
-	ExitCode      int                 `json:"exit_code,omitempty"`
-	Error         string              `json:"error,omitempty"`
-	RunDir        string              `json:"run_dir"`
+	RunID             string                `json:"run_id"`
+	State             string                `json:"state"`
+	Stage             string                `json:"stage"`
+	PID               int                   `json:"pid,omitempty"`
+	StartedAt         time.Time             `json:"started_at"`
+	UpdatedAt         time.Time             `json:"updated_at"`
+	FinishedAt        time.Time             `json:"finished_at,omitempty"`
+	Baseline          string                `json:"baseline"`
+	Candidate         string                `json:"candidate"`
+	BaselineIdentity  *experimentIdentity   `json:"baseline_identity,omitempty"`
+	CandidateIdentity *experimentIdentity   `json:"candidate_identity,omitempty"`
+	ChangeClass       string                `json:"change_class,omitempty"`
+	ValidationPolicy  string                `json:"validation_policy,omitempty"`
+	TimeControl       string                `json:"time_control"`
+	TargetGames       int                   `json:"target_games"`
+	ProgressEvery     int                   `json:"progress_every_games"`
+	ProgressTime      string                `json:"progress_interval"`
+	OpeningFile       string                `json:"opening_file"`
+	OpeningCount      int                   `json:"opening_count"`
+	RandomSeed        int64                 `json:"random_seed"`
+	Games             int                   `json:"games"`
+	Wins              int                   `json:"wins"`
+	Losses            int                   `json:"losses"`
+	Draws             int                   `json:"draws"`
+	Score             float64               `json:"score_percent"`
+	SPRTLLR           float64               `json:"sprt_llr,omitempty"`
+	SPRTLower         float64               `json:"sprt_lower,omitempty"`
+	SPRTUpper         float64               `json:"sprt_upper,omitempty"`
+	Decision          string                `json:"decision,omitempty"`
+	PGNAudit          *pgnAudit             `json:"pgn_audit,omitempty"`
+	DepthProfile      *depthProfileReport   `json:"depth_profile,omitempty"`
+	TablebaseStats    *tablebaseStatsReport `json:"tablebase_stats,omitempty"`
+	ExitCode          int                   `json:"exit_code,omitempty"`
+	Error             string                `json:"error,omitempty"`
+	RunDir            string                `json:"run_dir"`
 }
 
 type pgnAudit struct {
@@ -94,31 +101,41 @@ type pgnGame struct {
 }
 
 type matchConfig struct {
-	Fastchess     string `json:"fastchess"`
-	Baseline      string `json:"baseline"`
-	Candidate     string `json:"candidate"`
-	Openings      string `json:"openings"`
-	BookFormat    string `json:"book_format"`
-	BookCount     int    `json:"book_count"`
-	Seed          int64  `json:"random_seed"`
-	Games         int    `json:"games"`
-	TC            string `json:"time_control"`
-	Concurrency   int    `json:"concurrency"`
-	RunDir        string `json:"run_dir"`
-	SPRT          bool   `json:"sprt"`
-	CandidateID   string `json:"candidate_id,omitempty"`
-	AutoEvaluate  bool   `json:"auto_evaluate,omitempty"`
-	Codex         string `json:"codex,omitempty"`
-	RepoRoot      string `json:"repo_root,omitempty"`
-	ProgressEvery int    `json:"progress_every_games"`
-	ProgressTime  string `json:"progress_interval"`
-	Follow        bool   `json:"-"`
-	DepthProfile  bool   `json:"depth_profile,omitempty"`
-	ProfileRole   string `json:"profile_role,omitempty"`
-	MinimumDepth  int    `json:"minimum_depth,omitempty"`
-	DepthCacheDir string `json:"depth_cache_dir,omitempty"`
-	HashMB        int    `json:"hash_mb"`
-	Threads       int    `json:"threads"`
+	Fastchess              string `json:"fastchess"`
+	Baseline               string `json:"baseline"`
+	Candidate              string `json:"candidate"`
+	ChangeClass            string `json:"change_class,omitempty"`
+	ValidationPolicy       string `json:"validation_policy,omitempty"`
+	AllowIdenticalBinaries bool   `json:"allow_identical_binaries,omitempty"`
+	Openings               string `json:"openings"`
+	BookFormat             string `json:"book_format"`
+	BookCount              int    `json:"book_count"`
+	Seed                   int64  `json:"random_seed"`
+	Games                  int    `json:"games"`
+	TC                     string `json:"time_control"`
+	SPRTTC                 string `json:"sprt_time_control,omitempty"`
+	Concurrency            int    `json:"concurrency"`
+	RunDir                 string `json:"run_dir"`
+	SPRT                   bool   `json:"sprt"`
+	CandidateID            string `json:"candidate_id,omitempty"`
+	AutoEvaluate           bool   `json:"auto_evaluate,omitempty"`
+	Codex                  string `json:"codex,omitempty"`
+	RepoRoot               string `json:"repo_root,omitempty"`
+	ProgressEvery          int    `json:"progress_every_games"`
+	ProgressTime           string `json:"progress_interval"`
+	Follow                 bool   `json:"-"`
+	DepthProfile           bool   `json:"depth_profile,omitempty"`
+	TablebaseStats         bool   `json:"tablebase_stats,omitempty"`
+	TablebaseStatsFile     string `json:"tablebase_stats_file,omitempty"`
+	ProfileRole            string `json:"profile_role,omitempty"`
+	MinimumDepth           int    `json:"minimum_depth,omitempty"`
+	DepthCacheDir          string `json:"depth_cache_dir,omitempty"`
+	HashMB                 int    `json:"hash_mb"`
+	Threads                int    `json:"threads"`
+	SyzygyPath             string `json:"syzygy_path,omitempty"`
+	CandidateSyzygyPath    string `json:"candidate_syzygy_path,omitempty"`
+	BaselineSyzygyPath     string `json:"baseline_syzygy_path,omitempty"`
+	DrawMoveNumber         int    `json:"draw_move_number"`
 }
 
 type searchSample struct {
@@ -150,8 +167,9 @@ type benchReport struct {
 }
 
 var (
-	scorePattern = regexp.MustCompile(`Score of Candidate vs Baseline:\s*(\d+)\s*-\s*(\d+)\s*-\s*(\d+)\s*\[([0-9.]+)\]\s*(\d+)`)
-	sprtPattern  = regexp.MustCompile(`SPRT: llr\s+(-?[0-9.]+).*lbound\s+(-?[0-9.]+),\s+ubound\s+(-?[0-9.]+)`)
+	scorePattern      = regexp.MustCompile(`Score of Candidate vs Baseline:\s*(\d+)\s*-\s*(\d+)\s*-\s*(\d+)\s*\[([0-9.]+)\]\s*(\d+)`)
+	sprtPattern       = regexp.MustCompile(`SPRT: llr\s+(-?[0-9.]+).*lbound\s+(-?[0-9.]+),\s+ubound\s+(-?[0-9.]+)`)
+	startMatchCommand = startCommand
 )
 
 func main() {
@@ -347,6 +365,10 @@ func startCommand(args []string) error {
 	if err != nil {
 		return err
 	}
+	baselineIdentity, candidateIdentity, err := matchBinaryIdentities(cfg)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(cfg.RunDir, 0o755); err != nil {
 		return err
 	}
@@ -363,6 +385,17 @@ func startCommand(args []string) error {
 		return err
 	}
 	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", cfg.Openings, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--hash", strconv.Itoa(cfg.HashMB), "--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir}
+	childArgs = append(childArgs,
+		"--change-class", cfg.ChangeClass,
+		"--validation-policy", cfg.ValidationPolicy,
+		"--syzygy-path", syzygyFlagValue(cfg.SyzygyPath),
+		"--candidate-syzygy-path", syzygyFlagValue(cfg.CandidateSyzygyPath),
+		"--baseline-syzygy-path", syzygyFlagValue(cfg.BaselineSyzygyPath),
+		"--draw-movenumber", strconv.Itoa(cfg.DrawMoveNumber),
+	)
+	if cfg.AllowIdenticalBinaries {
+		childArgs = append(childArgs, "--allow-identical-binaries")
+	}
 	if cfg.SPRT {
 		childArgs = append(childArgs, "--sprt")
 	}
@@ -371,6 +404,9 @@ func startCommand(args []string) error {
 	}
 	if cfg.DepthProfile {
 		childArgs = append(childArgs, "--depth-profile", "--profile-role", cfg.ProfileRole, "--minimum-depth", strconv.Itoa(cfg.MinimumDepth), "--repo-root", cfg.RepoRoot, "--depth-cache-dir", cfg.DepthCacheDir)
+	}
+	if cfg.TablebaseStats {
+		childArgs = append(childArgs, "--tablebase-stats")
 	}
 	cmd := exec.Command(exe, childArgs...)
 	cmd.Stdout = logFile
@@ -384,6 +420,8 @@ func startCommand(args []string) error {
 	_ = logFile.Close()
 
 	status := initialStatus(cfg)
+	status.BaselineIdentity = &baselineIdentity
+	status.CandidateIdentity = &candidateIdentity
 	status.PID = cmd.Process.Pid
 	if err := saveStatus(cfg.RunDir, &status); err != nil {
 		return err
@@ -411,8 +449,24 @@ func runMatchCommand(args []string) error {
 	if cfg.Openings == "" {
 		return errors.New("--openings is required")
 	}
+	baselineIdentity, candidateIdentity, err := matchBinaryIdentities(cfg)
+	if err != nil {
+		return err
+	}
+	if cfg.TablebaseStats {
+		cfg.TablebaseStatsFile = filepath.Join(cfg.RunDir, "tablebase-game-stats.log")
+		file, createErr := os.OpenFile(cfg.TablebaseStatsFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if createErr != nil {
+			return createErr
+		}
+		if closeErr := file.Close(); closeErr != nil {
+			return closeErr
+		}
+	}
 
 	status := initialStatus(cfg)
+	status.BaselineIdentity = &baselineIdentity
+	status.CandidateIdentity = &candidateIdentity
 	status.PID = os.Getpid()
 	status.State = "running"
 	status.Stage = "fastchess"
@@ -426,17 +480,18 @@ func runMatchCommand(args []string) error {
 	if cfg.DepthProfile {
 		logOptions = []string{"-log", "file=" + filepath.Join(cfg.RunDir, "fastchess.log"), "level=trace", "append=false", "realtime=true", "engine=true"}
 	}
-	fcArgs := []string{
-		"-engine", "cmd=" + cfg.Candidate, "name=Candidate", "option.Hash=" + strconv.Itoa(cfg.HashMB), "option.Threads=" + strconv.Itoa(cfg.Threads), "option.Ponder=false",
-		"-engine", "cmd=" + cfg.Baseline, "name=Baseline", "option.Hash=" + strconv.Itoa(cfg.HashMB), "option.Threads=" + strconv.Itoa(cfg.Threads), "option.Ponder=false",
-		"-each", "tc=" + cfg.TC,
-		"-openings", "file=" + cfg.Openings, "format=" + cfg.BookFormat, "order=random",
+	fcArgs := []string{}
+	fcArgs = append(fcArgs, fastchessEngineArgs(cfg.Candidate, "Candidate", cfg.CandidateSyzygyPath, cfg)...)
+	fcArgs = append(fcArgs, fastchessEngineArgs(cfg.Baseline, "Baseline", cfg.BaselineSyzygyPath, cfg)...)
+	fcArgs = append(fcArgs,
+		"-each", "tc="+cfg.TC,
+		"-openings", "file="+cfg.Openings, "format="+cfg.BookFormat, "order=random",
 		"-srand", strconv.FormatInt(cfg.Seed, 10), "-rounds", strconv.Itoa(rounds), "-repeat", "-concurrency", strconv.Itoa(cfg.Concurrency),
-		"-resign", "movecount=3", "score=" + strconv.Itoa(defaultResignScore), "twosided=true",
-		"-draw", "movenumber=40", "movecount=8", "score=10", "-maxmoves", "200",
+		"-resign", "movecount=3", "score="+strconv.Itoa(defaultResignScore), "twosided=true",
+		"-draw", "movenumber="+strconv.Itoa(cfg.DrawMoveNumber), "movecount=8", "score=10", "-maxmoves", "200",
 		"-recover", "-autosaveinterval", "10", "-strict",
-		"-pgnout", "file=" + filepath.Join(cfg.RunDir, "games.pgn"), "append=false", "notation=uci", "nodes=true", "nps=true",
-	}
+		"-pgnout", "file="+filepath.Join(cfg.RunDir, "games.pgn"), "append=false", "notation=uci", "nodes=true", "nps=true",
+	)
 	fcArgs = append(fcArgs, logOptions...)
 	fcArgs = append(fcArgs,
 		"-output", "format=cutechess", "-scoreinterval", "1",
@@ -501,6 +556,19 @@ func runMatchCommand(args []string) error {
 		} else {
 			status.DepthProfile = &profile
 			if writeErr := persistDepthProfile(cfg, profile); writeErr != nil {
+				err = writeErr
+			}
+		}
+	}
+	if !stopped && cfg.TablebaseStats {
+		report, statsErr := buildTablebaseStats(cfg.TablebaseStatsFile)
+		if statsErr != nil {
+			if err == nil {
+				err = statsErr
+			}
+		} else {
+			status.TablebaseStats = &report
+			if writeErr := writeJSON(filepath.Join(cfg.RunDir, "tablebase-stats.json"), report); writeErr != nil && err == nil {
 				err = writeErr
 			}
 		}
@@ -700,10 +768,14 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.Fastchess, "fastchess", defaultFastchess, "fastchess executable")
 	fs.StringVar(&cfg.Baseline, "baseline", "", "baseline engine")
 	fs.StringVar(&cfg.Candidate, "candidate", "", "candidate engine")
+	fs.StringVar(&cfg.ChangeClass, "change-class", "", "resolved candidate change class copied from the experiment or campaign")
+	fs.StringVar(&cfg.ValidationPolicy, "validation-policy", "", "resolved validation policy copied from the experiment or campaign")
+	fs.BoolVar(&cfg.AllowIdenticalBinaries, "allow-identical-binaries", false, "allow identical engine binaries for an explicit diagnostic self-play run")
 	fs.StringVar(&cfg.Openings, "openings", "", "PGN or EPD opening book")
 	fs.Int64Var(&cfg.Seed, "seed", 0, "opening randomization seed; random and persisted when zero")
 	fs.IntVar(&cfg.Games, "games", 400, "even number of games")
-	fs.StringVar(&cfg.TC, "tc", "", "Fastchess time control; defaults to 20+0.2")
+	fs.StringVar(&cfg.TC, "tc", "", "Fastchess time control; defaults to 10+0.1 for screening and 20+0.2 for SPRT")
+	fs.StringVar(&cfg.SPRTTC, "sprt-tc", "", "time control for an automatically approved SPRT; defaults to 20+0.2")
 	fs.IntVar(&cfg.Concurrency, "concurrency", 8, "concurrent games")
 	fs.IntVar(&cfg.ProgressEvery, "progress-games", 0, "games between progress snapshots; defaults to 10 for screening and 50 for SPRT")
 	fs.StringVar(&cfg.ProgressTime, "progress-interval", defaultProgressInterval, "time between progress snapshots; use 0 to disable")
@@ -715,11 +787,16 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.Codex, "codex", "codex", "Codex CLI executable used after match completion")
 	fs.StringVar(&cfg.RepoRoot, "repo-root", ".", "repository root containing artifacts/experiments")
 	fs.BoolVar(&cfg.DepthProfile, "depth-profile", false, "collect final UCI depth before each bestmove")
+	fs.BoolVar(&cfg.TablebaseStats, "tablebase-stats", false, "collect tablebase hits by search and game")
 	fs.StringVar(&cfg.ProfileRole, "profile-role", "standalone", "depth profile role: baseline, candidate or standalone")
 	fs.IntVar(&cfg.MinimumDepth, "minimum-depth", 0, "minimum accepted median depth")
 	fs.StringVar(&cfg.DepthCacheDir, "depth-cache-dir", "", "directory for cached depth profiles")
 	fs.IntVar(&cfg.HashMB, "hash", 128, "engine hash in MB")
 	fs.IntVar(&cfg.Threads, "threads", 1, "threads per engine")
+	fs.StringVar(&cfg.SyzygyPath, "syzygy-path", "", "Syzygy tablebase directory; local .tools/syzygy/3-4 is used when available, or use off")
+	fs.StringVar(&cfg.CandidateSyzygyPath, "candidate-syzygy-path", "", "override Syzygy tablebase directory for candidate, or use off")
+	fs.StringVar(&cfg.BaselineSyzygyPath, "baseline-syzygy-path", "", "override Syzygy tablebase directory for baseline, or use off")
+	fs.IntVar(&cfg.DrawMoveNumber, "draw-movenumber", defaultDrawMoveNumber, "first move eligible for draw adjudication")
 	if err := fs.Parse(args); err != nil {
 		return cfg, err
 	}
@@ -734,6 +811,9 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	}
 	if cfg.HashMB < 16 || cfg.Threads < 1 {
 		return cfg, errors.New("--hash must be at least 16 and --threads must be positive")
+	}
+	if cfg.DrawMoveNumber < 1 {
+		return cfg, errors.New("--draw-movenumber must be positive")
 	}
 	if cfg.DepthProfile {
 		if cfg.SPRT || cfg.AutoEvaluate {
@@ -768,6 +848,28 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 
 func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 	var err error
+	if cfg.SPRTTC == "" {
+		cfg.SPRTTC = defaultSPRTTC
+	}
+	if cfg.RepoRoot, err = existingAbs(cfg.RepoRoot); err != nil {
+		return cfg, err
+	}
+	if cfg.SyzygyPath, err = resolveSyzygyPath(cfg.RepoRoot, cfg.SyzygyPath); err != nil {
+		return cfg, err
+	}
+	if cfg.CandidateSyzygyPath == "" {
+		cfg.CandidateSyzygyPath = cfg.SyzygyPath
+	} else if cfg.CandidateSyzygyPath, err = resolveSyzygyPath(cfg.RepoRoot, cfg.CandidateSyzygyPath); err != nil {
+		return cfg, err
+	}
+	if cfg.BaselineSyzygyPath == "" {
+		cfg.BaselineSyzygyPath = cfg.SyzygyPath
+	} else if cfg.BaselineSyzygyPath, err = resolveSyzygyPath(cfg.RepoRoot, cfg.BaselineSyzygyPath); err != nil {
+		return cfg, err
+	}
+	if cfg.DrawMoveNumber == 0 {
+		cfg.DrawMoveNumber = defaultDrawMoveNumber
+	}
 	if cfg.TC == "" {
 		cfg.TC = defaultScreeningTC
 		if cfg.SPRT {
@@ -784,9 +886,6 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 		}
 	}
 	if cfg.AutoEvaluate {
-		if cfg.RepoRoot, err = existingAbs(cfg.RepoRoot); err != nil {
-			return cfg, err
-		}
 		if cfg.Codex, err = resolveExecutable(cfg.Codex); err != nil {
 			return cfg, err
 		}
@@ -795,9 +894,6 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 		}
 	}
 	if cfg.DepthProfile {
-		if cfg.RepoRoot, err = existingAbs(cfg.RepoRoot); err != nil {
-			return cfg, err
-		}
 		if cfg.DepthCacheDir == "" {
 			cfg.DepthCacheDir = filepath.Join(cfg.RepoRoot, "artifacts", "depth-profiles", "cache")
 		} else if !filepath.IsAbs(cfg.DepthCacheDir) {
@@ -838,11 +934,72 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 	return cfg, err
 }
 
+func matchBinaryIdentities(cfg matchConfig) (experimentIdentity, experimentIdentity, error) {
+	baseline, err := identifyExperimentBinary(cfg.Baseline)
+	if err != nil {
+		return experimentIdentity{}, experimentIdentity{}, fmt.Errorf("identify baseline binary: %w", err)
+	}
+	candidate, err := identifyExperimentBinary(cfg.Candidate)
+	if err != nil {
+		return experimentIdentity{}, experimentIdentity{}, fmt.Errorf("identify candidate binary: %w", err)
+	}
+	if baseline.SHA256 == candidate.SHA256 && !cfg.AllowIdenticalBinaries {
+		return experimentIdentity{}, experimentIdentity{}, fmt.Errorf("baseline and candidate binaries have identical SHA-256 %s; rebuild the candidate or use --allow-identical-binaries only for an explicit diagnostic self-play run", baseline.SHA256)
+	}
+	return baseline, candidate, nil
+}
+
+func resolveSyzygyPath(repoRoot, configured string) (string, error) {
+	configured = strings.TrimSpace(configured)
+	if strings.EqualFold(configured, "off") {
+		return "", nil
+	}
+	if configured == "" {
+		configured = filepath.Join(repoRoot, defaultSyzygyPath)
+	} else if !filepath.IsAbs(configured) {
+		configured = filepath.Join(repoRoot, configured)
+	}
+	info, err := os.Stat(configured)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) && configured == filepath.Join(repoRoot, defaultSyzygyPath) {
+			return "", nil
+		}
+		return "", fmt.Errorf("Syzygy path %q: %w", configured, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("Syzygy path %q is not a directory", configured)
+	}
+	return filepath.Abs(configured)
+}
+
+func syzygyFlagValue(path string) string {
+	if path == "" {
+		return "off"
+	}
+	return path
+}
+
+func fastchessEngineArgs(engine, name, syzygyPath string, cfg matchConfig) []string {
+	args := []string{
+		"-engine", "cmd=" + engine, "name=" + name,
+		"option.Hash=" + strconv.Itoa(cfg.HashMB),
+		"option.Threads=" + strconv.Itoa(cfg.Threads),
+		"option.Ponder=false",
+	}
+	if syzygyPath != "" {
+		args = append(args, "option.SyzygyPath="+syzygyPath)
+	}
+	if name == "Candidate" && cfg.TablebaseStats && cfg.TablebaseStatsFile != "" {
+		args = append(args, "option.TablebaseStatsFile="+cfg.TablebaseStatsFile)
+	}
+	return args
+}
+
 func initialStatus(cfg matchConfig) matchStatus {
 	now := time.Now()
 	return matchStatus{
 		RunID: filepath.Base(cfg.RunDir), State: "starting", Stage: "setup", StartedAt: now, UpdatedAt: now,
-		Baseline: cfg.Baseline, Candidate: cfg.Candidate, TimeControl: cfg.TC, TargetGames: cfg.Games,
+		Baseline: cfg.Baseline, Candidate: cfg.Candidate, ChangeClass: cfg.ChangeClass, ValidationPolicy: cfg.ValidationPolicy, TimeControl: cfg.TC, TargetGames: cfg.Games,
 		ProgressEvery: cfg.ProgressEvery, ProgressTime: cfg.ProgressTime, OpeningFile: cfg.Openings, OpeningCount: cfg.BookCount, RandomSeed: cfg.Seed, RunDir: cfg.RunDir,
 	}
 }

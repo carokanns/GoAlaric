@@ -118,6 +118,7 @@ func preScanCommand(args []string) error {
 		"--concurrency", strconv.Itoa(*concurrency),
 		"--hash", strconv.Itoa(*hashMB), "--threads", strconv.Itoa(*threads),
 		"--run-dir", *runDir, "--repo-root", root,
+		"--allow-identical-binaries",
 		"--depth-profile", "--profile-role", *role,
 		"--minimum-depth", strconv.Itoa(*minimumDepth),
 		"--seed", strconv.FormatInt(*seed, 10),

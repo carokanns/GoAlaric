@@ -81,12 +81,8 @@ func appendProgressSnapshot(runDir string, status matchStatus) error {
 }
 
 func formatProgress(status matchStatus) string {
-	completion := 0.0
-	if status.TargetGames > 0 {
-		completion = float64(status.Games) * 100 / float64(status.TargetGames)
-	}
-	line := fmt.Sprintf("[progress] games=%d/%d (%.1f%%) W-D-L=%d-%d-%d score=%.1f%% state=%s",
-		status.Games, status.TargetGames, completion, status.Wins, status.Draws, status.Losses, status.Score, status.State)
+	line := fmt.Sprintf("[progress] games=%d/%d W-D-L=%d-%d-%d score=%.1f%% state=%s",
+		status.Games, status.TargetGames, status.Wins, status.Draws, status.Losses, status.Score, status.State)
 	if status.SPRTLower != 0 || status.SPRTUpper != 0 {
 		line += fmt.Sprintf(" SPRT=%.2f [%.2f, %.2f]", status.SPRTLLR, status.SPRTLower, status.SPRTUpper)
 	}
