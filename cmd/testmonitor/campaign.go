@@ -103,10 +103,11 @@ type campaignState struct {
 }
 
 var (
-	campaignBuildCandidate = buildCampaignCandidate
-	campaignRunPipeline    = runCampaignPipeline
-	campaignStartScreening = startCampaignScreening
-	campaignStartPreScan   = startCampaignPreScan
+	campaignBuildCandidate  = buildCampaignCandidate
+	campaignRunPipeline     = runCampaignPipeline
+	campaignStartScreening  = startCampaignScreening
+	campaignStartPreScan    = startCampaignPreScan
+	campaignPipelineCommand = pipelineCommand
 )
 
 func campaignInitCommand(args []string) error {
@@ -447,8 +448,6 @@ func runCampaignPipeline(state campaignState) error {
 	args := []string{
 		"--baseline", state.Config.Baseline,
 		"--candidate", state.Config.CandidateBinary,
-		"--change-class", state.Config.ChangeClass,
-		"--validation-policy", state.Config.ComparisonPolicy,
 		"--candidate-id", state.Config.CandidateID,
 		"--repo-root", state.Config.RepoRoot,
 		"--hypothesis", state.Config.Hypothesis,
@@ -462,7 +461,7 @@ func runCampaignPipeline(state campaignState) error {
 	} else {
 		args = append(args, "--change-class", state.Config.ChangeClass)
 	}
-	return pipelineCommand(args)
+	return campaignPipelineCommand(args)
 }
 
 func startCampaignScreening(state campaignState) error {
