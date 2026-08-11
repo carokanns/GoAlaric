@@ -365,6 +365,8 @@ func startAutomaticSPRT(cfg matchConfig, runDir string) error {
 		"--fastchess", cfg.Fastchess,
 		"--baseline", cfg.Baseline,
 		"--candidate", cfg.Candidate,
+		"--change-class", cfg.ChangeClass,
+		"--validation-policy", cfg.ValidationPolicy,
 		"--candidate-id", cfg.CandidateID,
 		"--auto-evaluate",
 		"--codex", cfg.Codex,
@@ -384,7 +386,7 @@ func startAutomaticSPRT(cfg matchConfig, runDir string) error {
 		"--candidate-syzygy-path", syzygyFlagValue(cfg.CandidateSyzygyPath),
 		"--baseline-syzygy-path", syzygyFlagValue(cfg.BaselineSyzygyPath),
 	)
-	return startCommand(args)
+	return startMatchCommand(args)
 }
 
 func automaticSPRTTimeControl(cfg matchConfig) string {

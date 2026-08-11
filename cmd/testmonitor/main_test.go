@@ -141,6 +141,28 @@ func TestMatchBinaryIdentitiesRejectsIdenticalCandidate(t *testing.T) {
 	}
 }
 
+func TestMatchStatusCopiesResolvedValidationPolicy(t *testing.T) {
+	cases := []struct {
+		name, changeClass, policy string
+	}{
+		{name: "implementation", changeClass: "implementation", policy: comparisonPolicyExactEquivalence},
+		{name: "search", changeClass: "search", policy: comparisonPolicyBehavioral},
+		{name: "legacy behavioral", changeClass: "mixed", policy: comparisonPolicyBehavioral},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			status := initialStatus(matchConfig{RunDir: t.TempDir(), ChangeClass: tc.changeClass, ValidationPolicy: tc.policy})
+			if status.ChangeClass != tc.changeClass || status.ValidationPolicy != tc.policy {
+				t.Fatalf("status copied class=%q policy=%q, want class=%q policy=%q", status.ChangeClass, status.ValidationPolicy, tc.changeClass, tc.policy)
+			}
+			encoded, err := json.Marshal(status)
+			if err != nil || !strings.Contains(string(encoded), `"change_class":"`+tc.changeClass+`"`) || !strings.Contains(string(encoded), `"validation_policy":"`+tc.policy+`"`) {
+				t.Fatalf("status JSON omitted copied policy: %s err=%v", encoded, err)
+			}
+		})
+	}
+}
+
 func TestSyzygyPathUsesLocalTablesByDefault(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"fastchess", "baseline", "candidate"} {

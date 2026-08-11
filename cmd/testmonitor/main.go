@@ -55,6 +55,8 @@ type matchStatus struct {
 	Candidate         string                `json:"candidate"`
 	BaselineIdentity  *experimentIdentity   `json:"baseline_identity,omitempty"`
 	CandidateIdentity *experimentIdentity   `json:"candidate_identity,omitempty"`
+	ChangeClass       string                `json:"change_class,omitempty"`
+	ValidationPolicy  string                `json:"validation_policy,omitempty"`
 	TimeControl       string                `json:"time_control"`
 	TargetGames       int                   `json:"target_games"`
 	ProgressEvery     int                   `json:"progress_every_games"`
@@ -102,6 +104,8 @@ type matchConfig struct {
 	Fastchess              string `json:"fastchess"`
 	Baseline               string `json:"baseline"`
 	Candidate              string `json:"candidate"`
+	ChangeClass            string `json:"change_class,omitempty"`
+	ValidationPolicy       string `json:"validation_policy,omitempty"`
 	AllowIdenticalBinaries bool   `json:"allow_identical_binaries,omitempty"`
 	Openings               string `json:"openings"`
 	BookFormat             string `json:"book_format"`
@@ -163,8 +167,9 @@ type benchReport struct {
 }
 
 var (
-	scorePattern = regexp.MustCompile(`Score of Candidate vs Baseline:\s*(\d+)\s*-\s*(\d+)\s*-\s*(\d+)\s*\[([0-9.]+)\]\s*(\d+)`)
-	sprtPattern  = regexp.MustCompile(`SPRT: llr\s+(-?[0-9.]+).*lbound\s+(-?[0-9.]+),\s+ubound\s+(-?[0-9.]+)`)
+	scorePattern      = regexp.MustCompile(`Score of Candidate vs Baseline:\s*(\d+)\s*-\s*(\d+)\s*-\s*(\d+)\s*\[([0-9.]+)\]\s*(\d+)`)
+	sprtPattern       = regexp.MustCompile(`SPRT: llr\s+(-?[0-9.]+).*lbound\s+(-?[0-9.]+),\s+ubound\s+(-?[0-9.]+)`)
+	startMatchCommand = startCommand
 )
 
 func main() {
@@ -381,6 +386,8 @@ func startCommand(args []string) error {
 	}
 	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", cfg.Openings, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--hash", strconv.Itoa(cfg.HashMB), "--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir}
 	childArgs = append(childArgs,
+		"--change-class", cfg.ChangeClass,
+		"--validation-policy", cfg.ValidationPolicy,
 		"--syzygy-path", syzygyFlagValue(cfg.SyzygyPath),
 		"--candidate-syzygy-path", syzygyFlagValue(cfg.CandidateSyzygyPath),
 		"--baseline-syzygy-path", syzygyFlagValue(cfg.BaselineSyzygyPath),
@@ -761,6 +768,8 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.Fastchess, "fastchess", defaultFastchess, "fastchess executable")
 	fs.StringVar(&cfg.Baseline, "baseline", "", "baseline engine")
 	fs.StringVar(&cfg.Candidate, "candidate", "", "candidate engine")
+	fs.StringVar(&cfg.ChangeClass, "change-class", "", "resolved candidate change class copied from the experiment or campaign")
+	fs.StringVar(&cfg.ValidationPolicy, "validation-policy", "", "resolved validation policy copied from the experiment or campaign")
 	fs.BoolVar(&cfg.AllowIdenticalBinaries, "allow-identical-binaries", false, "allow identical engine binaries for an explicit diagnostic self-play run")
 	fs.StringVar(&cfg.Openings, "openings", "", "PGN or EPD opening book")
 	fs.Int64Var(&cfg.Seed, "seed", 0, "opening randomization seed; random and persisted when zero")
@@ -990,7 +999,7 @@ func initialStatus(cfg matchConfig) matchStatus {
 	now := time.Now()
 	return matchStatus{
 		RunID: filepath.Base(cfg.RunDir), State: "starting", Stage: "setup", StartedAt: now, UpdatedAt: now,
-		Baseline: cfg.Baseline, Candidate: cfg.Candidate, TimeControl: cfg.TC, TargetGames: cfg.Games,
+		Baseline: cfg.Baseline, Candidate: cfg.Candidate, ChangeClass: cfg.ChangeClass, ValidationPolicy: cfg.ValidationPolicy, TimeControl: cfg.TC, TargetGames: cfg.Games,
 		ProgressEvery: cfg.ProgressEvery, ProgressTime: cfg.ProgressTime, OpeningFile: cfg.Openings, OpeningCount: cfg.BookCount, RandomSeed: cfg.Seed, RunDir: cfg.RunDir,
 	}
 }

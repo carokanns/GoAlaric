@@ -105,6 +105,8 @@ type experimentConfig struct {
 	BenchRepetitions int    `json:"bench_repetitions"`
 	MovetimeMS       int    `json:"movetime_ms"`
 	MovetimeEPD      string `json:"movetime_epd"`
+	ChangeClass      string `json:"change_class"`
+	ComparisonPolicy string `json:"comparison_policy"`
 	SemanticPreserve bool   `json:"semantic_preserving"`
 	Screening        bool   `json:"screening"`
 	ScreeningGames   int    `json:"screening_games,omitempty"`
@@ -178,7 +180,10 @@ type decision struct {
 	Reason         string   `json:"reason"`
 }
 
-var candidateIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+var (
+	candidateIDPattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	runScreeningMatchCommand = runMatchCommand
+)
 
 func pipelineCommand(args []string) error {
 	fs := flag.NewFlagSet("pipeline", flag.ContinueOnError)
@@ -186,6 +191,7 @@ func pipelineCommand(args []string) error {
 	var hypothesis, proposedChange string
 	var perftDepth, benchDepth, repetitions, movetimeMS int
 	var semanticPreserve, screening bool
+	var changeClass string
 	var fastchess, openings, screeningTC string
 	var screeningGames int
 	fs.StringVar(&baseline, "baseline", "", "baseline engine executable")
@@ -199,6 +205,7 @@ func pipelineCommand(args []string) error {
 	fs.IntVar(&benchDepth, "bench-depth", 8, "fixed search depth")
 	fs.IntVar(&repetitions, "repetitions", 7, "benchmark repetitions")
 	fs.IntVar(&movetimeMS, "movetime-ms", 2000, "movetime test duration")
+	fs.StringVar(&changeClass, "change-class", "", "candidate change class: implementation, eval, search, correctness or mixed")
 	fs.BoolVar(&semanticPreserve, "semantic-preserving", true, "require identical fixed-depth results")
 	fs.BoolVar(&screening, "screening", false, "run the optional Fastchess screening match")
 	fs.StringVar(&fastchess, "fastchess", defaultFastchess, "Fastchess executable")
@@ -213,6 +220,10 @@ func pipelineCommand(args []string) error {
 	}
 	if !candidateIDPattern.MatchString(candidateID) {
 		return errors.New("candidate-id contains unsafe characters")
+	}
+	definition, err := pipelineCandidateDefinition(changeClass, boolFlagOverride(fs, "semantic-preserving", semanticPreserve))
+	if err != nil {
+		return err
 	}
 	base, err := existingAbs(baseline)
 	if err != nil {
@@ -233,7 +244,8 @@ func pipelineCommand(args []string) error {
 		PerftDepth: perftDepth, PerftEPD: filepath.Join(root, "scripts", "perft_tests.txt"),
 		BenchDepth: benchDepth, BenchRepetitions: repetitions,
 		MovetimeMS: movetimeMS, MovetimeEPD: filepath.Join(root, "scripts", "movetime_epd"),
-		SemanticPreserve: semanticPreserve, Screening: screening, ScreeningGames: screeningGames,
+		ChangeClass: definition.ChangeClass, ComparisonPolicy: definition.ComparisonPolicy,
+		SemanticPreserve: policyRequiresExactEquivalence(definition.ComparisonPolicy), Screening: screening, ScreeningGames: screeningGames,
 		ScreeningTC: screeningTC, Openings: openings, Fastchess: fastchess,
 		Hypothesis: hypothesis, ProposedChange: proposedChange,
 	}
@@ -876,12 +888,14 @@ func runScreeningMatch(baseline, candidate string, cfg experimentConfig, runDir,
 		"--fastchess", cfg.Fastchess,
 		"--baseline", baseline,
 		"--candidate", candidate,
+		"--change-class", cfg.ChangeClass,
+		"--validation-policy", cfg.ComparisonPolicy,
 		"--openings", cfg.Openings,
 		"--games", strconv.Itoa(cfg.ScreeningGames),
 		"--tc", cfg.ScreeningTC,
 		"--run-dir", runDir,
 	}
-	if err := runMatchCommand(args); err != nil {
+	if err := runScreeningMatchCommand(args); err != nil {
 		return nil, err
 	}
 	status, err := loadStatus(runDir)
