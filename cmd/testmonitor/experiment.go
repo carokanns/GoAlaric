@@ -377,6 +377,9 @@ func runExperiment(root, dir, candidateID, baseline, candidate string, cfg exper
 	if err != nil {
 		return experimentReport{}, false, err
 	}
+	if baseID.SHA256 == candID.SHA256 {
+		return experimentReport{}, false, fmt.Errorf("baseline and candidate binaries have identical SHA-256 %s; rebuild the candidate before running the experiment pipeline", baseID.SHA256)
+	}
 	cacheKey := hashJSON(struct {
 		B, C   experimentIdentity
 		Config experimentConfig

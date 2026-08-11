@@ -341,6 +341,9 @@ func validateAutomaticSPRT(report experimentReport, cfg matchConfig, status matc
 	if baseline.SHA256 != report.Baseline.SHA256 || candidate.SHA256 != report.Candidate.SHA256 {
 		return errors.New("match binaries do not match the tested experiment identities")
 	}
+	if baseline.SHA256 == candidate.SHA256 {
+		return errors.New("automatic SPRT requires distinct baseline and candidate binary SHA-256 values")
+	}
 	return nil
 }
 
@@ -372,12 +375,15 @@ func startAutomaticSPRT(cfg matchConfig, runDir string) error {
 		"--concurrency", strconv.Itoa(concurrency),
 		"--hash", strconv.Itoa(hashMB),
 		"--threads", strconv.Itoa(threads),
+		"--draw-movenumber", strconv.Itoa(cfg.DrawMoveNumber),
 		"--run-dir", runDir,
 		"--sprt",
 	}
-	if cfg.SyzygyPath != "" {
-		args = append(args, "--syzygy-path", cfg.SyzygyPath)
-	}
+	args = append(args,
+		"--syzygy-path", syzygyFlagValue(cfg.SyzygyPath),
+		"--candidate-syzygy-path", syzygyFlagValue(cfg.CandidateSyzygyPath),
+		"--baseline-syzygy-path", syzygyFlagValue(cfg.BaselineSyzygyPath),
+	)
 	return startCommand(args)
 }
 

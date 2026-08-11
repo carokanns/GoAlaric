@@ -86,3 +86,18 @@ func TestCompactDecisionInputIncludesSemanticPreservingPolicy(t *testing.T) {
 		t.Fatalf("unexpected semantic policy: %+v", input)
 	}
 }
+
+func TestRunExperimentRejectsIdenticalBinariesBeforeTests(t *testing.T) {
+	dir := t.TempDir()
+	baseline := filepath.Join(dir, "baseline")
+	candidate := filepath.Join(dir, "candidate")
+	for _, path := range []string{baseline, candidate} {
+		if err := os.WriteFile(path, []byte("same-engine"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, _, err := runExperiment(dir, filepath.Join(dir, "experiment"), "candidate-identical", baseline, candidate, experimentConfig{})
+	if err == nil || !strings.Contains(err.Error(), "identical SHA-256") {
+		t.Fatalf("identical binaries reached the experiment pipeline: %v", err)
+	}
+}

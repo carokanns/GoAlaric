@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"math"
 	"os"
@@ -29,6 +30,16 @@ func TestScreeningProgressEveryTenGames(t *testing.T) {
 	}
 	if len(snapshots) != 1 || snapshots[0].Games != 10 || snapshots[0].ScorePercent != 55 {
 		t.Fatalf("unexpected progress snapshots: %+v", snapshots)
+	}
+}
+
+func TestReadableProgressOmitsRedundantCompletionPercent(t *testing.T) {
+	line := formatProgress(matchStatus{Games: 1750, TargetGames: 10000, Wins: 400, Draws: 950, Losses: 400, Score: 50, State: "running"})
+	if strings.Contains(line, "(17.5%)") {
+		t.Fatalf("progress contains redundant completion percentage: %s", line)
+	}
+	if !strings.Contains(line, "games=1750/10000 W-D-L=400-950-400") {
+		t.Fatalf("unexpected progress line: %s", line)
 	}
 }
 
@@ -97,6 +108,39 @@ func TestProgressIntervalDefaults(t *testing.T) {
 	}
 }
 
+func TestMatchBinaryIdentitiesRejectsIdenticalCandidate(t *testing.T) {
+	dir := t.TempDir()
+	baseline := filepath.Join(dir, "baseline")
+	candidate := filepath.Join(dir, "candidate")
+	for _, path := range []string{baseline, candidate} {
+		if err := os.WriteFile(path, []byte("same-engine"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, _, err := matchBinaryIdentities(matchConfig{Baseline: baseline, Candidate: candidate})
+	if err == nil || !strings.Contains(err.Error(), "identical SHA-256") {
+		t.Fatalf("identical binaries were accepted: %v", err)
+	}
+
+	baselineID, candidateID, err := matchBinaryIdentities(matchConfig{
+		Baseline: baseline, Candidate: candidate, AllowIdenticalBinaries: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baselineID.SHA256 == "" || baselineID.SHA256 != candidateID.SHA256 {
+		t.Fatalf("unexpected diagnostic identities: baseline=%+v candidate=%+v", baselineID, candidateID)
+	}
+	status := initialStatus(matchConfig{Baseline: baseline, Candidate: candidate, RunDir: dir})
+	status.BaselineIdentity = &baselineID
+	status.CandidateIdentity = &candidateID
+	encoded, err := json.Marshal(status)
+	if err != nil || !strings.Contains(string(encoded), `"baseline_identity"`) || !strings.Contains(string(encoded), baselineID.SHA256) {
+		t.Fatalf("status did not preserve binary identities: %s err=%v", encoded, err)
+	}
+}
+
 func TestSyzygyPathUsesLocalTablesByDefault(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"fastchess", "baseline", "candidate"} {
@@ -126,10 +170,37 @@ func TestSyzygyPathUsesLocalTablesByDefault(t *testing.T) {
 	if cfg.SyzygyPath != tables {
 		t.Fatalf("Syzygy path = %q, want %q", cfg.SyzygyPath, tables)
 	}
+	if cfg.DrawMoveNumber != defaultDrawMoveNumber {
+		t.Fatalf("draw adjudication starts at move %d, want %d", cfg.DrawMoveNumber, defaultDrawMoveNumber)
+	}
 	for _, engine := range []string{cfg.Candidate, cfg.Baseline} {
-		if !strings.Contains(strings.Join(fastchessEngineArgs(engine, "test", cfg), " "), "option.SyzygyPath="+tables) {
+		if !strings.Contains(strings.Join(fastchessEngineArgs(engine, "test", tables, cfg), " "), "option.SyzygyPath="+tables) {
 			t.Fatalf("Fastchess arguments omitted SyzygyPath for %s", engine)
 		}
+	}
+}
+
+func TestSyzygyPathCanDifferByEngine(t *testing.T) {
+	tables := filepath.Join(t.TempDir(), "tables")
+	if err := os.MkdirAll(tables, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	candidatePath, err := resolveSyzygyPath(".", tables)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baselinePath, err := resolveSyzygyPath(".", "off")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := matchConfig{HashMB: 128, Threads: 1}
+	candidateArgs := strings.Join(fastchessEngineArgs("candidate", "Candidate", candidatePath, cfg), " ")
+	baselineArgs := strings.Join(fastchessEngineArgs("baseline", "Baseline", baselinePath, cfg), " ")
+	if !strings.Contains(candidateArgs, "option.SyzygyPath="+tables) {
+		t.Fatalf("candidate arguments omitted SyzygyPath: %s", candidateArgs)
+	}
+	if strings.Contains(baselineArgs, "option.SyzygyPath=") {
+		t.Fatalf("baseline arguments unexpectedly enable Syzygy: %s", baselineArgs)
 	}
 }
 

@@ -582,6 +582,7 @@ func startCampaignPreScan(cfg matchConfig) error {
 		"--concurrency", strconv.Itoa(cfg.Concurrency), "--hash", strconv.Itoa(cfg.HashMB),
 		"--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir,
 		"--repo-root", cfg.RepoRoot, "--depth-profile", "--profile-role", cfg.ProfileRole,
+		"--allow-identical-binaries",
 		"--minimum-depth", strconv.Itoa(cfg.MinimumDepth), "--depth-cache-dir", cfg.DepthCacheDir,
 		"--seed", strconv.FormatInt(cfg.Seed, 10),
 	})
