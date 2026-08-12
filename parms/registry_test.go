@@ -1,0 +1,72 @@
+package parms
+
+import (
+	"bytes"
+	"testing"
+)
+
+func TestPilotRegistryIsStableAndComplete(t *testing.T) {
+	registry := Registry()
+	if len(registry) != 8 {
+		t.Fatalf("pilot registry has %d parameters, want 8", len(registry))
+	}
+
+	want := []struct {
+		name, usedIn                 string
+		index, value, min, max, step int
+	}{
+		{"mobility_weight", "eval/eval.go:mobilityScore", 31, 18, 0, 64, 1},
+		{"mobility_shift", "eval/eval.go:mobilityScore -> mulShift", 32, 9, 1, 16, 1},
+		{"activity_bias", "eval/eval.go:attackMgScore", 33, 5, 0, 32, 1},
+		{"activity_shift", "eval/eval.go:attackMgScore", 34, 1, 1, 8, 1},
+		{"activity_knight_weight", "eval/eval.go:attackWeight -> attackMgScore (knight)", 35, 1, 0, 16, 1},
+		{"activity_bishop_weight", "eval/eval.go:attackWeight -> attackMgScore (bishop)", 36, 3, 0, 16, 1},
+		{"activity_rook_weight", "eval/eval.go:attackWeight -> attackMgScore (rook)", 37, 5, 0, 16, 1},
+		{"activity_queen_weight", "eval/eval.go:attackWeight -> attackMgScore (queen)", 38, 2, 0, 16, 1},
+	}
+	for index, want := range want {
+		got := registry[index]
+		if Parms[got.Index] != got.Default {
+			t.Errorf("registry[%d] default=%d but Parms[%d]=%d", index, got.Default, got.Index, Parms[got.Index])
+		}
+		if got.Name != want.name || got.UsedIn != want.usedIn || got.Index != want.index ||
+			got.Default != want.value || got.Min != want.min || got.Max != want.max || got.Step != want.step {
+			t.Errorf("registry[%d] = %+v, want name=%q index=%d default=%d range=[%d,%d] step=%d usedIn=%q", index, got, want.name, want.index, want.value, want.min, want.max, want.step, want.usedIn)
+		}
+	}
+}
+
+func TestDefaultParameterFileRoundTripsCanonically(t *testing.T) {
+	want, err := DefaultParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parsed, err := ParseParameterFile(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := MarshalParameterFile(parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("canonical parameter JSON changed after round trip:\n%s\nwant:\n%s", got, want)
+	}
+
+	var exported bytes.Buffer
+	if err := ExportDefault(&exported); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(exported.Bytes(), want) {
+		t.Fatal("ExportDefault differs from DefaultParameterJSON")
+	}
+}
+
+func TestParameterFileRejectsOutOfRangeValue(t *testing.T) {
+	file := DefaultParameterFile()
+	file.Parameters[0].Value = 65
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("out-of-range parameter was accepted")
+	}
+}
