@@ -66,3 +66,12 @@ ligger under `artifacts/experiments/`, som är lokala och ignorerade av Git.
 - Nästa ändring: Inför en försiktig mittspelsvärdering av bondestorm mot motståndarens rockerade kung.
 - Hypotes: Återställd medelvärdesberäkning för möjlig rockad ger avsedd kungssäkerhetsvärdering utan att försämra spelstyrkan.
 - Orsak: Kandidaten korrigerar en regression där den möjliga rockadens bondeskydd i praktiken dividerades med 200 i stället för att medelvärdesbildas. Alla tester godkändes och screeningen slutade 109 vinster, 183 remier och 108 förluster (50,1 procent). Ändringen promoveras som korrekthetsbaseline trots neutral Elo.
+
+## candidate-023-pawn-structure-tuning
+
+- Status: `rejected`
+- Rekommendation: `reject`
+- Nästa ändring: Avvakta användarens nästa isolerade eval-idé.
+- Hypotes: Korsvaliderade MG/EG-värden för isolerade, svaga och dubbla bönder skulle förbättra eval utan att försämra spelstyrkan.
+- Ändring: `isolated 15/22`, `weak 0/3`, `doubled 0/0`.
+- Orsak: Alla hårda tester, perft, movetime och UCI godkändes. Screeningen passerade maskinellt med 80 vinster, 221 remier och 99 förluster (47,6 procent), men SPRT nådde den negativa gränsen efter 921 partier: 172 vinster, 538 remier och 211 förluster (47,9 procent), LLR `-1,58` mot gränserna `-1,57` och `3,00`. Kandidaten promoveras inte; baseline förblir `3ce0e7c`.
