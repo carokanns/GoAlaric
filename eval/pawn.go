@@ -28,6 +28,37 @@ var passedMe [square.BoardSize][2]bit.BB
 var passedOpp [square.BoardSize][2]bit.BB
 var pair [square.BoardSize]bit.BB
 
+// PawnStructureWeights contains the deliberately small first parameter family
+// used by the deterministic evaluator tuner.
+type PawnStructureWeights struct {
+	IsolatedMG int `json:"isolated_mg"`
+	IsolatedEG int `json:"isolated_eg"`
+	WeakMG     int `json:"weak_mg"`
+	WeakEG     int `json:"weak_eg"`
+	DoubledMG  int `json:"doubled_mg"`
+	DoubledEG  int `json:"doubled_eg"`
+}
+
+var pawnStructureWeights = PawnStructureWeights{
+	IsolatedMG: 15,
+	IsolatedEG: 22,
+	WeakMG:     0,
+	WeakEG:     3,
+	DoubledMG:  0,
+	DoubledEG:  0,
+}
+
+// CurrentPawnStructureWeights returns the active values. They are process-local
+// and are only changed by the offline tuner.
+func CurrentPawnStructureWeights() PawnStructureWeights {
+	return pawnStructureWeights
+}
+
+// SetPawnStructureWeights changes the active values for offline tuning.
+func SetPawnStructureWeights(weights PawnStructureWeights) {
+	pawnStructureWeights = weights
+}
+
 // ShelterFile returnerar 2 om en bonde står på filen fl rad 2, 1 om den står på rad 3, annars 0.
 func ShelterFile(fl, sd int, bd *board.Board) int {
 	if bd.SquareIs(square.MakeSd(fl, square.Rank2, sd), material.Pawn, sd) {
@@ -260,20 +291,20 @@ func compPawnHash(entry *pawnEntry, bd *board.Board) {
 
 				bit.Set(&weak, sq)
 
-				entry.mg -= 10
-				entry.eg -= 20
+				entry.mg -= int16(pawnStructureWeights.IsolatedMG)
+				entry.eg -= int16(pawnStructureWeights.IsolatedEG)
 
 			} else if isWeak(sq, sd, bd) {
 
 				bit.Set(&weak, sq)
 
-				entry.mg -= 5
-				entry.eg -= 10
+				entry.mg -= int16(pawnStructureWeights.WeakMG)
+				entry.eg -= int16(pawnStructureWeights.WeakEG)
 			}
 
 			if isDoubled(sq, sd, bd) {
-				entry.mg -= 5
-				entry.eg -= 10
+				entry.mg -= int16(pawnStructureWeights.DoubledMG)
+				entry.eg -= int16(pawnStructureWeights.DoubledEG)
 			}
 
 			if isPassed(sq, sd, bd) {
