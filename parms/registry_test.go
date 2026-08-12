@@ -2,6 +2,9 @@ package parms
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -68,5 +71,24 @@ func TestParameterFileRejectsOutOfRangeValue(t *testing.T) {
 	file.Parameters[0].Value = 65
 	if _, err := MarshalParameterFile(file); err == nil {
 		t.Fatal("out-of-range parameter was accepted")
+	}
+}
+
+func TestCheckedInDefaultParameterFileMatchesExporter(t *testing.T) {
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	path := filepath.Join(filepath.Dir(source), "..", "optimizer", "registries", "eval-pilot-v1-default.json")
+	checkedIn, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported, err := DefaultParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(checkedIn, exported) {
+		t.Fatalf("checked-in standard file differs from exporter:\n%s\nwant:\n%s", checkedIn, exported)
 	}
 }

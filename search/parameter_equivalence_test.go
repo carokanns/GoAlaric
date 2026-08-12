@@ -1,6 +1,8 @@
 package search
 
 import (
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"goalaric/board"
@@ -44,11 +46,12 @@ func TestExportedDefaultParameterFileIsSearchEquivalent(t *testing.T) {
 	board.SetFen("r1bq1rk1/ppp1p1bp/5np1/3Ppp2/8/1QP3P1/PP2PPBP/RNBR2K1 w - - 3 10", &position)
 
 	baseline := runFixedDepth(t, &position)
-	data, err := parms.DefaultParameterJSON()
-	if err != nil {
-		t.Fatal(err)
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
 	}
-	file, err := parms.ParseParameterFile(data)
+	path := filepath.Join(filepath.Dir(source), "..", "optimizer", "registries", "eval-pilot-v1-default.json")
+	file, _, err := parms.LoadParameterFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}

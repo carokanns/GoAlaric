@@ -365,6 +365,17 @@ func (sl *Local) ClearHash() {
 	sl.evalHash.Clear()
 }
 
+// ClearSearchCaches invalidates all search- and evaluation-derived state.
+// It must only be called while no search is active.
+func ClearSearchCaches() {
+	SG.Trans.Clear()
+	SG.History.Clear()
+	for id := range slEntries {
+		slEntries[id].killer.Clear()
+		slEntries[id].ClearHash()
+	}
+}
+
 var slEntries [maxThreads]Local
 
 func (sl *Local) init() {

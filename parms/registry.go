@@ -2,9 +2,12 @@ package parms
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 )
 
 // RegistryVersion identifies the named evaluation-parameter interface.
@@ -149,6 +152,40 @@ func DefaultParameterFile() ParameterFile {
 // DefaultParameterJSON exports the canonical baseline parameter file.
 func DefaultParameterJSON() ([]byte, error) {
 	return MarshalParameterFile(DefaultParameterFile())
+}
+
+// ParameterFileSHA256 returns the SHA-256 of the canonical parameter-file
+// representation. Formatting and parameter order therefore do not affect the
+// identity of an otherwise identical parameter set.
+func ParameterFileSHA256(file ParameterFile) (string, error) {
+	data, err := MarshalParameterFile(file)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:]), nil
+}
+
+// DefaultParameterSHA256 returns the identity of the built-in baseline set.
+func DefaultParameterSHA256() (string, error) {
+	return ParameterFileSHA256(DefaultParameterFile())
+}
+
+// LoadParameterFile reads, validates and identifies a parameter file.
+func LoadParameterFile(path string) (ParameterFile, string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ParameterFile{}, "", err
+	}
+	file, err := ParseParameterFile(data)
+	if err != nil {
+		return ParameterFile{}, "", err
+	}
+	digest, err := ParameterFileSHA256(file)
+	if err != nil {
+		return ParameterFile{}, "", err
+	}
+	return file, digest, nil
 }
 
 // ExportDefault writes the canonical baseline parameter file to w.
