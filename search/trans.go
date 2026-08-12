@@ -55,13 +55,13 @@ type transTable struct {
 	size    uint64
 	mask    uint64
 
-	generation int
+	generation uint16
 	cntUsed    uint64
 }
 
 // IncDate bump:ar generationen så nya poster markeras som färska.
 func (t *transTable) IncDate() {
-	if t.generation >= 65535 {
+	if t.generation == ^uint16(0) {
 		for ix := range t.entries {
 			t.entries[ix] = entry{}
 		}
@@ -96,9 +96,13 @@ func (t *transTable) InitTable() {
 	t.cntUsed = 0
 }
 
-// Clear markerar alla poster som föråldrade genom att öka generationen.
+// Clear tömmer tabellen fysiskt och startar om generationen.
 func (t *transTable) Clear() {
-	t.IncDate()
+	for ix := range t.entries {
+		t.entries[ix] = entry{}
+	}
+	t.generation = 1
+	t.cntUsed = 0
 }
 
 // Store skriver en ny post i transpositionstabellen.
@@ -124,14 +128,9 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, scoreType int) {
 		entry := &t.entries[idx]
 
 		if entry.lock == lock {
-			if entry.date != uint16(t.generation) {
+			if entry.date != t.generation {
+				entry.date = t.generation
 				t.cntUsed++
-				entry.date = uint16(t.generation)
-				entry.move = uint32(mv)
-				entry.depth = int8(depth)
-				entry.score = int16(sc)
-				entry.scoreType = uint8(scoreType)
-				return
 			}
 
 			if depth >= int(entry.depth) {
@@ -152,7 +151,7 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, scoreType int) {
 		}
 
 		sc2 := 99 - int(entry.depth) // NOTE: entry.depth can be -1
-		if entry.date != uint16(t.generation) {
+		if entry.date != t.generation {
 			sc2 += 101
 		}
 		//util.ASSERT(sc2 >= 0 && sc2 < 202)
@@ -165,12 +164,12 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, scoreType int) {
 
 	//util.ASSERT(be != nil)
 
-	if be.date != uint16(t.generation) {
+	if be.date != t.generation {
 		t.cntUsed++
 	}
 
 	be.lock = lock
-	be.date = uint16(t.generation)
+	be.date = t.generation
 	be.move = uint32(mv)
 	be.depth = int8(depth)
 	be.score = int16(sc)
@@ -196,7 +195,7 @@ func (t *transTable) Resize(size int) {
 	if t.cntBits != prevBits || t.entries == nil || uint64(len(t.entries)) != t.size {
 		t.Alloc()
 	} else {
-		t.IncDate()
+		t.Clear()
 	}
 }
 
@@ -206,7 +205,7 @@ func (t *transTable) Alloc() {
 	t.IncDate()
 }
 
-// Retrieve försöker läsa en post med matchande key och aktuell generation.
+// Retrieve försöker läsa en icke-tom post med matchande key och uppdaterar dess ålder.
 // Returnerar true om en giltig post hittades och fyller mv, sc och flags.
 func (t *transTable) Retrieve(key hash.Key, depth, ply int, mv *int, sc *int, flags *int) bool {
 
@@ -221,7 +220,12 @@ func (t *transTable) Retrieve(key hash.Key, depth, ply int, mv *int, sc *int, fl
 		//util.ASSERT(idx < t.p_size)
 		entry := &t.entries[idx]
 
-		if entry.lock == lock && entry.date == uint16(t.generation) { // only use current generation
+		if entry.lock == lock && entry.date != 0 {
+			if entry.date != t.generation {
+				entry.date = t.generation
+				t.cntUsed++
+			}
+
 			*mv = int(entry.move)
 			*sc = AddMatePly(int(entry.score), ply)
 			*flags = int(entry.scoreType)

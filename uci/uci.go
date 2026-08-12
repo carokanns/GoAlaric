@@ -390,8 +390,8 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 		}
 		newHash := int(hashVal)
 		if newHash == search.Engine.Hash {
-			// Same size requested: just bump generation to drop old entries fast
-			search.SG.Trans.IncDate()
+			// Same size requested: clear entries because the hash setting was reset.
+			search.SG.Trans.Clear()
 		} else {
 			search.Engine.Hash = newHash
 			search.SG.Trans.Resize(search.Engine.Hash)
@@ -414,7 +414,7 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 	case "syzygypath":
 		path := syzygy.NormalizePath(value)
 		err := syzygy.SetPath(path)
-		search.SG.Trans.IncDate()
+		search.SG.Trans.Clear()
 		if err != nil {
 			search.Engine.SyzygyPath = ""
 			tellGUI("info string Syzygy disabled: " + err.Error())
@@ -432,7 +432,7 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 			return
 		}
 		search.Engine.SyzygyProbeDepth = int(depth)
-		search.SG.Trans.IncDate()
+		search.SG.Trans.Clear()
 	case "tablebasestatsfile":
 		search.Engine.TablebaseStatsFile = value
 	case "log", "logfile":

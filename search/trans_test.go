@@ -2,19 +2,12 @@
 package search
 
 import (
-	"reflect"
 	"testing"
+	"unsafe"
 
 	"goalaric/board"
 	"goalaric/hash"
 )
-
-func TestTransEntrySizeMatchesAllocationConstant(t *testing.T) {
-	got := int(reflect.TypeOf(entry{}).Size())
-	if got != sizeEntry {
-		t.Fatalf("entry size = %d bytes, sizeEntry = %d", got, sizeEntry)
-	}
-}
 
 // initAll är en stub för att spegla initSession i main när det behövs i tester.
 func initAll() { // copy of main initSession()
@@ -99,63 +92,76 @@ func TestTrans(t *testing.T) {
 	}
 }
 
-func TestTransDoesNotReviveDeeperEntryFromOldGeneration(t *testing.T) {
+func TestTransRetainsEntryAcrossSearchGeneration(t *testing.T) {
 	var tt transTable
 	tt.InitTable()
 	tt.SetSize(1)
 	tt.Alloc()
 
 	key := hash.Key(0x123456789abcdef)
-	tt.Store(key, 10, 0, 10, 123, scoreTypeBetween)
-
+	tt.Store(key, 10, 0, 20, 45, scoreTypeBetween)
 	tt.IncDate()
-	tt.Store(key, 1, 0, 20, 45, scoreTypeBetween)
 
 	var mv, sc, flags int
-	if tt.Retrieve(key, 10, 0, &mv, &sc, &flags) {
-		t.Fatalf("old depth-10 entry was revived: move=%d score=%d flags=%d", mv, sc, flags)
-	}
-
-	if !tt.Retrieve(key, 1, 0, &mv, &sc, &flags) {
-		t.Fatal("new depth-1 entry was not stored")
+	if !tt.Retrieve(key, 10, 0, &mv, &sc, &flags) {
+		t.Fatal("entry was not retained across search generation")
 	}
 	if mv != 20 || sc != 45 || flags != scoreTypeBetween {
-		t.Fatalf("new entry = move %d score %d flags %d", mv, sc, flags)
+		t.Fatalf("entry = move %d score %d flags %d", mv, sc, flags)
 	}
 }
 
-func TestTransGenerationWrapDoesNotReviveOldEntry(t *testing.T) {
+func TestTransClearInvalidatesEntry(t *testing.T) {
 	var tt transTable
 	tt.InitTable()
 	tt.SetSize(1)
 	tt.Alloc()
 
-	key := hash.Key(0x23456789abcdef1)
-	tt.Store(key, 10, 0, 10, 123, scoreTypeBetween)
+	key := hash.Key(0x123456789abcdef)
+	tt.Store(key, 10, 0, 20, 45, scoreTypeBetween)
+	tt.Clear()
 
-	for i := 0; i < 256; i++ {
+	var mv, sc, flags int
+	if tt.Retrieve(key, 10, 0, &mv, &sc, &flags) {
+		t.Fatalf("entry survived Clear: move=%d score=%d flags=%d", mv, sc, flags)
+	}
+}
+
+func TestTransEntrySizeMatchesAllocationConstant(t *testing.T) {
+	if got := unsafe.Sizeof(entry{}); got != uintptr(sizeEntry) {
+		t.Fatalf("entry size = %d, sizeEntry = %d", got, sizeEntry)
+	}
+}
+
+func TestTransEntrySurvives256Generations(t *testing.T) {
+	var tt transTable
+	tt.InitTable()
+	tt.SetSize(1)
+	tt.Alloc()
+
+	key := hash.Key(0x123456789abcdef)
+	tt.Store(key, 10, 0, 20, 45, scoreTypeBetween)
+
+	for range 256 {
 		tt.IncDate()
 	}
 
 	var mv, sc, flags int
-	if tt.Retrieve(key, 10, 0, &mv, &sc, &flags) {
-		t.Fatalf(
-			"entry revived after generation wrap: move=%d score=%d flags=%d",
-			mv, sc, flags,
-		)
+	if !tt.Retrieve(key, 10, 0, &mv, &sc, &flags) {
+		t.Fatal("entry disappeared after 256 generations")
 	}
 }
 
-func TestTransClearsTableAtUint16GenerationWrap(t *testing.T) {
+func TestTransClearsAtUint16GenerationWrap(t *testing.T) {
 	var tt transTable
 	tt.InitTable()
 	tt.SetSize(1)
 	tt.Alloc()
 
-	tt.generation = 65535
+	tt.generation = ^uint16(0)
 
-	key := hash.Key(0x3456789abcdef12)
-	tt.Store(key, 10, 0, 10, 123, scoreTypeBetween)
+	key := hash.Key(0x123456789abcdef)
+	tt.Store(key, 10, 0, 20, 45, scoreTypeBetween)
 	tt.IncDate()
 
 	if tt.generation != 1 {
@@ -164,9 +170,6 @@ func TestTransClearsTableAtUint16GenerationWrap(t *testing.T) {
 
 	var mv, sc, flags int
 	if tt.Retrieve(key, 10, 0, &mv, &sc, &flags) {
-		t.Fatalf(
-			"entry survived physical generation clear: move=%d score=%d flags=%d",
-			mv, sc, flags,
-		)
+		t.Fatal("entry survived uint16 generation wrap")
 	}
 }
