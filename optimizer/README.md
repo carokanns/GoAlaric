@@ -110,8 +110,33 @@ PYTHONPATH=optimizer/src python3 -m goalaric_optimizer adaptive-real <campaign-i
   --min-blocks 1 --max-blocks 2
 ```
 
-Fas 9 kör ingen längre kampanj och skapar ingen dashboard; den verkliga
-kontrollen är avsiktligt begränsad till en mycket liten kandidatbudget.
+Fas 9 kör ingen längre kampanj och den verkliga kontrollen är avsiktligt
+begränsad till en mycket liten kandidatbudget.
+
+Fas 10 lägger till en lokal, skrivskyddad dashboard. Den öppnar kampanjens
+SQLite-fil med `mode=ro` och `query_only=ON`, binder endast till
+`127.0.0.1` och pollas automatiskt med HTTP GET. Dashboarden visar kampanjens
+status, aktuella trial och block, W-D-L, score, Elo och 95-procentiga intervall,
+kandidatkö, förbrukade partier, checkpoint/fel samt bästa parameteruppsättning
+med skillnader mot baseline. Den har inga kontrollknappar och påverkar inte
+`pause`, `resume` eller `stop`.
+
+Starta dashboarden medan schedulern kör:
+
+```bash
+PYTHONPATH=optimizer/src python3 -m goalaric_optimizer dashboard <campaign-id> \
+  --data-dir optimizer/campaigns --listen 127.0.0.1:8787
+```
+
+Stoppa dashboardprocessen med `Ctrl-C` eller `SIGTERM`; schedulern fortsätter
+oberoende. En avslutad kampanj kan exporteras utan databasändring:
+
+```bash
+PYTHONPATH=optimizer/src python3 -m goalaric_optimizer dashboard-report <campaign-id> \
+  --data-dir optimizer/campaigns --format html --output campaign-report.html
+PYTHONPATH=optimizer/src python3 -m goalaric_optimizer report <campaign-id> \
+  --data-dir optimizer/campaigns --format json --output campaign-report.json
+```
 
 Databasen använder WAL, foreign keys, centrala statusövergångar, unika
 parameter- och blockidentiteter samt append-only events. Checkpoint och färdigt

@@ -25,6 +25,7 @@ from .coordinate import CoordinateSearchError, run_synthetic_coordinate_search
 from .real_integration import RealTestmonitorConfig, run_real_testmonitor
 from .registry import load_parameter_file, load_registry
 from .adaptive import AdaptivePolicy, run_real_adaptive_campaign
+from .dashboard import DashboardError, final_report, serve_dashboard
 
 
 def _data_dir(value: str | None) -> Path:
@@ -116,6 +117,22 @@ def _parser() -> argparse.ArgumentParser:
     adaptive.add_argument("--weak-upper-score", type=float, default=45.0)
     adaptive.add_argument("--target-score", type=float, default=50.0)
     _add_data_dir(adaptive)
+
+    dashboard = commands.add_parser(
+        "dashboard", help="serve a local read-only campaign dashboard on 127.0.0.1"
+    )
+    dashboard.add_argument("campaign_id")
+    dashboard.add_argument("--listen", default="127.0.0.1:8787")
+    dashboard.add_argument("--refresh-ms", type=int, default=2000)
+    _add_data_dir(dashboard)
+
+    report = commands.add_parser(
+        "dashboard-report", aliases=["report"], help="write a final report for a finished campaign"
+    )
+    report.add_argument("campaign_id")
+    report.add_argument("--format", choices=("html", "json"), default="html")
+    report.add_argument("--output", type=Path)
+    _add_data_dir(report)
 
     status = commands.add_parser("status", help="read campaign status")
     status.add_argument("campaign_id")
@@ -300,6 +317,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             )
             return 0
+        if args.command == "dashboard":
+            serve_dashboard(data_dir, args.campaign_id, args.listen, args.refresh_ms)
+            return 0
+        if args.command in {"dashboard-report", "report"}:
+            snapshot, content = final_report(data_dir, args.campaign_id, args.format)
+            if args.output is None:
+                print(content, end="")
+            else:
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                args.output.write_text(content, encoding="utf-8")
+                print(json.dumps({"campaign_id": snapshot["campaign"]["campaign_id"], "format": args.format, "output": str(args.output)}))
+            return 0
         if args.command == "status":
             if not args.watch:
                 _print(_status_once(data_dir, args.campaign_id))
@@ -336,6 +365,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print(trials[0])
             return 0
         raise ServiceError(f"unsupported command: {args.command}")
-    except (DatabaseError, InvalidTransition, ServiceError, SchedulerError, CoordinateSearchError, ValueError) as exc:
+    except (DatabaseError, InvalidTransition, ServiceError, SchedulerError, CoordinateSearchError, DashboardError, ValueError) as exc:
         print(f"goalaric_optimizer: {exc}", file=sys.stderr)
         return 1
