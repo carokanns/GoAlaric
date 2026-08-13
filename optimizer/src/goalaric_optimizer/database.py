@@ -411,6 +411,30 @@ class Database:
             parameter_set_id = self._insert_parameter_set(connection, campaign_id, document, group_name, now)
             return parameter_set_id
 
+    def parameter_set(self, parameter_set_id: str, campaign_id: str) -> dict[str, Any]:
+        with self._read() as connection:
+            row = connection.execute(
+                "SELECT * FROM parameter_sets WHERE parameter_set_id=? AND campaign_id=?",
+                (parameter_set_id, campaign_id),
+            ).fetchone()
+            if row is None:
+                raise DatabaseError(f"unknown parameter set: {parameter_set_id}")
+            result = dict(row)
+            result["document"] = json.loads(result.pop("document_json"))
+            return result
+
+    def parameter_set_by_hash(self, campaign_id: str, parameter_hash: str) -> dict[str, Any] | None:
+        with self._read() as connection:
+            row = connection.execute(
+                "SELECT * FROM parameter_sets WHERE campaign_id=? AND parameter_hash=?",
+                (campaign_id, parameter_hash),
+            ).fetchone()
+            if row is None:
+                return None
+            result = dict(row)
+            result["document"] = json.loads(result.pop("document_json"))
+            return result
+
     def create_trial(self, campaign_id: str, parameter_set_id: str, algorithm: str, seed: int) -> str:
         now = utc_now()
         with self._transaction() as connection:
@@ -448,6 +472,87 @@ class Database:
                 to_status="pending",
             )
             return trial_id
+
+    def trial(self, campaign_id: str, trial_id: str) -> dict[str, Any]:
+        with self._read() as connection:
+            row = connection.execute(
+                "SELECT * FROM trials WHERE campaign_id=? AND trial_id=?", (campaign_id, trial_id)
+            ).fetchone()
+            if row is None:
+                raise DatabaseError(f"unknown trial: {trial_id}")
+            return dict(row)
+
+    def trial_for_parameter_hash(self, campaign_id: str, parameter_hash: str) -> dict[str, Any] | None:
+        with self._read() as connection:
+            row = connection.execute(
+                "SELECT trials.* FROM trials JOIN parameter_sets ON parameter_sets.parameter_set_id=trials.parameter_set_id "
+                "WHERE trials.campaign_id=? AND parameter_sets.parameter_hash=?",
+                (campaign_id, parameter_hash),
+            ).fetchone()
+            return dict(row) if row is not None else None
+
+    def record_coordinate_result_atomically(
+        self,
+        campaign_id: str,
+        trial_id: str,
+        result: dict[str, Any],
+        state: dict[str, Any],
+    ) -> tuple[dict[str, Any], tuple[int, str]]:
+        """Commit one coordinate result and the following RNG checkpoint together."""
+        if not isinstance(result, dict) or not isinstance(state, dict):
+            raise DatabaseError("coordinate result and state must be objects")
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            trial = connection.execute(
+                "SELECT * FROM trials WHERE campaign_id=? AND trial_id=?", (campaign_id, trial_id)
+            ).fetchone()
+            if trial is None:
+                raise DatabaseError(f"unknown trial: {trial_id}")
+            now = utc_now()
+            existing_result = trial["result_json"]
+            if trial["status"] in {"pending", "running", "interrupted"}:
+                connection.execute(
+                    "UPDATE trials SET status='completed',result_json=?,error=NULL,pid=NULL,finished_at=?,updated_at=? "
+                    "WHERE campaign_id=? AND trial_id=?",
+                    (_json(result), now, now, campaign_id, trial_id),
+                )
+                self._event(
+                    connection,
+                    campaign_id,
+                    "coordinate_result_recorded",
+                    "trial",
+                    trial_id,
+                    {"parameter_set_id": trial["parameter_set_id"], "classification": result.get("classification")},
+                    from_status=trial["status"],
+                    to_status="completed",
+                )
+            elif trial["status"] == "completed":
+                if existing_result != _json(result):
+                    raise CampaignConflict(f"completed coordinate trial has different result: {trial_id}")
+            else:
+                raise InvalidTransition(f"cannot record coordinate result for trial {trial_id} from {trial['status']}")
+
+            state_row = connection.execute(
+                "SELECT revision FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
+            ).fetchone()
+            if state_row is None:
+                raise DatabaseError(f"optimizer state is missing for campaign: {campaign_id}")
+            revision = int(state_row["revision"]) + 1
+            checkpoint_hash = sha256_json(state)
+            connection.execute(
+                "UPDATE optimizer_state SET revision=?,state_json=?,checkpoint_hash=?,updated_at=? WHERE campaign_id=?",
+                (revision, _json(state), checkpoint_hash, now, campaign_id),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "coordinate_checkpoint",
+                "optimizer_state",
+                campaign_id,
+                {"revision": revision, "checkpoint_hash": checkpoint_hash, "trial_id": trial_id},
+            )
+            updated = dict(connection.execute("SELECT * FROM trials WHERE trial_id=?", (trial_id,)).fetchone())
+            return updated, (revision, checkpoint_hash)
 
     def create_match_block(
         self,

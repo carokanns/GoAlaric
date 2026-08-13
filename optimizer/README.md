@@ -1,9 +1,9 @@
-# GoAlaric optimizer – fas 6
+# GoAlaric optimizer – fas 7
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och
 skriver aldrig till Go-motorn, baseline eller dashboarden. Verkliga matcher,
-Fastchess och optimeringsalgoritmer är fortfarande avsiktligt avstängda.
+Fastchess och verkliga matchresultat är fortfarande avsiktligt avstängda.
 
 Installera paketet lokalt eller använd `PYTHONPATH` från repots rot:
 
@@ -13,9 +13,9 @@ PYTHONPATH=optimizer/src python3 -m goalaric_optimizer status <campaign-id>
 ```
 
 En kampanjfil använder `schema_version: 1`, ett JSON-register, ett fast
-`master_seed`, baselineidentitet och öppningspartitioner. `mode: fake` är den
-enda körvägen i fas 5; den ändrar bara kampanjens SQLite-status och startar
-inga matcher eller schedulerjobb.
+`master_seed`, baselineidentitet och öppningspartitioner. `mode: fake` används
+för verifieringskörvägarna; de ändrar bara kampanjens SQLite-status och startar
+inga riktiga matcher.
 
 Exempel på kontrollflöde:
 
@@ -43,6 +43,28 @@ processgrupp. `pause` och `stop` avslutar hela gruppen; det pågående blocket
 blir `interrupted` och räknas inte. Nästa `resume` eller nya `run` spelar om
 samma blockidentitet. En död monitor återställs på samma sätt. SQLite-WAL är
 fortsatt enda sanningskällan.
+
+Fas 7 lägger till deterministisk koordinatsökning. Den börjar med
+baselineparametrarna, provar `+step` och `-step` inom varje registers min/max,
+och väljer endast ett tydligt bättre resultat. Förlust och osäkerhet lämnar
+ankaret oförändrat. Varje nytt resultat skriver W-D-L, score, osäkerhet,
+parameterhash och RNG-checkpoint atomiskt till SQLite. Ett avbrott kan därför
+fortsätta med samma nästa koordinat utan att prova en redan färdig
+parameterhash igen.
+
+Den syntetiska Fas 7-körvägen kräver ett register med exempelvis `min`, `max`
+och `step` per parameter:
+
+```bash
+PYTHONPATH=optimizer/src python3 -m goalaric_optimizer coordinate <campaign-id> \
+  --registry registry.json \
+  --fake-optimum '{"a":3,"b":1}' \
+  --max-results 1
+```
+
+Upprepa kommandot för att simulera avbrott och återstart. Utan `--max-results`
+kör den syntetiska sökningen till konvergens. Ingen riktig motor eller match
+startas av detta kommando.
 
 Databasen använder WAL, foreign keys, centrala statusövergångar, unika
 parameter- och blockidentiteter samt append-only events. Checkpoint och färdigt
