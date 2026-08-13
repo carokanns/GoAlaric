@@ -90,3 +90,28 @@ func TestTrans(t *testing.T) {
 		}
 	}
 }
+
+func TestTransDoesNotReviveDeeperEntryFromOldGeneration(t *testing.T) {
+	var tt transTable
+	tt.InitTable()
+	tt.SetSize(1)
+	tt.Alloc()
+
+	key := hash.Key(0x123456789abcdef)
+	tt.Store(key, 10, 0, 10, 123, scoreTypeBetween)
+
+	tt.IncDate()
+	tt.Store(key, 1, 0, 20, 45, scoreTypeBetween)
+
+	var mv, sc, flags int
+	if tt.Retrieve(key, 10, 0, &mv, &sc, &flags) {
+		t.Fatalf("old depth-10 entry was revived: move=%d score=%d flags=%d", mv, sc, flags)
+	}
+
+	if !tt.Retrieve(key, 1, 0, &mv, &sc, &flags) {
+		t.Fatal("new depth-1 entry was not stored")
+	}
+	if mv != 20 || sc != 45 || flags != scoreTypeBetween {
+		t.Fatalf("new entry = move %d score %d flags %d", mv, sc, flags)
+	}
+}

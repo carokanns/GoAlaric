@@ -118,9 +118,14 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, scoreType int) {
 		entry := &t.entries[idx]
 
 		if entry.lock == lock {
-			if int(entry.date) != t.generation {
-				entry.date = uint8(t.generation)
+			if entry.date != uint8(t.generation) {
 				t.cntUsed++
+				entry.date = uint8(t.generation)
+				entry.move = uint32(mv)
+				entry.depth = int8(depth)
+				entry.score = int16(sc)
+				entry.scoreType = uint8(scoreType)
+				return
 			}
 
 			if depth >= int(entry.depth) {
