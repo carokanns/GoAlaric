@@ -24,6 +24,7 @@ from .scheduler import SchedulerError, run_fake_scheduler
 from .coordinate import CoordinateSearchError, run_synthetic_coordinate_search
 from .real_integration import RealTestmonitorConfig, run_real_testmonitor
 from .registry import load_parameter_file, load_registry
+from .adaptive import AdaptivePolicy, run_real_adaptive_campaign
 
 
 def _data_dir(value: str | None) -> Path:
@@ -90,6 +91,31 @@ def _parser() -> argparse.ArgumentParser:
     real.add_argument("--poll-interval", type=float, default=0.05)
     real.add_argument("--stop-grace-seconds", type=float, default=1.0)
     _add_data_dir(real)
+
+    adaptive = commands.add_parser(
+        "adaptive-real",
+        aliases=["real-adaptive"],
+        help="run one real candidate through deterministic adaptive blocks",
+    )
+    adaptive.add_argument("campaign_id")
+    adaptive.add_argument("--registry", type=Path, required=True)
+    adaptive.add_argument("--testmonitor-command", required=True)
+    adaptive.add_argument("--fastchess", type=Path, required=True)
+    adaptive.add_argument("--baseline", type=Path, required=True)
+    adaptive.add_argument("--candidate", type=Path, required=True)
+    adaptive.add_argument("--baseline-parameter-file", type=Path)
+    adaptive.add_argument("--candidate-parameter-file", type=Path, required=True)
+    adaptive.add_argument("--opening-book", type=Path, required=True)
+    adaptive.add_argument("--tc", default="10+0.1")
+    adaptive.add_argument("--seed", type=int, default=0)
+    adaptive.add_argument("--hash", dest="hash_mb", type=int, default=16)
+    adaptive.add_argument("--threads", type=int, default=1)
+    adaptive.add_argument("--workdir", type=Path)
+    adaptive.add_argument("--min-blocks", type=int, default=1)
+    adaptive.add_argument("--max-blocks", type=int, default=4)
+    adaptive.add_argument("--weak-upper-score", type=float, default=45.0)
+    adaptive.add_argument("--target-score", type=float, default=50.0)
+    _add_data_dir(adaptive)
 
     status = commands.add_parser("status", help="read campaign status")
     status.add_argument("campaign_id")
@@ -231,6 +257,46 @@ def main(argv: Sequence[str] | None = None) -> int:
                     registry=registry,
                     poll_interval=args.poll_interval,
                     stop_grace_seconds=args.stop_grace_seconds,
+                )
+            )
+            return 0
+        if args.command in {"adaptive-real", "real-adaptive"}:
+            registry = load_registry(args.registry.resolve())
+            candidate_file = args.candidate_parameter_file.resolve()
+            candidate_document, _ = load_parameter_file(candidate_file, registry)
+            baseline_file = (
+                args.baseline_parameter_file.resolve()
+                if args.baseline_parameter_file is not None
+                else (data_dir / args.campaign_id / "baseline-parameters.json").resolve()
+            )
+            load_parameter_file(baseline_file, registry)
+            config = RealTestmonitorConfig(
+                testmonitor_command=shlex.split(args.testmonitor_command),
+                fastchess=args.fastchess.resolve(),
+                baseline=args.baseline.resolve(),
+                candidate=args.candidate.resolve(),
+                baseline_parameter_file=baseline_file,
+                candidate_parameter_file=candidate_file,
+                opening_book=args.opening_book.resolve(),
+                opening_block_file=(data_dir / args.campaign_id / "adaptive-opening-block.epd").resolve(),
+                tc=args.tc,
+                seed=args.seed,
+                hash_mb=args.hash_mb,
+                threads=args.threads,
+                workdir=args.workdir.resolve() if args.workdir is not None else None,
+            )
+            _print(
+                run_real_adaptive_campaign(
+                    data_dir,
+                    args.campaign_id,
+                    config,
+                    candidate_document,
+                    AdaptivePolicy(
+                        min_blocks=args.min_blocks,
+                        max_blocks=args.max_blocks,
+                        weak_upper_score=args.weak_upper_score,
+                        target_score=args.target_score,
+                    ),
                 )
             )
             return 0

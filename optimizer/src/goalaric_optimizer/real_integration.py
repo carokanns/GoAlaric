@@ -119,7 +119,9 @@ def _ensure_real_schedule(
     return trial_id, block_id
 
 
-def _materialize_real_block(config: RealTestmonitorConfig, seed: int) -> None:
+def _materialize_real_block(
+    config: RealTestmonitorConfig, seed: int, block_index: int = 0, pairs: int = 1
+) -> None:
     command = [
         *[str(item) for item in config.testmonitor_command],
         "materialize-openings",
@@ -128,9 +130,9 @@ def _materialize_real_block(config: RealTestmonitorConfig, seed: int) -> None:
         "--seed",
         str(seed),
         "--block-index",
-        "0",
+        str(block_index),
         "--pairs",
-        "1",
+        str(pairs),
         "--output",
         str(config.opening_block_file.resolve()),
     ]
@@ -157,6 +159,7 @@ class RealTestmonitorScheduler(Scheduler):
         config: RealTestmonitorConfig,
         poll_interval: float = 0.05,
         stop_grace_seconds: float = 1.0,
+        preserve_optimizer_state: bool = False,
     ) -> None:
         super().__init__(
             data_dir,
@@ -165,6 +168,7 @@ class RealTestmonitorScheduler(Scheduler):
             poll_interval=poll_interval,
             stop_grace_seconds=stop_grace_seconds,
             workdir=config.workdir,
+            preserve_optimizer_state=preserve_optimizer_state,
         )
         if not config.testmonitor_command:
             raise SchedulerError("testmonitor command cannot be empty")

@@ -1,4 +1,4 @@
-# GoAlaric optimizer – fas 8
+# GoAlaric optimizer – fas 9
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och
@@ -80,6 +80,38 @@ igen efter completion.
 Körvägen är avsiktligt begränsad till ett block och en parameterändring ett
 steg från baseline. Ingen längre optimeringskampanj startas här. Den äldre
 `tune`-koden ligger fortsatt utanför systemet.
+
+Fas 9 lägger till adaptiv gallring med en fast, deterministisk blockbudget.
+Varje komplett öppningspar uppdaterar W-D-L, score, ett kontinuitetskorrigerat
+Elo-estimat och ett 95-procentigt score-/Elo-intervall. En kandidat vars övre
+scoreintervall ligger under `weak_upper_score` stoppas tidigt. Lovande och
+osäkra kandidater fortsätter till `max_blocks`.
+
+Beslut, statistik, färdiga block och nästa blockindex sparas i SQLite. Ett
+avbrott mellan block återupptar samma kandidat och samma nästa block; oanvänd
+matchbudget stängs som `rejected` när ett slutbeslut är fattat. Den adaptiva
+slutrapporten kan användas direkt som evaluatorresultat i Fas 7:s
+`AdaptiveCoordinateEvaluator`, så koordinatsökningen kan skapa nästa kandidat
+utan att förlora beslutunderlaget.
+
+För en liten verklig kampanj används `adaptive-real` med samma motor-,
+parameter- och öppningsargument som `real-run`, samt exempelvis:
+
+```bash
+PYTHONPATH=optimizer/src python3 -m goalaric_optimizer adaptive-real <campaign-id> \
+  --data-dir optimizer/campaigns \
+  --registry optimizer/registries/eval-pilot-v1-default.json \
+  --testmonitor-command ./artifacts/tools/testmonitor \
+  --fastchess .tools/fastchess/bin/fastchess \
+  --baseline ./artifacts/baseline/goalaric-<baseline> \
+  --candidate ./artifacts/baseline/goalaric-<baseline> \
+  --candidate-parameter-file /path/to/candidate-parameters.json \
+  --opening-book /path/to/openings.epd \
+  --min-blocks 1 --max-blocks 2
+```
+
+Fas 9 kör ingen längre kampanj och skapar ingen dashboard; den verkliga
+kontrollen är avsiktligt begränsad till en mycket liten kandidatbudget.
 
 Databasen använder WAL, foreign keys, centrala statusövergångar, unika
 parameter- och blockidentiteter samt append-only events. Checkpoint och färdigt

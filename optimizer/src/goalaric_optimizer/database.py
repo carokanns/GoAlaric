@@ -1017,6 +1017,67 @@ class Database:
                 result,
             )
 
+    def checkpoint_trial_result(self, campaign_id: str, trial_id: str, result: dict[str, Any]) -> dict[str, Any]:
+        """Persist adaptive evidence without changing the trial status."""
+        if not isinstance(result, dict):
+            raise DatabaseError("trial checkpoint result must be an object")
+        with self._transaction() as connection:
+            row = connection.execute(
+                "SELECT * FROM trials WHERE trial_id=? AND campaign_id=?", (trial_id, campaign_id)
+            ).fetchone()
+            if row is None:
+                raise DatabaseError(f"unknown trial: {trial_id}")
+            if row["status"] not in {"pending", "running", "interrupted"}:
+                raise InvalidTransition(f"cannot checkpoint trial {trial_id} from {row['status']}")
+            now = utc_now()
+            connection.execute(
+                "UPDATE trials SET result_json=?,updated_at=? WHERE trial_id=? AND campaign_id=?",
+                (_json(result), now, trial_id, campaign_id),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "trial_checkpoint",
+                "trial",
+                trial_id,
+                {
+                    "phase": result.get("phase"),
+                    "decision": result.get("decision"),
+                    "next_block_index": result.get("next_block_index"),
+                },
+                from_status=row["status"],
+                to_status=row["status"],
+            )
+            return dict(connection.execute("SELECT * FROM trials WHERE trial_id=?", (trial_id,)).fetchone())
+
+    def reject_pending_blocks(self, campaign_id: str, trial_id: str, reason: str) -> int:
+        """Close unused budget blocks so an early decision cannot be replayed."""
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            rows = connection.execute(
+                "SELECT block_id,attempt FROM match_blocks WHERE campaign_id=? AND trial_id=? AND status='pending' "
+                "ORDER BY block_index",
+                (campaign_id, trial_id),
+            ).fetchall()
+            now = utc_now()
+            for row in rows:
+                connection.execute(
+                    "UPDATE match_blocks SET status='rejected',error=?,finished_at=?,updated_at=? "
+                    "WHERE block_id=? AND campaign_id=?",
+                    (reason, now, now, row["block_id"], campaign_id),
+                )
+                self._event(
+                    connection,
+                    campaign_id,
+                    "match_block_budget_closed",
+                    "match_block",
+                    row["block_id"],
+                    {"reason": reason, "attempt": row["attempt"]},
+                    from_status="pending",
+                    to_status="rejected",
+                )
+            return len(rows)
+
     def checkpoint(self, campaign_id: str, state: dict[str, Any], event_type: str = "checkpoint") -> tuple[int, str]:
         if not isinstance(state, dict):
             raise DatabaseError("checkpoint state must be an object")

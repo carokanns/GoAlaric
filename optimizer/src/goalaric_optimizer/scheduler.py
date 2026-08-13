@@ -58,6 +58,7 @@ class Scheduler:
         poll_interval: float = 0.05,
         stop_grace_seconds: float = 0.5,
         workdir: Path | None = None,
+        preserve_optimizer_state: bool = False,
     ) -> None:
         if not monitor_command:
             raise SchedulerError("monitor command cannot be empty")
@@ -69,13 +70,17 @@ class Scheduler:
         self.poll_interval = poll_interval
         self.stop_grace_seconds = stop_grace_seconds
         self.workdir = workdir.resolve() if workdir is not None else None
+        self.preserve_optimizer_state = preserve_optimizer_state
         self._process: subprocess.Popen[str] | None = None
         self._process_group_id: int | None = None
 
-    def run(self) -> dict[str, Any]:
+    def run(self, max_completed_blocks: int = 0, finish_work: bool = True) -> dict[str, Any]:
+        if max_completed_blocks < 0:
+            raise SchedulerError("max_completed_blocks cannot be negative")
         with scheduler_lock(self.data_dir, self.campaign_id):
             database = load_database(self.data_dir, self.campaign_id)
             owner = _owner_token()
+            completed_blocks = 0
             database.recover_abandoned_jobs(self.campaign_id, "scheduler startup recovered abandoned job")
             database.claim_campaign(self.campaign_id, owner, takeover=True)
             try:
@@ -93,15 +98,20 @@ class Scheduler:
 
                     block = database.claim_next_block(self.campaign_id)
                     if block is None:
-                        finished = database.finish_completed_work(self.campaign_id)
-                        if finished["campaign_completed"]:
-                            return database.status_snapshot(self.campaign_id)
+                        if finish_work:
+                            finished = database.finish_completed_work(self.campaign_id)
+                            if finished["campaign_completed"]:
+                                return database.status_snapshot(self.campaign_id)
                         raise SchedulerError("running campaign has no pending or completed match blocks")
 
                     self._ensure_trial_running(database, str(block["trial_id"]))
                     outcome = self._run_block(database, block)
                     if outcome == "completed":
-                        database.finish_completed_work(self.campaign_id)
+                        completed_blocks += 1
+                        if finish_work:
+                            database.finish_completed_work(self.campaign_id)
+                        if max_completed_blocks and completed_blocks >= max_completed_blocks:
+                            return database.status_snapshot(self.campaign_id)
                         continue
                     current = database.campaign(self.campaign_id)
                     if outcome == "control" or current["status"] in {"paused", "interrupted"}:
@@ -225,6 +235,14 @@ class Scheduler:
                 )
                 return "control"
             result = self._read_result(result_path, int(block["pairs_per_block"]))
+            if self.preserve_optimizer_state:
+                checkpoint_state = database.optimizer_state(self.campaign_id)["state"]
+            else:
+                checkpoint_state = {
+                    "next_block": int(block["block_index"]) + 1,
+                    "last_block": block["block_id"],
+                    "attempt": block["attempt"],
+                }
             try:
                 database.complete_block_atomically(
                     self.campaign_id,
@@ -234,11 +252,7 @@ class Scheduler:
                     int(result["losses"]),
                     float(result["score"]),
                     result,
-                    {
-                        "next_block": int(block["block_index"]) + 1,
-                        "last_block": block["block_id"],
-                        "attempt": block["attempt"],
-                    },
+                    checkpoint_state,
                 )
             except InvalidTransition:
                 database.interrupt_block(
