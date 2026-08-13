@@ -1,18 +1,21 @@
-"""Autonomous optimizer orchestration with a deterministic fake match runner."""
+"""Autonomous optimizer orchestration for fake and real match runners."""
 
 from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+import shlex
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Sequence
 
-from .adaptive import AdaptiveCampaign, AdaptiveError, AdaptivePolicy
+from .adaptive import AdaptiveCampaign, AdaptiveError, AdaptivePolicy, RealAdaptiveBlockRunner
 from .canonical import atomic_write_json, sha256_bytes, sha256_json
 from .coordinate import MultiResolutionCoordinateSearch
 from .database import CampaignBusy, Database, DatabaseError
+from .real_integration import RealTestmonitorConfig
 from .registry import Registry
+from .scheduler import terminate_active_blocks
 from .service import campaign_dir, campaign_lock, init_campaign, load_database
 
 
@@ -37,7 +40,7 @@ class OptimizeSettings:
     max_passes: int
     parameter_names: tuple[str, ...] | None
     adaptive: AdaptivePolicy
-    fake_optimum: dict[str, int]
+    fake_optimum: dict[str, int] | None
 
 
 def _settings(database: Database, campaign_id: str, registry: Registry) -> OptimizeSettings:
@@ -83,20 +86,22 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
         weak_upper_score=float(adaptive_goals.get("weak_upper_score", 45.0)),
         target_score=float(adaptive_goals.get("target_score", 50.0)),
     )
-    optimum = fake_goals.get("optimum", goals.get("fake_optimum"))
-    if not isinstance(optimum, dict):
-        raise OptimizationError("goals.fake_match.optimum is required for fake optimization")
     baseline = {
         str(item["name"]): int(item["value"])
         for item in registry.parameters
     }
-    fake_optimum = dict(baseline)
-    for name, value in optimum.items():
-        if not isinstance(name, str) or not isinstance(value, int) or isinstance(value, bool):
-            raise OptimizationError("fake optimum values must be integers")
-        if name not in baseline:
-            raise OptimizationError(f"fake optimum contains unknown parameter: {name}")
-        fake_optimum[name] = value
+    optimum = fake_goals.get("optimum", goals.get("fake_optimum"))
+    fake_optimum: dict[str, int] | None = None
+    if optimum is not None:
+        if not isinstance(optimum, dict):
+            raise OptimizationError("goals.fake_match.optimum must be an object")
+        fake_optimum = dict(baseline)
+        for name, value in optimum.items():
+            if not isinstance(name, str) or not isinstance(value, int) or isinstance(value, bool):
+                raise OptimizationError("fake optimum values must be integers")
+            if name not in baseline:
+                raise OptimizationError(f"fake optimum contains unknown parameter: {name}")
+            fake_optimum[name] = value
     return OptimizeSettings(
         max_games=max_games,
         max_evaluations=max_evaluations,
@@ -104,6 +109,61 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
         parameter_names=parameter_names,
         adaptive=adaptive,
         fake_optimum=fake_optimum,
+    )
+
+
+def _runtime_path(value: Any, name: str, base_dir: Path) -> Path:
+    if not isinstance(value, str) or not value:
+        raise OptimizationError(f"goals.real.{name} must be a path")
+    path = Path(value)
+    if not path.is_absolute():
+        path = base_dir / path
+    return path.resolve()
+
+
+def _real_config(campaign_path: Path, data_dir: Path, definition: Any) -> RealTestmonitorConfig:
+    config = definition.config
+    goals = config.get("goals", {})
+    runtime = goals.get("real", {}) if isinstance(goals, dict) else {}
+    if not isinstance(runtime, dict):
+        raise OptimizationError("goals.real must be an object for mode=real")
+    command = runtime.get("testmonitor_command")
+    if isinstance(command, str):
+        testmonitor_command: Sequence[str] = tuple(shlex.split(command))
+    elif isinstance(command, list) and all(isinstance(item, str) and item for item in command):
+        testmonitor_command = tuple(command)
+    else:
+        raise OptimizationError("goals.real.testmonitor_command must be a command string or list")
+    if not testmonitor_command:
+        raise OptimizationError("goals.real.testmonitor_command cannot be empty")
+
+    base_dir = campaign_path.resolve().parent
+    engine = _runtime_path(definition.baseline_engine_id, "engine", base_dir)
+    fastchess = _runtime_path(runtime.get("fastchess"), "fastchess", base_dir)
+    opening_book = _runtime_path(runtime.get("opening_book"), "opening_book", base_dir)
+    workdir_value = runtime.get("workdir")
+    workdir = _runtime_path(workdir_value, "workdir", base_dir) if workdir_value is not None else base_dir
+    for name, path in (("engine", engine), ("fastchess", fastchess), ("opening_book", opening_book), ("workdir", workdir)):
+        if not path.exists():
+            raise OptimizationError(f"goals.real.{name} does not exist: {path}")
+    campaign_path_root = campaign_dir(data_dir, definition.campaign_id)
+    baseline_parameter_file = campaign_path_root / "baseline-parameters.json"
+    return RealTestmonitorConfig(
+        testmonitor_command=testmonitor_command,
+        fastchess=fastchess,
+        baseline=engine,
+        candidate=engine,
+        baseline_parameter_file=baseline_parameter_file,
+        candidate_parameter_file=baseline_parameter_file,
+        opening_book=opening_book,
+        opening_block_file=campaign_path_root / "adaptive-blocks" / "placeholder.epd",
+        tc=str(runtime.get("tc", "10+0.1")),
+        seed=_integer(runtime.get("seed", definition.master_seed), "real.seed"),
+        concurrency=_integer(runtime.get("concurrency", 1), "real.concurrency", 1),
+        hash_mb=_integer(runtime.get("hash_mb", 16), "real.hash_mb", 16),
+        threads=_integer(runtime.get("threads", 1), "real.threads", 1),
+        syzygy_path=str(runtime.get("syzygy_path", "off")),
+        workdir=workdir,
     )
 
 
@@ -248,7 +308,81 @@ class FakeAdaptiveEvaluator:
         return controller.run()
 
 
-class AutonomousFakeOptimizer:
+def _reference_parameter_file(
+    database: Database, data_dir: Path, campaign_id: str, document: dict[str, Any]
+) -> Path:
+    campaign = database.campaign(campaign_id)
+    if sha256_json(document) == campaign["baseline_parameter_hash"]:
+        return campaign_dir(data_dir, campaign_id) / "baseline-parameters.json"
+    return _materialize_candidate(database, data_dir, campaign_id, document)
+
+
+class RealAdaptiveEvaluator:
+    """Run one candidate against the current best through testmonitor."""
+
+    def __init__(
+        self,
+        database: Database,
+        data_dir: Path,
+        campaign_id: str,
+        config: RealTestmonitorConfig,
+        policy: AdaptivePolicy,
+    ) -> None:
+        self.database = database
+        self.data_dir = data_dir
+        self.campaign_id = campaign_id
+        self.config = config
+        self.policy = policy
+
+    def __call__(self, candidate: dict[str, Any], seed: int) -> dict[str, Any]:
+        candidate_hash = sha256_json(candidate)
+        _materialize_candidate(self.database, self.data_dir, self.campaign_id, candidate)
+        campaign = self.database.campaign(self.campaign_id)
+        if candidate_hash == campaign["baseline_parameter_hash"]:
+            # The baseline is the reference point, not a self-match. Real
+            # testmonitor deliberately rejects identical parameter identities.
+            return {
+                "wins": 0,
+                "draws": 1,
+                "losses": 0,
+                "score": 50.0,
+                "uncertainty": 0.0,
+                "uncertain": False,
+                "runner": "real-baseline-reference-v1",
+                "candidate_parameter_hash": candidate_hash,
+                "reference_parameter_hash": candidate_hash,
+                "matchless_reference": True,
+            }
+        state = self.database.optimizer_state(self.campaign_id)["state"]
+        reference = state.get("coordinate_base_parameters") or state.get("anchor_parameters")
+        if not isinstance(reference, dict):
+            raise OptimizationError("coordinate checkpoint has no current best parameter set")
+        reference_path = _reference_parameter_file(self.database, self.data_dir, self.campaign_id, reference)
+        block_dir = campaign_dir(self.data_dir, self.campaign_id) / "adaptive-blocks" / candidate_hash[:20]
+        effective = replace(
+            self.config,
+            seed=seed,
+            baseline_parameter_file=reference_path,
+            candidate_parameter_file=campaign_dir(self.data_dir, self.campaign_id)
+            / "candidates"
+            / f"{candidate_hash}.json",
+            opening_block_file=block_dir / "placeholder.epd",
+        )
+        runner = RealAdaptiveBlockRunner(self.data_dir, self.campaign_id, effective, block_dir)
+        controller = AdaptiveCampaign(
+            self.database,
+            self.campaign_id,
+            candidate,
+            self.policy,
+            runner,
+            seed,
+            block_hash_factory=runner.block_hashes,
+            complete_trial=False,
+        )
+        return controller.run()
+
+
+class AutonomousOptimizer:
     """Drive one candidate at a time until search or campaign budget ends."""
 
     def __init__(
@@ -258,6 +392,7 @@ class AutonomousFakeOptimizer:
         campaign_id: str,
         registry: Registry,
         settings: OptimizeSettings,
+        evaluator: Callable[[dict[str, Any], int], dict[str, Any]],
         invocation_limit: int = 0,
     ) -> None:
         self.database = database
@@ -265,9 +400,6 @@ class AutonomousFakeOptimizer:
         self.campaign_id = campaign_id
         self.settings = settings
         self.invocation_limit = _integer(invocation_limit, "max_results")
-        evaluator = FakeAdaptiveEvaluator(
-            database, data_dir, campaign_id, settings.adaptive, settings.fake_optimum, settings.max_games
-        )
         self.search = MultiResolutionCoordinateSearch(
             database,
             campaign_id,
@@ -300,39 +432,53 @@ class AutonomousFakeOptimizer:
                 return report
 
 
-def run_fake_optimization(
+def run_optimization(
     campaign_path: Path,
     data_dir: Path,
     invocation_limit: int = 0,
     max_games_override: int | None = None,
     max_evaluations_override: int | None = None,
+    required_mode: str | None = None,
 ) -> dict[str, Any]:
-    """Initialize or resume a fake autonomous optimization campaign."""
+    """Initialize or resume an autonomous fake or real optimization campaign."""
     definition, _, _ = init_campaign(campaign_path, data_dir)
-    if definition.mode != "fake":
-        raise OptimizationError("optimize currently requires campaign mode=fake; real runner is not connected")
+    if required_mode is not None and definition.mode != required_mode:
+        raise OptimizationError(f"optimization requires campaign mode={required_mode}")
     database = load_database(data_dir, definition.campaign_id)
     settings = _settings(database, definition.campaign_id, definition.registry)
     if max_games_override is not None:
-        settings = OptimizeSettings(
-            **{**settings.__dict__, "max_games": _integer(max_games_override, "max_games")}
-        )
+        settings = replace(settings, max_games=_integer(max_games_override, "max_games"))
     if max_evaluations_override is not None:
-        settings = OptimizeSettings(
-            **{**settings.__dict__, "max_evaluations": _integer(max_evaluations_override, "max_evaluations")}
+        settings = replace(settings, max_evaluations=_integer(max_evaluations_override, "max_evaluations"))
+    if definition.mode == "fake":
+        if settings.fake_optimum is None:
+            raise OptimizationError("goals.fake_match.optimum is required for mode=fake")
+        evaluator: Callable[[dict[str, Any], int], dict[str, Any]] = FakeAdaptiveEvaluator(
+            database, data_dir, definition.campaign_id, settings.adaptive, settings.fake_optimum, settings.max_games
         )
+    elif definition.mode == "real":
+        runtime = _real_config(campaign_path, data_dir, definition)
+        evaluator = RealAdaptiveEvaluator(
+            database, data_dir, definition.campaign_id, runtime, settings.adaptive
+        )
+    else:
+        raise OptimizationError(f"unsupported campaign mode: {definition.mode}")
 
     with campaign_lock(data_dir, definition.campaign_id):
         token = f"optimizer-{os.getpid()}"
         try:
             database.claim_campaign(definition.campaign_id, token, takeover=True)
+            # A previous optimizer may have died after handing a block to the
+            # scheduler. Terminate that recorded process group before replay.
+            terminate_active_blocks(data_dir, definition.campaign_id, "optimizer startup recovered abandoned job")
             database.recover_abandoned_jobs(definition.campaign_id)
-            controller = AutonomousFakeOptimizer(
+            controller = AutonomousOptimizer(
                 database,
                 data_dir,
                 definition.campaign_id,
                 definition.registry,
                 settings,
+                evaluator,
                 invocation_limit=invocation_limit,
             )
             return controller.run()
@@ -341,3 +487,21 @@ def run_fake_optimization(
                 database.release_campaign(definition.campaign_id, token)
             except (DatabaseError, CampaignBusy):
                 pass
+
+
+def run_fake_optimization(
+    campaign_path: Path,
+    data_dir: Path,
+    invocation_limit: int = 0,
+    max_games_override: int | None = None,
+    max_evaluations_override: int | None = None,
+) -> dict[str, Any]:
+    """Compatibility wrapper for the phase-12 fake runner tests."""
+    return run_optimization(
+        campaign_path,
+        data_dir,
+        invocation_limit=invocation_limit,
+        max_games_override=max_games_override,
+        max_evaluations_override=max_evaluations_override,
+        required_mode="fake",
+    )

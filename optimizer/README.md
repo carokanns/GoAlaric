@@ -36,11 +36,11 @@ PYTHONPATH=optimizer/src python3 -m goalaric_optimizer coordinate-multires <camp
   --parameters a,b
 ```
 
-Denna fas startar inga riktiga matcher. Fastchess kopplas in först efter att
-konvergens, halvering, dubblettfrihet och fullständig checkpoint-återstart är
-verifierade.
+Det fristående `coordinate-multires`-kommandot startar inga riktiga matcher.
+Fastchess används av `optimize` först när kampanjen uttryckligen har
+`mode: real`.
 
-## Nästa steg / autonom kedja med falsk matchrunner
+## Autonom kedja med matchrunner
 
 Den första end-to-end-kopplingen finns som `optimize`. Kommandot initierar
 eller återupptar kampanjen, låter `coordinate-multires` skapa nästa
@@ -76,9 +76,38 @@ Kandidatfilerna sparas under kampanjens `candidates/`-katalog och registreras
 som SQLite-artifacts. Den nuvarande implementationen accepterar fortfarande
 kampanjformatets JSON; YAML-adaptern är inte en del av detta delmål.
 
-Detta delmål startar inga riktiga matcher. `mode: real` avvisas uttryckligen
-tills hela flödet är verifierat med den falska runnern och Fastchess därefter
-kan kopplas in utan att ändra sök- eller checkpointlogiken.
+`mode: real` använder nu samma orchestration mot den befintliga kedjan
+`testmonitor → Fastchess → GoAlaric`. En minimal real-kampanj kan till exempel
+ha följande mål- och runtimeblock:
+
+```json
+{
+  "goals": {
+    "max_games": 4,
+    "max_evaluations": 3,
+    "optimizer": {"parameters": ["mobility_weight"]},
+    "adaptive": {"min_blocks": 1, "max_blocks": 1},
+    "real": {
+      "testmonitor_command": ["/path/to/testmonitor"],
+      "fastchess": "/path/to/fastchess",
+      "opening_book": "/path/to/openings.epd",
+      "tc": "0.2+0.01",
+      "hash_mb": 16,
+      "threads": 1,
+      "workdir": "/path/to/GoAlaric"
+    }
+  }
+}
+```
+
+Baselineens första sökresultat är en matchlös referenspunkt; riktiga matcher
+startar först när kandidaten skiljer sig från det aktuella ankaret. Varje
+realblock valideras av testmonitor innan det skrivs atomiskt till SQLite.
+Valda parametrar måste ha sökmetadata (`min`, `max`, `step` och `min_step`) i
+Python-registret; Go-registrets namn och standardvärden är oförändrade.
+Minimalkedjan är verifierad med återstart, separat baseline-/kandidatfil,
+total matchbudget, dubbelräkningskontroll och processaudit. Längre
+stresstest, slutlig bekräftelsefas och full real-dokumentation återstår.
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och
@@ -93,8 +122,8 @@ PYTHONPATH=optimizer/src python3 -m goalaric_optimizer status <campaign-id>
 
 En kampanjfil använder `schema_version: 1`, ett JSON-register, ett fast
 `master_seed`, baselineidentitet och öppningspartitioner. `mode: fake` används
-för verifieringskörvägarna; de ändrar bara kampanjens SQLite-status och startar
-inga riktiga matcher.
+för syntetiska verifieringskörvägar; `mode: real` använder den riktiga
+testmonitor-/Fastchess-kedjan.
 
 Exempel på kontrollflöde:
 

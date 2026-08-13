@@ -319,7 +319,18 @@ class CoordinateSearch:
 
     @staticmethod
     def _classify(result: dict[str, Any], anchor: dict[str, Any]) -> dict[str, Any]:
-        if "candidate_objective" in result and "candidate_objective" in anchor:
+        reused_against_other_anchor = (
+            result.get("reused")
+            and "candidate_objective" not in result
+            and result.get("reference_parameter_hash")
+            and anchor.get("parameter_hash")
+            and result.get("reference_parameter_hash") != anchor.get("parameter_hash")
+        )
+        if reused_against_other_anchor:
+            delta = 0.0
+            margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
+            classification = "uncertain"
+        elif "candidate_objective" in result and "candidate_objective" in anchor:
             delta = float(result["candidate_objective"]) - float(anchor["candidate_objective"])
             margin = 0.0
             classification = "win" if delta > 0 else ("loss" if delta < 0 else "uncertain")
@@ -720,7 +731,18 @@ class MultiResolutionCoordinateSearch:
 
     @staticmethod
     def _classify(result: dict[str, Any], anchor: dict[str, Any]) -> dict[str, Any]:
-        if "candidate_objective" in result and "candidate_objective" in anchor:
+        reused_against_other_anchor = (
+            result.get("reused")
+            and "candidate_objective" not in result
+            and result.get("reference_parameter_hash")
+            and anchor.get("parameter_hash")
+            and result.get("reference_parameter_hash") != anchor.get("parameter_hash")
+        )
+        if reused_against_other_anchor:
+            delta = 0.0
+            margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
+            classification = "uncertain"
+        elif "candidate_objective" in result and "candidate_objective" in anchor:
             delta = float(result["candidate_objective"]) - float(anchor["candidate_objective"])
             margin = 0.0
             classification = "win" if delta > 0 else ("loss" if delta < 0 else "uncertain")

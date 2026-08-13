@@ -30,7 +30,7 @@ from .real_integration import RealTestmonitorConfig, run_real_testmonitor
 from .registry import load_parameter_file, load_registry
 from .adaptive import AdaptiveError, AdaptivePolicy, run_real_adaptive_campaign
 from .dashboard import DashboardError, final_report, serve_dashboard
-from .optimization import OptimizationError, run_fake_optimization
+from .optimization import OptimizationError, run_optimization
 
 
 def _data_dir(value: str | None) -> Path:
@@ -98,7 +98,7 @@ def _parser() -> argparse.ArgumentParser:
 
     optimize = commands.add_parser(
         "optimize",
-        help="run or resume autonomous multi-resolution optimization with the fake match runner",
+        help="run or resume autonomous multi-resolution optimization",
     )
     optimize.add_argument("campaign", type=Path)
     optimize.add_argument(
@@ -107,7 +107,7 @@ def _parser() -> argparse.ArgumentParser:
         default=0,
         help="work quota for this invocation; 0 runs until a terminal search or campaign budget",
     )
-    optimize.add_argument("--max-games", type=int, help="override the campaign-wide fake match budget")
+    optimize.add_argument("--max-games", type=int, help="override the campaign-wide match budget")
     optimize.add_argument(
         "--max-evaluations", type=int, help="override the campaign-wide candidate evaluation budget"
     )
@@ -251,7 +251,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "optimize":
             _print(
-                run_fake_optimization(
+                run_optimization(
                     args.campaign,
                     data_dir,
                     invocation_limit=args.max_results,

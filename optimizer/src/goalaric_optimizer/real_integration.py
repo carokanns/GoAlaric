@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Sequence
 
-from .canonical import sha256_bytes
+from .canonical import sha256_bytes, sha256_json
 from .database import Database, DatabaseError
 from .registry import Registry
 from .scheduler import Scheduler, SchedulerError
@@ -299,6 +299,8 @@ class RealTestmonitorScheduler(Scheduler):
             raise SchedulerError("real phase-8 block was not marked as color-swapped")
 
         game_results = ["1-0"] * counts[0] + ["1/2-1/2"] * counts[1] + ["0-1"] * counts[2]
+        baseline_parameter_hash = sha256_json(_read_object(self.config.baseline_parameter_file))
+        candidate_parameter_hash = sha256_json(_read_object(self.config.candidate_parameter_file))
         return {
             "wins": counts[0],
             "draws": counts[1],
@@ -309,6 +311,9 @@ class RealTestmonitorScheduler(Scheduler):
             "status": status,
             "monitor_config": monitor_config,
             "identities": {"baseline": baseline_identity, "candidate": candidate_identity},
+            "runner": "real-testmonitor-v1",
+            "reference_parameter_hash": baseline_parameter_hash,
+            "candidate_parameter_hash": candidate_parameter_hash,
         }
 
 
