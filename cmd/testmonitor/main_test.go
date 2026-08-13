@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"goalaric/parms"
 )
 
 func TestScreeningProgressEveryTenGames(t *testing.T) {
@@ -138,6 +140,111 @@ func TestMatchBinaryIdentitiesRejectsIdenticalCandidate(t *testing.T) {
 	encoded, err := json.Marshal(status)
 	if err != nil || !strings.Contains(string(encoded), `"baseline_identity"`) || !strings.Contains(string(encoded), baselineID.SHA256) {
 		t.Fatalf("status did not preserve binary identities: %s err=%v", encoded, err)
+	}
+}
+
+func TestOptimizerModeUsesDistinctParameterIdentitiesWithFakeFastchess(t *testing.T) {
+	dir := t.TempDir()
+	engine := filepath.Join(dir, "engine")
+	if err := os.WriteFile(engine, []byte("same-engine"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	baseParameters := filepath.Join(dir, "baseline.json")
+	candidateParameters := filepath.Join(dir, "candidate.json")
+	baseFile := parms.DefaultParameterFile()
+	candidateFile := parms.DefaultParameterFile()
+	candidateFile.Parameters[0].Value++
+	baseData, err := parms.MarshalParameterFile(baseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidateData, err := parms.MarshalParameterFile(candidateFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(baseParameters, baseData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(candidateParameters, candidateData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	withoutOptimizer := matchConfig{Baseline: engine, Candidate: engine, BaselineParameterFile: baseParameters, CandidateParameterFile: candidateParameters}
+	if _, _, err := matchBinaryIdentities(withoutOptimizer); err == nil || !strings.Contains(err.Error(), "optimizer-mode") {
+		t.Fatalf("non-optimizer mode accepted same binary with different parameters: %v", err)
+	}
+
+	baselineID, candidateID, err := matchBinaryIdentities(matchConfig{
+		Baseline: engine, Candidate: engine, BaselineParameterFile: baseParameters, CandidateParameterFile: candidateParameters, OptimizerMode: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baselineID.SHA256 != candidateID.SHA256 || baselineID.ParameterSHA256 == candidateID.ParameterSHA256 || baselineID.ParameterRegisterVersion != parms.RegistryVersion {
+		t.Fatalf("unexpected optimizer identities: baseline=%+v candidate=%+v", baselineID, candidateID)
+	}
+	if _, _, err := matchBinaryIdentities(matchConfig{
+		Baseline: engine, Candidate: engine, BaselineParameterFile: baseParameters, CandidateParameterFile: baseParameters, OptimizerMode: true,
+	}); err == nil || !strings.Contains(err.Error(), "motor instances are identical") {
+		t.Fatalf("optimizer mode accepted identical full instances: %v", err)
+	}
+
+	argsFile := filepath.Join(dir, "fastchess-args")
+	fastchess := filepath.Join(dir, "fastchess")
+	script := "#!/bin/sh\n" +
+		"printf '%s\\n' \"$@\" > \"$FAKE_FASTCHESS_ARGS\"\n" +
+		"pgn=\"\"\n" +
+		"while [ \"$#\" -gt 0 ]; do\n" +
+		"  if [ \"$1\" = \"-pgnout\" ]; then shift; pgn=$(printf '%s' \"$1\" | sed 's/^file=//'); break; fi\n" +
+		"  shift\n" +
+		"done\n" +
+		"cat > \"$pgn\" <<'EOF'\n" +
+		"[Event \"match\"]\n[Round \"1.1\"]\n[FEN \"fen-1\"]\n\n1. e2e4 1/2-1/2\n\n[Event \"match\"]\n[Round \"1.2\"]\n[FEN \"fen-1\"]\n\n1. e2e4 1/2-1/2\n\nEOF\n" +
+		"echo 'Score of Candidate vs Baseline: 0 - 0 - 2  [0.500] 2'\n"
+	if err := os.WriteFile(fastchess, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FAKE_FASTCHESS_ARGS", argsFile)
+	book := filepath.Join(dir, "book.epd")
+	var openings []string
+	for ix := 0; ix < minimumOpenings; ix++ {
+		openings = append(openings, "8/8/8/8/8/8/8/8 w - - id "+strconv.Itoa(ix))
+	}
+	if err := os.WriteFile(book, []byte(strings.Join(openings, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(dir, "optimizer-run")
+	if err := runMatchCommand([]string{
+		"--fastchess", fastchess, "--baseline", engine, "--candidate", engine,
+		"--baseline-parameter-file", baseParameters, "--candidate-parameter-file", candidateParameters,
+		"--optimizer-mode", "--openings", book, "--games", "2", "--concurrency", "1", "--tc", "10+0.1",
+		"--syzygy-path", "off", "--run-dir", runDir,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	status, err := loadStatus(runDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != "completed" || !status.OptimizerMode || status.BaselineIdentity == nil || status.CandidateIdentity == nil {
+		t.Fatalf("unexpected optimizer status: %+v", status)
+	}
+	if status.BaselineIdentity.ParameterSHA256 == status.CandidateIdentity.ParameterSHA256 {
+		t.Fatalf("status lost distinct parameter identities: %+v", status)
+	}
+	config, err := os.ReadFile(filepath.Join(runDir, "monitor-config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(config), `"optimizer_mode": true`) || !strings.Contains(string(config), baseParameters) || !strings.Contains(string(config), candidateParameters) {
+		t.Fatalf("monitor config omitted optimizer identity inputs: %s", config)
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(args), "option.ParameterFile="+baseParameters) || !strings.Contains(string(args), "option.ParameterFile="+candidateParameters) {
+		t.Fatalf("Fastchess did not receive both parameter files: %s", args)
 	}
 }
 

@@ -55,6 +55,7 @@ type matchStatus struct {
 	Candidate         string                `json:"candidate"`
 	BaselineIdentity  *experimentIdentity   `json:"baseline_identity,omitempty"`
 	CandidateIdentity *experimentIdentity   `json:"candidate_identity,omitempty"`
+	OptimizerMode     bool                  `json:"optimizer_mode,omitempty"`
 	ChangeClass       string                `json:"change_class,omitempty"`
 	ValidationPolicy  string                `json:"validation_policy,omitempty"`
 	TimeControl       string                `json:"time_control"`
@@ -104,6 +105,9 @@ type matchConfig struct {
 	Fastchess              string `json:"fastchess"`
 	Baseline               string `json:"baseline"`
 	Candidate              string `json:"candidate"`
+	BaselineParameterFile  string `json:"baseline_parameter_file,omitempty"`
+	CandidateParameterFile string `json:"candidate_parameter_file,omitempty"`
+	OptimizerMode          bool   `json:"optimizer_mode,omitempty"`
 	ChangeClass            string `json:"change_class,omitempty"`
 	ValidationPolicy       string `json:"validation_policy,omitempty"`
 	AllowIdenticalBinaries bool   `json:"allow_identical_binaries,omitempty"`
@@ -393,6 +397,15 @@ func startCommand(args []string) error {
 		"--baseline-syzygy-path", syzygyFlagValue(cfg.BaselineSyzygyPath),
 		"--draw-movenumber", strconv.Itoa(cfg.DrawMoveNumber),
 	)
+	if cfg.BaselineParameterFile != "" {
+		childArgs = append(childArgs, "--baseline-parameter-file", cfg.BaselineParameterFile)
+	}
+	if cfg.CandidateParameterFile != "" {
+		childArgs = append(childArgs, "--candidate-parameter-file", cfg.CandidateParameterFile)
+	}
+	if cfg.OptimizerMode {
+		childArgs = append(childArgs, "--optimizer-mode")
+	}
 	if cfg.AllowIdenticalBinaries {
 		childArgs = append(childArgs, "--allow-identical-binaries")
 	}
@@ -462,6 +475,12 @@ func runMatchCommand(args []string) error {
 		if closeErr := file.Close(); closeErr != nil {
 			return closeErr
 		}
+	}
+	if err := os.MkdirAll(cfg.RunDir, 0o755); err != nil {
+		return err
+	}
+	if err := writeJSON(filepath.Join(cfg.RunDir, "monitor-config.json"), cfg); err != nil {
+		return err
 	}
 
 	status := initialStatus(cfg)
@@ -768,6 +787,9 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.Fastchess, "fastchess", defaultFastchess, "fastchess executable")
 	fs.StringVar(&cfg.Baseline, "baseline", "", "baseline engine")
 	fs.StringVar(&cfg.Candidate, "candidate", "", "candidate engine")
+	fs.StringVar(&cfg.BaselineParameterFile, "baseline-parameter-file", "", "baseline named parameter file")
+	fs.StringVar(&cfg.CandidateParameterFile, "candidate-parameter-file", "", "candidate named parameter file")
+	fs.BoolVar(&cfg.OptimizerMode, "optimizer-mode", false, "allow the same binary with different validated parameter files")
 	fs.StringVar(&cfg.ChangeClass, "change-class", "", "resolved candidate change class copied from the experiment or campaign")
 	fs.StringVar(&cfg.ValidationPolicy, "validation-policy", "", "resolved validation policy copied from the experiment or campaign")
 	fs.BoolVar(&cfg.AllowIdenticalBinaries, "allow-identical-binaries", false, "allow identical engine binaries for an explicit diagnostic self-play run")
@@ -843,6 +865,9 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 			return cfg, errors.New("candidate-id contains unsafe characters")
 		}
 	}
+	if cfg.OptimizerMode && cfg.AllowIdenticalBinaries {
+		return cfg, errors.New("--optimizer-mode cannot be combined with --allow-identical-binaries")
+	}
 	return cfg, nil
 }
 
@@ -909,6 +934,22 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 	if cfg.Candidate, err = existingAbs(cfg.Candidate); err != nil {
 		return cfg, err
 	}
+	if cfg.BaselineParameterFile != "" {
+		if !filepath.IsAbs(cfg.BaselineParameterFile) {
+			cfg.BaselineParameterFile = filepath.Join(cfg.RepoRoot, cfg.BaselineParameterFile)
+		}
+		if cfg.BaselineParameterFile, err = existingAbs(cfg.BaselineParameterFile); err != nil {
+			return cfg, err
+		}
+	}
+	if cfg.CandidateParameterFile != "" {
+		if !filepath.IsAbs(cfg.CandidateParameterFile) {
+			cfg.CandidateParameterFile = filepath.Join(cfg.RepoRoot, cfg.CandidateParameterFile)
+		}
+		if cfg.CandidateParameterFile, err = existingAbs(cfg.CandidateParameterFile); err != nil {
+			return cfg, err
+		}
+	}
 	if cfg.Openings != "" {
 		if cfg.Openings, err = existingAbs(cfg.Openings); err != nil {
 			return cfg, err
@@ -935,16 +976,23 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 }
 
 func matchBinaryIdentities(cfg matchConfig) (experimentIdentity, experimentIdentity, error) {
-	baseline, err := identifyExperimentBinary(cfg.Baseline)
+	baseline, err := identifyExperimentInstance(cfg.Baseline, cfg.BaselineParameterFile)
 	if err != nil {
 		return experimentIdentity{}, experimentIdentity{}, fmt.Errorf("identify baseline binary: %w", err)
 	}
-	candidate, err := identifyExperimentBinary(cfg.Candidate)
+	candidate, err := identifyExperimentInstance(cfg.Candidate, cfg.CandidateParameterFile)
 	if err != nil {
 		return experimentIdentity{}, experimentIdentity{}, fmt.Errorf("identify candidate binary: %w", err)
 	}
-	if baseline.SHA256 == candidate.SHA256 && !cfg.AllowIdenticalBinaries {
-		return experimentIdentity{}, experimentIdentity{}, fmt.Errorf("baseline and candidate binaries have identical SHA-256 %s; rebuild the candidate or use --allow-identical-binaries only for an explicit diagnostic self-play run", baseline.SHA256)
+	sameBinary := baseline.SHA256 == candidate.SHA256
+	sameInstance := sameBinary && baseline.ParameterSHA256 == candidate.ParameterSHA256 && baseline.ParameterRegisterVersion == candidate.ParameterRegisterVersion
+	if sameInstance {
+		if cfg.OptimizerMode || !cfg.AllowIdenticalBinaries {
+			return experimentIdentity{}, experimentIdentity{}, fmt.Errorf("baseline and candidate motor instances are identical (identical SHA-256 %s): parameter_sha256=%s register_version=%d", baseline.SHA256, baseline.ParameterSHA256, baseline.ParameterRegisterVersion)
+		}
+	}
+	if sameBinary && !sameInstance && !cfg.OptimizerMode {
+		return experimentIdentity{}, experimentIdentity{}, errors.New("same binary with different parameter files requires --optimizer-mode")
 	}
 	return baseline, candidate, nil
 }
@@ -989,6 +1037,13 @@ func fastchessEngineArgs(engine, name, syzygyPath string, cfg matchConfig) []str
 	if syzygyPath != "" {
 		args = append(args, "option.SyzygyPath="+syzygyPath)
 	}
+	parameterFile := cfg.BaselineParameterFile
+	if name == "Candidate" {
+		parameterFile = cfg.CandidateParameterFile
+	}
+	if parameterFile != "" {
+		args = append(args, "option.ParameterFile="+parameterFile)
+	}
 	if name == "Candidate" && cfg.TablebaseStats && cfg.TablebaseStatsFile != "" {
 		args = append(args, "option.TablebaseStatsFile="+cfg.TablebaseStatsFile)
 	}
@@ -999,7 +1054,7 @@ func initialStatus(cfg matchConfig) matchStatus {
 	now := time.Now()
 	return matchStatus{
 		RunID: filepath.Base(cfg.RunDir), State: "starting", Stage: "setup", StartedAt: now, UpdatedAt: now,
-		Baseline: cfg.Baseline, Candidate: cfg.Candidate, ChangeClass: cfg.ChangeClass, ValidationPolicy: cfg.ValidationPolicy, TimeControl: cfg.TC, TargetGames: cfg.Games,
+		Baseline: cfg.Baseline, Candidate: cfg.Candidate, OptimizerMode: cfg.OptimizerMode, ChangeClass: cfg.ChangeClass, ValidationPolicy: cfg.ValidationPolicy, TimeControl: cfg.TC, TargetGames: cfg.Games,
 		ProgressEvery: cfg.ProgressEvery, ProgressTime: cfg.ProgressTime, OpeningFile: cfg.Openings, OpeningCount: cfg.BookCount, RandomSeed: cfg.Seed, RunDir: cfg.RunDir,
 	}
 }

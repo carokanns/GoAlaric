@@ -91,31 +91,36 @@ type movetimeReport struct {
 }
 
 type experimentIdentity struct {
-	Path       string `json:"path"`
-	SHA256     string `json:"sha256"`
-	GitRoot    string `json:"git_root,omitempty"`
-	GitCommit  string `json:"git_commit,omitempty"`
-	GitBranch  string `json:"git_branch,omitempty"`
-	DiffSHA256 string `json:"diff_sha256,omitempty"`
+	Path                     string `json:"path"`
+	SHA256                   string `json:"sha256"`
+	ParameterSHA256          string `json:"parameter_sha256"`
+	ParameterRegisterVersion int    `json:"parameter_register_version"`
+	GitRoot                  string `json:"git_root,omitempty"`
+	GitCommit                string `json:"git_commit,omitempty"`
+	GitBranch                string `json:"git_branch,omitempty"`
+	DiffSHA256               string `json:"diff_sha256,omitempty"`
 }
 
 type experimentConfig struct {
-	PerftDepth       int    `json:"perft_depth"`
-	PerftEPD         string `json:"perft_epd"`
-	BenchDepth       int    `json:"bench_depth"`
-	BenchRepetitions int    `json:"bench_repetitions"`
-	MovetimeMS       int    `json:"movetime_ms"`
-	MovetimeEPD      string `json:"movetime_epd"`
-	ChangeClass      string `json:"change_class"`
-	ComparisonPolicy string `json:"comparison_policy"`
-	SemanticPreserve bool   `json:"semantic_preserving"`
-	Screening        bool   `json:"screening"`
-	ScreeningGames   int    `json:"screening_games,omitempty"`
-	ScreeningTC      string `json:"screening_tc,omitempty"`
-	Openings         string `json:"openings,omitempty"`
-	Fastchess        string `json:"fastchess,omitempty"`
-	Hypothesis       string `json:"hypothesis,omitempty"`
-	ProposedChange   string `json:"proposed_change,omitempty"`
+	PerftDepth             int    `json:"perft_depth"`
+	PerftEPD               string `json:"perft_epd"`
+	BenchDepth             int    `json:"bench_depth"`
+	BenchRepetitions       int    `json:"bench_repetitions"`
+	MovetimeMS             int    `json:"movetime_ms"`
+	MovetimeEPD            string `json:"movetime_epd"`
+	ChangeClass            string `json:"change_class"`
+	ComparisonPolicy       string `json:"comparison_policy"`
+	SemanticPreserve       bool   `json:"semantic_preserving"`
+	Screening              bool   `json:"screening"`
+	ScreeningGames         int    `json:"screening_games,omitempty"`
+	ScreeningTC            string `json:"screening_tc,omitempty"`
+	Openings               string `json:"openings,omitempty"`
+	Fastchess              string `json:"fastchess,omitempty"`
+	BaselineParameterFile  string `json:"baseline_parameter_file,omitempty"`
+	CandidateParameterFile string `json:"candidate_parameter_file,omitempty"`
+	OptimizerMode          bool   `json:"optimizer_mode,omitempty"`
+	Hypothesis             string `json:"hypothesis,omitempty"`
+	ProposedChange         string `json:"proposed_change,omitempty"`
 }
 
 type experimentReport struct {
@@ -191,9 +196,9 @@ func pipelineCommand(args []string) error {
 	var baseline, candidate, candidateID, output, repoRoot string
 	var hypothesis, proposedChange string
 	var perftDepth, benchDepth, repetitions, movetimeMS int
-	var semanticPreserve, screening bool
+	var semanticPreserve, screening, optimizerMode bool
 	var changeClass string
-	var fastchess, openings, screeningTC string
+	var fastchess, openings, screeningTC, baselineParameterFile, candidateParameterFile string
 	var screeningGames int
 	fs.StringVar(&baseline, "baseline", "", "baseline engine executable")
 	fs.StringVar(&candidate, "candidate", "", "candidate engine executable")
@@ -211,6 +216,9 @@ func pipelineCommand(args []string) error {
 	fs.BoolVar(&screening, "screening", false, "run the optional Fastchess screening match")
 	fs.StringVar(&fastchess, "fastchess", defaultFastchess, "Fastchess executable")
 	fs.StringVar(&openings, "openings", defaultOpenings, "opening book for screening")
+	fs.StringVar(&baselineParameterFile, "baseline-parameter-file", "", "baseline named parameter file")
+	fs.StringVar(&candidateParameterFile, "candidate-parameter-file", "", "candidate named parameter file")
+	fs.BoolVar(&optimizerMode, "optimizer-mode", false, "allow the same binary with different validated parameter files")
 	fs.IntVar(&screeningGames, "screening-games", 400, "screening game count")
 	fs.StringVar(&screeningTC, "screening-tc", defaultScreeningTC, "screening time control")
 	if err := fs.Parse(args); err != nil {
@@ -241,6 +249,22 @@ func pipelineCommand(args []string) error {
 	if output == "" {
 		output = filepath.Join(root, "artifacts", "experiments", candidateID)
 	}
+	if baselineParameterFile != "" {
+		if !filepath.IsAbs(baselineParameterFile) {
+			baselineParameterFile = filepath.Join(root, baselineParameterFile)
+		}
+		if baselineParameterFile, err = existingAbs(baselineParameterFile); err != nil {
+			return err
+		}
+	}
+	if candidateParameterFile != "" {
+		if !filepath.IsAbs(candidateParameterFile) {
+			candidateParameterFile = filepath.Join(root, candidateParameterFile)
+		}
+		if candidateParameterFile, err = existingAbs(candidateParameterFile); err != nil {
+			return err
+		}
+	}
 	cfg := experimentConfig{
 		PerftDepth: perftDepth, PerftEPD: filepath.Join(root, "scripts", "perft_tests.txt"),
 		BenchDepth: benchDepth, BenchRepetitions: repetitions,
@@ -248,6 +272,7 @@ func pipelineCommand(args []string) error {
 		ChangeClass: definition.ChangeClass, ComparisonPolicy: definition.ComparisonPolicy,
 		SemanticPreserve: policyRequiresExactEquivalence(definition.ComparisonPolicy), Screening: screening, ScreeningGames: screeningGames,
 		ScreeningTC: screeningTC, Openings: openings, Fastchess: fastchess,
+		BaselineParameterFile: baselineParameterFile, CandidateParameterFile: candidateParameterFile, OptimizerMode: optimizerMode,
 		Hypothesis: hypothesis, ProposedChange: proposedChange,
 	}
 	report, cached, err := runExperiment(root, output, candidateID, base, cand, cfg)
@@ -382,16 +407,22 @@ func decisionStatus(recommendation string) string {
 }
 
 func runExperiment(root, dir, candidateID, baseline, candidate string, cfg experimentConfig) (experimentReport, bool, error) {
-	baseID, err := identifyExperimentBinary(baseline)
+	baseID, err := identifyExperimentInstance(baseline, cfg.BaselineParameterFile)
 	if err != nil {
 		return experimentReport{}, false, err
 	}
-	candID, err := identifyExperimentBinary(candidate)
+	candID, err := identifyExperimentInstance(candidate, cfg.CandidateParameterFile)
 	if err != nil {
 		return experimentReport{}, false, err
 	}
 	if baseID.SHA256 == candID.SHA256 {
-		return experimentReport{}, false, fmt.Errorf("baseline and candidate binaries have identical SHA-256 %s; rebuild the candidate before running the experiment pipeline", baseID.SHA256)
+		sameInstance := baseID.ParameterSHA256 == candID.ParameterSHA256 && baseID.ParameterRegisterVersion == candID.ParameterRegisterVersion
+		if !cfg.OptimizerMode {
+			return experimentReport{}, false, fmt.Errorf("baseline and candidate binaries have identical SHA-256 %s; optimizer parameter comparisons require optimizer mode", baseID.SHA256)
+		}
+		if sameInstance {
+			return experimentReport{}, false, fmt.Errorf("baseline and candidate motor instances are identical: engine_sha256=%s parameter_sha256=%s register_version=%d", baseID.SHA256, baseID.ParameterSHA256, baseID.ParameterRegisterVersion)
+		}
 	}
 	cacheKey := hashJSON(struct {
 		B, C   experimentIdentity
@@ -890,6 +921,15 @@ func runScreeningMatch(baseline, candidate string, cfg experimentConfig, runDir,
 		"--games", strconv.Itoa(cfg.ScreeningGames),
 		"--tc", cfg.ScreeningTC,
 		"--run-dir", runDir,
+	}
+	if cfg.BaselineParameterFile != "" {
+		args = append(args, "--baseline-parameter-file", cfg.BaselineParameterFile)
+	}
+	if cfg.CandidateParameterFile != "" {
+		args = append(args, "--candidate-parameter-file", cfg.CandidateParameterFile)
+	}
+	if cfg.OptimizerMode {
+		args = append(args, "--optimizer-mode")
 	}
 	if err := runScreeningMatchCommand(args); err != nil {
 		return nil, err
