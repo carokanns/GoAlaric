@@ -1,4 +1,21 @@
-# GoAlaric optimizer – fas 9
+# GoAlaric optimizer – version 1 (fas 11)
+
+## Version 1 / fas 11
+
+Fas 11 är slutverifierad med en full pilotkampanj genom Python → testmonitor →
+Fastchess → GoAlaric, med adaptiv gallring, flera pause/resume- och
+stop/resume-cykler, read-only-dashboard och längre process-/databasstressaudit.
+
+Det spårbara underlaget finns här:
+
+- [fas 11-runbook](docs/phase11-v1-runbook.md)
+- [verifieringsunderlag](docs/phase11-v1-verification.json)
+- [rekommenderad parameterfil](docs/phase11-v1-recommended-parameters.json)
+- [full pilotorkestrering](tools/run_full_pilot.py)
+
+Version 1 gör ingen automatisk promotion. `mobility_weight: 19` är endast en
+manuell rekommendation från 3–5–0 över åtta partier och kräver ett separat,
+betydligt större bekräftelsetest mot baseline.
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och

@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "version": "1.0.0",
+  "campaign_id": "phase11-full-eval-pilot",
+  "status": "completed",
+  "configuration": {
+    "registry": "eval-pilot-v1",
+    "parameters": 8,
+    "candidate_neighborhood": "legal +/- one-step",
+    "candidate_count": 15,
+    "master_seed": 20260813,
+    "time_control": "10+0.1",
+    "hash_mb": 128,
+    "threads": 1,
+    "min_blocks": 1,
+    "max_blocks": 4,
+    "weak_upper_score": 40,
+    "auto_promotion": false
+  },
+  "accounting": {
+    "trials_terminal": 15,
+    "trials_completed": 11,
+    "trials_rejected": 4,
+    "blocks_total": 60,
+    "blocks_completed": 49,
+    "blocks_rejected": 11,
+    "games": 98,
+    "unique_game_ids": 98,
+    "duplicate_game_ids": 0,
+    "completed_block_events": 49,
+    "checkpoint_revision": 49,
+    "checkpoint_hash": "7dde0adcd437cc837df89f5c205768f30b6f2f50772d01239f83906b8a893c91"
+  },
+  "control_validation": {
+    "pause_resume_candidates": [
+      1,
+      15
+    ],
+    "stop_resume_candidates": [
+      8
+    ],
+    "same_block_identity_after_stop_resume": true,
+    "interrupted_attempts_counted_as_games": false,
+    "dashboard_used_during_run": true,
+    "dashboard_read_only": true
+  },
+  "stress_validation": {
+    "duration_seconds": 5,
+    "sqlite_snapshots": 84,
+    "http_polls": 84,
+    "database_mtime_changed": false,
+    "process_audit_polls": 40,
+    "orphan_engine_processes": 0,
+    "orphan_testmonitor_processes": 0,
+    "orphan_fastchess_processes": 0
+  },
+  "recommendation": {
+    "status": "manual_review_only",
+    "promotion_eligible": false,
+    "source_trial_id": "trial-000002",
+    "source_parameter_hash": "5b7a61b01b72679071e1e7c689d56af4a54648eb8876de0ddd2512c2973c8045",
+    "values": {
+      "mobility_weight": 19,
+      "mobility_shift": 9,
+      "activity_bias": 5,
+      "activity_shift": 1,
+      "activity_knight_weight": 1,
+      "activity_bishop_weight": 3,
+      "activity_rook_weight": 5,
+      "activity_queen_weight": 2
+    },
+    "games": 8,
+    "wins": 3,
+    "draws": 5,
+    "losses": 0,
+    "score_percent": 68.75,
+    "score_ci_low": 51.9763049,
+    "score_ci_high": 85.5236951,
+    "elo_estimate": 120.41199827,
+    "elo_ci_low": 13.73993136,
+    "elo_ci_high": 308.57149392,
+    "sufficient_for_promotion": false,
+    "reason": "3-5-0 over eight games is insufficient confirmation"
+  }
+}

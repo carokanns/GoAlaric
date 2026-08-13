@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "registry": "eval-pilot-v1",
+  "parameters": [
+    {
+      "name": "mobility_weight",
+      "value": 19
+    },
+    {
+      "name": "mobility_shift",
+      "value": 9
+    },
+    {
+      "name": "activity_bias",
+      "value": 5
+    },
+    {
+      "name": "activity_shift",
+      "value": 1
+    },
+    {
+      "name": "activity_knight_weight",
+      "value": 1
+    },
+    {
+      "name": "activity_bishop_weight",
+      "value": 3
+    },
+    {
+      "name": "activity_rook_weight",
+      "value": 5
+    },
+    {
+      "name": "activity_queen_weight",
+      "value": 2
+    }
+  ]
+}
