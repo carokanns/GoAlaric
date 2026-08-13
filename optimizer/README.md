@@ -40,6 +40,46 @@ Denna fas startar inga riktiga matcher. Fastchess kopplas in först efter att
 konvergens, halvering, dubblettfrihet och fullständig checkpoint-återstart är
 verifierade.
 
+## Nästa steg / autonom kedja med falsk matchrunner
+
+Den första end-to-end-kopplingen finns som `optimize`. Kommandot initierar
+eller återupptar kampanjen, låter `coordinate-multires` skapa nästa
+parameteruppsättning, materialiserar den som en parameterfil och skickar den
+genom samma `AdaptiveCampaign`-kontrollflöde som den verkliga matchkedjan.
+Den falska runnern jämför deterministiskt kandidaten med sökningens aktuella
+ankare och skriver block, W-D-L, spel och checkpoint till SQLite.
+
+En kampanj kan till exempel innehålla:
+
+```json
+{
+  "goals": {
+    "max_games": 1000,
+    "optimizer": {"parameters": ["a", "b"], "max_passes": 20},
+    "adaptive": {"min_blocks": 1, "max_blocks": 2},
+    "fake_match": {"optimum": {"a": 6, "b": 10}}
+  }
+}
+```
+
+Kör eller återuppta sedan samma kampanj med ett enda kommando:
+
+```bash
+source optimizer/.venv/bin/activate
+optimizer optimize campaign.json --data-dir optimizer/campaigns
+```
+
+`--max-results 2` begränsar endast den aktuella körningen och lämnar en
+återstartbar checkpoint. `max_games` är kampanjens totala fake-matchbudget;
+när den tar slut avslutas sökningen idempotent med `stop_reason`.
+Kandidatfilerna sparas under kampanjens `candidates/`-katalog och registreras
+som SQLite-artifacts. Den nuvarande implementationen accepterar fortfarande
+kampanjformatets JSON; YAML-adaptern är inte en del av detta delmål.
+
+Detta delmål startar inga riktiga matcher. `mode: real` avvisas uttryckligen
+tills hela flödet är verifierat med den falska runnern och Fastchess därefter
+kan kopplas in utan att ändra sök- eller checkpointlogiken.
+
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och
 skriver aldrig till Go-motorn, baseline eller dashboarden.

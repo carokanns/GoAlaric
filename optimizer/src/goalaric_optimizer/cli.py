@@ -28,8 +28,9 @@ from .coordinate import (
 )
 from .real_integration import RealTestmonitorConfig, run_real_testmonitor
 from .registry import load_parameter_file, load_registry
-from .adaptive import AdaptivePolicy, run_real_adaptive_campaign
+from .adaptive import AdaptiveError, AdaptivePolicy, run_real_adaptive_campaign
 from .dashboard import DashboardError, final_report, serve_dashboard
+from .optimization import OptimizationError, run_fake_optimization
 
 
 def _data_dir(value: str | None) -> Path:
@@ -94,6 +95,23 @@ def _parser() -> argparse.ArgumentParser:
         help="JSON list of [parameter, value] pairs that return an uncertain result",
     )
     _add_data_dir(multires)
+
+    optimize = commands.add_parser(
+        "optimize",
+        help="run or resume autonomous multi-resolution optimization with the fake match runner",
+    )
+    optimize.add_argument("campaign", type=Path)
+    optimize.add_argument(
+        "--max-results",
+        type=int,
+        default=0,
+        help="work quota for this invocation; 0 runs until a terminal search or campaign budget",
+    )
+    optimize.add_argument("--max-games", type=int, help="override the campaign-wide fake match budget")
+    optimize.add_argument(
+        "--max-evaluations", type=int, help="override the campaign-wide candidate evaluation budget"
+    )
+    _add_data_dir(optimize)
 
     real = commands.add_parser(
         "real-run",
@@ -230,6 +248,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             else:
                 _print(run_campaign(data_dir, args.campaign_id, fake=True))
+            return 0
+        if args.command == "optimize":
+            _print(
+                run_fake_optimization(
+                    args.campaign,
+                    data_dir,
+                    invocation_limit=args.max_results,
+                    max_games_override=args.max_games,
+                    max_evaluations_override=args.max_evaluations,
+                )
+            )
             return 0
         if args.command == "coordinate":
             optimum = json.loads(args.fake_optimum)
@@ -426,6 +455,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print(trials[0])
             return 0
         raise ServiceError(f"unsupported command: {args.command}")
-    except (DatabaseError, InvalidTransition, ServiceError, SchedulerError, CoordinateSearchError, DashboardError, ValueError) as exc:
+    except (
+        DatabaseError,
+        InvalidTransition,
+        ServiceError,
+        SchedulerError,
+        AdaptiveError,
+        CoordinateSearchError,
+        DashboardError,
+        OptimizationError,
+        ValueError,
+    ) as exc:
         print(f"goalaric_optimizer: {exc}", file=sys.stderr)
         return 1

@@ -411,6 +411,22 @@ class Database:
             parameter_set_id = self._insert_parameter_set(connection, campaign_id, document, group_name, now)
             return parameter_set_id
 
+    def record_artifact(self, campaign_id: str, kind: str, path: str, digest: str | None = None) -> None:
+        """Register a reproducible file artifact without changing optimizer state."""
+        if not kind or not path:
+            raise DatabaseError("artifact kind and path must be non-empty")
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            self._insert_artifact(connection, campaign_id, kind, path, digest, utc_now())
+
+    def artifacts(self, campaign_id: str) -> list[dict[str, Any]]:
+        with self._read() as connection:
+            self._campaign(connection, campaign_id)
+            rows = connection.execute(
+                "SELECT * FROM artifacts WHERE campaign_id=? ORDER BY created_at,artifact_id", (campaign_id,)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
     def parameter_set(self, parameter_set_id: str, campaign_id: str) -> dict[str, Any]:
         with self._read() as connection:
             row = connection.execute(

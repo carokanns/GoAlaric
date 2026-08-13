@@ -144,6 +144,29 @@ def _evidence(
     return result
 
 
+def _attach_runner_metadata(evidence: dict[str, Any], block: dict[str, Any]) -> dict[str, Any]:
+    """Carry deterministic runner identities through adaptive evidence."""
+    raw = block.get("result_json")
+    if not isinstance(raw, str):
+        return evidence
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError:
+        return evidence
+    if not isinstance(result, dict):
+        return evidence
+    for key in (
+        "runner",
+        "candidate_parameter_hash",
+        "reference_parameter_hash",
+        "candidate_objective",
+        "reference_objective",
+    ):
+        if key in result:
+            evidence[key] = result[key]
+    return evidence
+
+
 class AdaptiveCampaign:
     """Run one candidate through a fixed budget of deterministic blocks."""
 
@@ -207,6 +230,16 @@ class AdaptiveCampaign:
         trial = self.database.trial(self.campaign_id, trial_id)
         if trial["status"] in {"completed", "rejected"} and trial["result_json"]:
             return json.loads(trial["result_json"])
+        if trial["result_json"]:
+            stored_result = json.loads(trial["result_json"])
+            if (
+                isinstance(stored_result, dict)
+                and stored_result.get("phase") == "terminal"
+                and stored_result.get("decision") in {"accept", "reject", "reject_early", "uncertain"}
+            ):
+                # A process may die after the adaptive controller has stored its
+                # terminal evidence but before coordinate search records it.
+                return stored_result
         if trial["status"] == "pending":
             self.database.transition_trial(self.campaign_id, trial_id, "running", result={"phase": "running"})
 
@@ -261,6 +294,7 @@ class AdaptiveCampaign:
                 next_index,
                 phase,
             )
+            _attach_runner_metadata(evidence, block)
             if decision == "continue":
                 self.database.checkpoint_trial_result(self.campaign_id, trial_id, evidence)
                 if max_blocks and processed_blocks >= max_blocks:

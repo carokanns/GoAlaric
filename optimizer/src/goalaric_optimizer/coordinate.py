@@ -319,14 +319,22 @@ class CoordinateSearch:
 
     @staticmethod
     def _classify(result: dict[str, Any], anchor: dict[str, Any]) -> dict[str, Any]:
-        delta = float(result["score"]) - float(anchor["score"])
-        margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
-        if result.get("uncertain") or abs(delta) <= margin:
-            classification = "uncertain"
-        elif delta > 0:
-            classification = "win"
+        if "candidate_objective" in result and "candidate_objective" in anchor:
+            delta = float(result["candidate_objective"]) - float(anchor["candidate_objective"])
+            margin = 0.0
+            classification = "win" if delta > 0 else ("loss" if delta < 0 else "uncertain")
         else:
-            classification = "loss"
+            delta = float(result["score"]) - float(anchor["score"])
+            margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
+            decision = result.get("decision")
+            if decision == "accept":
+                classification = "win"
+            elif decision in {"reject", "reject_early"}:
+                classification = "loss"
+            elif decision in {"continue", "uncertain", "interrupted"} or result.get("uncertain"):
+                classification = "uncertain"
+            else:
+                classification = "uncertain" if abs(delta) <= margin else ("win" if delta > 0 else "loss")
         result["classification"] = classification
         result["score_delta"] = round(delta, 8)
         result["comparison_uncertainty"] = round(margin, 8)
@@ -475,6 +483,24 @@ class MultiResolutionCoordinateSearch:
                 self.database.transition_campaign(
                     self.campaign_id, "completed", "multi-resolution coordinate search completed"
                 )
+        return self.report()
+
+    def stop(self, reason: str) -> dict[str, Any]:
+        """Persist a terminal search stop, for example an exhausted match budget."""
+        if not reason or not isinstance(reason, str):
+            raise CoordinateSearchError("search stop reason must be a non-empty string")
+        self._enter_running_state()
+        state = self._load_or_initialize_state()
+        if state["phase"] != "completed":
+            updated = dict(state)
+            updated["phase"] = "completed"
+            updated["stop_reason"] = reason
+            updated["parameter_index"] = len(self.specs)
+            updated["coordinate_results"] = {}
+            self.database.checkpoint(self.campaign_id, updated, event_type="coordinate_multires_stopped")
+        campaign = self.database.campaign(self.campaign_id)
+        if campaign["status"] == "running":
+            self.database.transition_campaign(self.campaign_id, "completed", reason)
         return self.report()
 
     def _enter_running_state(self) -> None:
@@ -694,14 +720,22 @@ class MultiResolutionCoordinateSearch:
 
     @staticmethod
     def _classify(result: dict[str, Any], anchor: dict[str, Any]) -> dict[str, Any]:
-        delta = float(result["score"]) - float(anchor["score"])
-        margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
-        if result.get("uncertain") or abs(delta) <= margin:
-            classification = "uncertain"
-        elif delta > 0:
-            classification = "win"
+        if "candidate_objective" in result and "candidate_objective" in anchor:
+            delta = float(result["candidate_objective"]) - float(anchor["candidate_objective"])
+            margin = 0.0
+            classification = "win" if delta > 0 else ("loss" if delta < 0 else "uncertain")
         else:
-            classification = "loss"
+            delta = float(result["score"]) - float(anchor["score"])
+            margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
+            decision = result.get("decision")
+            if decision == "accept":
+                classification = "win"
+            elif decision in {"reject", "reject_early"}:
+                classification = "loss"
+            elif decision in {"continue", "uncertain", "interrupted"} or result.get("uncertain"):
+                classification = "uncertain"
+            else:
+                classification = "uncertain" if abs(delta) <= margin else ("win" if delta > 0 else "loss")
         result["classification"] = classification
         result["score_delta"] = round(delta, 8)
         result["comparison_uncertainty"] = round(margin, 8)
@@ -808,6 +842,7 @@ class MultiResolutionCoordinateSearch:
             "parameter_names": algorithm_state.get("parameter_names", []),
             "step_by_parameter": algorithm_state.get("step_by_parameter", {}),
             "step_history": algorithm_state.get("step_history", []),
+            "stop_reason": algorithm_state.get("stop_reason"),
             "result_count": algorithm_state.get("result_count", 0),
             "evaluated_parameter_hashes": algorithm_state.get("evaluated_parameter_hashes", []),
             "best": {
