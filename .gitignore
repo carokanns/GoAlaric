@@ -26,3 +26,5 @@ artifacts/
 .tools/syzygy/
 *.rtbw
 *.rtbz
+optimizer/.venv/
+*.egg-info/
