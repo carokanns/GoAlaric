@@ -22,7 +22,8 @@ from .service import (
 )
 from .scheduler import SchedulerError, run_fake_scheduler
 from .coordinate import CoordinateSearchError, run_synthetic_coordinate_search
-from .registry import load_registry
+from .real_integration import RealTestmonitorConfig, run_real_testmonitor
+from .registry import load_parameter_file, load_registry
 
 
 def _data_dir(value: str | None) -> Path:
@@ -65,6 +66,30 @@ def _parser() -> argparse.ArgumentParser:
         help="JSON list of [parameter, value] pairs that return an uncertain result",
     )
     _add_data_dir(coordinate)
+
+    real = commands.add_parser(
+        "real-run",
+        aliases=["run-real"],
+        help="run one real testmonitor opening block through the SQLite scheduler",
+    )
+    real.add_argument("campaign_id")
+    real.add_argument("--registry", type=Path, required=True)
+    real.add_argument("--testmonitor-command", required=True, help="testmonitor executable command")
+    real.add_argument("--fastchess", type=Path, required=True)
+    real.add_argument("--baseline", type=Path, required=True)
+    real.add_argument("--candidate", type=Path, required=True)
+    real.add_argument("--baseline-parameter-file", type=Path)
+    real.add_argument("--candidate-parameter-file", type=Path, required=True)
+    real.add_argument("--opening-book", type=Path, required=True)
+    real.add_argument("--opening-block-file", type=Path, required=True)
+    real.add_argument("--tc", default="10+0.1")
+    real.add_argument("--seed", type=int, default=0)
+    real.add_argument("--hash", dest="hash_mb", type=int, default=16)
+    real.add_argument("--threads", type=int, default=1)
+    real.add_argument("--workdir", type=Path)
+    real.add_argument("--poll-interval", type=float, default=0.05)
+    real.add_argument("--stop-grace-seconds", type=float, default=1.0)
+    _add_data_dir(real)
 
     status = commands.add_parser("status", help="read campaign status")
     status.add_argument("campaign_id")
@@ -167,6 +192,45 @@ def main(argv: Sequence[str] | None = None) -> int:
                     max_results=args.max_results,
                     max_passes=args.max_passes,
                     uncertain_values=uncertain_values,
+                )
+            )
+            return 0
+        if args.command in {"real-run", "run-real"}:
+            registry = load_registry(args.registry.resolve())
+            candidate_file = args.candidate_parameter_file.resolve()
+            candidate_document, _ = load_parameter_file(candidate_file, registry)
+            baseline_file = (
+                args.baseline_parameter_file.resolve()
+                if args.baseline_parameter_file is not None
+                else (data_dir / args.campaign_id / "baseline-parameters.json").resolve()
+            )
+            baseline_document, _ = load_parameter_file(baseline_file, registry)
+            config = RealTestmonitorConfig(
+                testmonitor_command=shlex.split(args.testmonitor_command),
+                fastchess=args.fastchess.resolve(),
+                baseline=args.baseline.resolve(),
+                candidate=args.candidate.resolve(),
+                baseline_parameter_file=baseline_file,
+                candidate_parameter_file=candidate_file,
+                opening_book=args.opening_book.resolve(),
+                opening_block_file=args.opening_block_file.resolve(),
+                tc=args.tc,
+                seed=args.seed,
+                hash_mb=args.hash_mb,
+                threads=args.threads,
+                workdir=args.workdir.resolve() if args.workdir is not None else None,
+            )
+            if baseline_document.get("registry") != candidate_document.get("registry"):
+                raise ServiceError("baseline and candidate parameter files use different registries")
+            _print(
+                run_real_testmonitor(
+                    data_dir,
+                    args.campaign_id,
+                    config,
+                    candidate_document,
+                    registry=registry,
+                    poll_interval=args.poll_interval,
+                    stop_grace_seconds=args.stop_grace_seconds,
                 )
             )
             return 0

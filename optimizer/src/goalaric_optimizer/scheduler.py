@@ -57,6 +57,7 @@ class Scheduler:
         monitor_command: Sequence[str],
         poll_interval: float = 0.05,
         stop_grace_seconds: float = 0.5,
+        workdir: Path | None = None,
     ) -> None:
         if not monitor_command:
             raise SchedulerError("monitor command cannot be empty")
@@ -67,6 +68,7 @@ class Scheduler:
         self.monitor_command = tuple(str(item) for item in monitor_command)
         self.poll_interval = poll_interval
         self.stop_grace_seconds = stop_grace_seconds
+        self.workdir = workdir.resolve() if workdir is not None else None
         self._process: subprocess.Popen[str] | None = None
         self._process_group_id: int | None = None
 
@@ -171,6 +173,7 @@ class Scheduler:
                     stderr=subprocess.STDOUT,
                     text=True,
                     start_new_session=True,
+                    cwd=self.workdir,
                 )
             finally:
                 log.close()

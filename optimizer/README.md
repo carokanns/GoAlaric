@@ -1,9 +1,8 @@
-# GoAlaric optimizer – fas 7
+# GoAlaric optimizer – fas 8
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och
-skriver aldrig till Go-motorn, baseline eller dashboarden. Verkliga matcher,
-Fastchess och verkliga matchresultat är fortfarande avsiktligt avstängda.
+skriver aldrig till Go-motorn, baseline eller dashboarden.
 
 Installera paketet lokalt eller använd `PYTHONPATH` från repots rot:
 
@@ -64,7 +63,23 @@ PYTHONPATH=optimizer/src python3 -m goalaric_optimizer coordinate <campaign-id> 
 
 Upprepa kommandot för att simulera avbrott och återstart. Utan `--max-results`
 kör den syntetiska sökningen till konvergens. Ingen riktig motor eller match
-startas av detta kommando.
+startas av koordinatsökningskommandot.
+
+Fas 8 lägger till den första verkliga end-to-end-körvägen. `real-run` skapar
+ett enda idempotent trial/block, materialiserar blocket med testmonitors
+deterministiska öppningslogik och låter schedulern starta den riktiga Go-
+`testmonitor` med Fastchess. Samma motorbinär kan användas med baseline- och
+candidate-parameterfiler när `--optimizer-mode` används internt.
+
+Testmonitors `block-report.json` och `status.json` valideras innan resultatet
+skrivs atomiskt till SQLite. W-D-L, score, öppningsidentitet, färgväxling och
+motor-/parameteridentiteter måste stämma. Ett avbrutet block blir
+`interrupted`, får nytt försök med samma öppningshash och kan inte räknas
+igen efter completion.
+
+Körvägen är avsiktligt begränsad till ett block och en parameterändring ett
+steg från baseline. Ingen längre optimeringskampanj startas här. Den äldre
+`tune`-koden ligger fortsatt utanför systemet.
 
 Databasen använder WAL, foreign keys, centrala statusövergångar, unika
 parameter- och blockidentiteter samt append-only events. Checkpoint och färdigt
