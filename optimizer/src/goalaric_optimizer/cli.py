@@ -21,7 +21,11 @@ from .service import (
     stop_campaign,
 )
 from .scheduler import SchedulerError, run_fake_scheduler
-from .coordinate import CoordinateSearchError, run_synthetic_coordinate_search
+from .coordinate import (
+    CoordinateSearchError,
+    run_synthetic_coordinate_search,
+    run_synthetic_multiresolution_search,
+)
 from .real_integration import RealTestmonitorConfig, run_real_testmonitor
 from .registry import load_parameter_file, load_registry
 from .adaptive import AdaptivePolicy, run_real_adaptive_campaign
@@ -68,6 +72,28 @@ def _parser() -> argparse.ArgumentParser:
         help="JSON list of [parameter, value] pairs that return an uncertain result",
     )
     _add_data_dir(coordinate)
+
+    multires = commands.add_parser(
+        "coordinate-multires",
+        aliases=["multires-coordinate"],
+        help="run the phase-11 synthetic multi-resolution coordinate search",
+    )
+    multires.add_argument("campaign_id")
+    multires.add_argument("--registry", type=Path, required=True)
+    multires.add_argument("--fake-optimum", required=True, help="JSON object mapping parameter names to optimum values")
+    multires.add_argument("--max-results", type=int, default=0)
+    multires.add_argument("--max-passes", type=int, default=100)
+    multires.add_argument(
+        "--parameters",
+        default="",
+        help="comma-separated registry parameter names; defaults to all parameters",
+    )
+    multires.add_argument(
+        "--uncertain-values",
+        default="[]",
+        help="JSON list of [parameter, value] pairs that return an uncertain result",
+    )
+    _add_data_dir(multires)
 
     real = commands.add_parser(
         "real-run",
@@ -235,6 +261,41 @@ def main(argv: Sequence[str] | None = None) -> int:
                     max_results=args.max_results,
                     max_passes=args.max_passes,
                     uncertain_values=uncertain_values,
+                )
+            )
+            return 0
+        if args.command in {"coordinate-multires", "multires-coordinate"}:
+            optimum = json.loads(args.fake_optimum)
+            if not isinstance(optimum, dict):
+                raise ServiceError("--fake-optimum must be a JSON object")
+            if any(not isinstance(value, int) or isinstance(value, bool) for value in optimum.values()):
+                raise ServiceError("--fake-optimum values must be integers")
+            uncertain_raw = json.loads(args.uncertain_values)
+            if not isinstance(uncertain_raw, list):
+                raise ServiceError("--uncertain-values must be a JSON list")
+            uncertain_values: set[tuple[str, int]] = set()
+            for item in uncertain_raw:
+                if (
+                    not isinstance(item, list)
+                    or len(item) != 2
+                    or not isinstance(item[0], str)
+                    or not isinstance(item[1], int)
+                    or isinstance(item[1], bool)
+                ):
+                    raise ServiceError("each uncertain value must be [parameter, integer]")
+                uncertain_values.add((item[0], item[1]))
+            registry = load_registry(args.registry.resolve())
+            parameter_names = [item.strip() for item in args.parameters.split(",") if item.strip()] or None
+            _print(
+                run_synthetic_multiresolution_search(
+                    data_dir,
+                    args.campaign_id,
+                    registry,
+                    {str(name): int(value) for name, value in optimum.items()},
+                    max_results=args.max_results,
+                    max_passes=args.max_passes,
+                    uncertain_values=uncertain_values,
+                    parameter_names=parameter_names,
                 )
             )
             return 0

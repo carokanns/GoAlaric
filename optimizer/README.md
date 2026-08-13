@@ -17,6 +17,29 @@ Version 1 gör ingen automatisk promotion. `mobility_weight: 19` är endast en
 manuell rekommendation från 3–5–0 över åtta partier och kräver ett separat,
 betydligt större bekräftelsetest mot baseline.
 
+## Version 1.1 / deterministisk flerupplöst koordinatsökning
+
+Den syntetiska v1.1-sökningen finns som `coordinate-multires`. Den börjar från
+baseline och använder registrets `min`, `max`, `step` och `min_step`. För varje
+valt parameter testas `+step` och `-step` i registerordning. En förbättring
+startar om varvet med samma upplösning; ett helt resultatlöst varv halverar
+stegen, ned till `min_step`. Parameterhashar och nästa sökposition sparas
+atomiskt i SQLite. Samma parameteruppsättning återanvänds aldrig som ett nytt
+trial.
+
+Exempel mot en syntetisk målfunktion:
+
+```bash
+PYTHONPATH=optimizer/src python3 -m goalaric_optimizer coordinate-multires <campaign-id> \
+  --registry /path/to/multires-registry.json \
+  --fake-optimum '{"a":6,"b":10}' \
+  --parameters a,b
+```
+
+Denna fas startar inga riktiga matcher. Fastchess kopplas in först efter att
+konvergens, halvering, dubblettfrihet och fullständig checkpoint-återstart är
+verifierade.
+
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och
 skriver aldrig till Go-motorn, baseline eller dashboarden.
