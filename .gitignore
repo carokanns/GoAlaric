@@ -5,6 +5,8 @@
 *.gif
 *.svg
 *.gocache
+__pycache__/
+*.py[cod]
 tune/cleanRaw.epd
 tune/results.pgn
 tune/results.epd
