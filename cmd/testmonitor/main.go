@@ -41,45 +41,52 @@ const (
 	defaultProgressInterval  = "1m"
 	defaultScreeningProgress = 10
 	defaultSPRTProgress      = 50
+	openingBlockReportSchema = 1
 )
 
 type matchStatus struct {
-	RunID             string                `json:"run_id"`
-	State             string                `json:"state"`
-	Stage             string                `json:"stage"`
-	PID               int                   `json:"pid,omitempty"`
-	StartedAt         time.Time             `json:"started_at"`
-	UpdatedAt         time.Time             `json:"updated_at"`
-	FinishedAt        time.Time             `json:"finished_at,omitempty"`
-	Baseline          string                `json:"baseline"`
-	Candidate         string                `json:"candidate"`
-	BaselineIdentity  *experimentIdentity   `json:"baseline_identity,omitempty"`
-	CandidateIdentity *experimentIdentity   `json:"candidate_identity,omitempty"`
-	OptimizerMode     bool                  `json:"optimizer_mode,omitempty"`
-	ChangeClass       string                `json:"change_class,omitempty"`
-	ValidationPolicy  string                `json:"validation_policy,omitempty"`
-	TimeControl       string                `json:"time_control"`
-	TargetGames       int                   `json:"target_games"`
-	ProgressEvery     int                   `json:"progress_every_games"`
-	ProgressTime      string                `json:"progress_interval"`
-	OpeningFile       string                `json:"opening_file"`
-	OpeningCount      int                   `json:"opening_count"`
-	RandomSeed        int64                 `json:"random_seed"`
-	Games             int                   `json:"games"`
-	Wins              int                   `json:"wins"`
-	Losses            int                   `json:"losses"`
-	Draws             int                   `json:"draws"`
-	Score             float64               `json:"score_percent"`
-	SPRTLLR           float64               `json:"sprt_llr,omitempty"`
-	SPRTLower         float64               `json:"sprt_lower,omitempty"`
-	SPRTUpper         float64               `json:"sprt_upper,omitempty"`
-	Decision          string                `json:"decision,omitempty"`
-	PGNAudit          *pgnAudit             `json:"pgn_audit,omitempty"`
-	DepthProfile      *depthProfileReport   `json:"depth_profile,omitempty"`
-	TablebaseStats    *tablebaseStatsReport `json:"tablebase_stats,omitempty"`
-	ExitCode          int                   `json:"exit_code,omitempty"`
-	Error             string                `json:"error,omitempty"`
-	RunDir            string                `json:"run_dir"`
+	RunID                 string                `json:"run_id"`
+	State                 string                `json:"state"`
+	Stage                 string                `json:"stage"`
+	PID                   int                   `json:"pid,omitempty"`
+	StartedAt             time.Time             `json:"started_at"`
+	UpdatedAt             time.Time             `json:"updated_at"`
+	FinishedAt            time.Time             `json:"finished_at,omitempty"`
+	Baseline              string                `json:"baseline"`
+	Candidate             string                `json:"candidate"`
+	BaselineIdentity      *experimentIdentity   `json:"baseline_identity,omitempty"`
+	CandidateIdentity     *experimentIdentity   `json:"candidate_identity,omitempty"`
+	OptimizerMode         bool                  `json:"optimizer_mode,omitempty"`
+	ChangeClass           string                `json:"change_class,omitempty"`
+	ValidationPolicy      string                `json:"validation_policy,omitempty"`
+	TimeControl           string                `json:"time_control"`
+	TargetGames           int                   `json:"target_games"`
+	ProgressEvery         int                   `json:"progress_every_games"`
+	ProgressTime          string                `json:"progress_interval"`
+	OpeningFile           string                `json:"opening_file"`
+	OpeningCount          int                   `json:"opening_count"`
+	OpeningBook           string                `json:"opening_book,omitempty"`
+	OpeningBlockIndex     int                   `json:"opening_block_index"`
+	OpeningBlockSize      int                   `json:"opening_block_size"`
+	OpeningBookSHA256     string                `json:"opening_book_sha256,omitempty"`
+	OpeningBlockSHA256    string                `json:"opening_block_sha256,omitempty"`
+	OpeningBlockColorSwap bool                  `json:"opening_block_color_swap,omitempty"`
+	RandomSeed            int64                 `json:"random_seed"`
+	Games                 int                   `json:"games"`
+	Wins                  int                   `json:"wins"`
+	Losses                int                   `json:"losses"`
+	Draws                 int                   `json:"draws"`
+	Score                 float64               `json:"score_percent"`
+	SPRTLLR               float64               `json:"sprt_llr,omitempty"`
+	SPRTLower             float64               `json:"sprt_lower,omitempty"`
+	SPRTUpper             float64               `json:"sprt_upper,omitempty"`
+	Decision              string                `json:"decision,omitempty"`
+	PGNAudit              *pgnAudit             `json:"pgn_audit,omitempty"`
+	DepthProfile          *depthProfileReport   `json:"depth_profile,omitempty"`
+	TablebaseStats        *tablebaseStatsReport `json:"tablebase_stats,omitempty"`
+	ExitCode              int                   `json:"exit_code,omitempty"`
+	Error                 string                `json:"error,omitempty"`
+	RunDir                string                `json:"run_dir"`
 }
 
 type pgnAudit struct {
@@ -94,6 +101,34 @@ type pgnAudit struct {
 	IdenticalColorSwapPairs int `json:"identical_color_swap_pairs"`
 }
 
+type openingBlockReport struct {
+	SchemaVersion      int       `json:"schema_version"`
+	State              string    `json:"state"`
+	Valid              bool      `json:"valid"`
+	Counted            bool      `json:"counted"`
+	RunID              string    `json:"run_id"`
+	RunDir             string    `json:"run_dir"`
+	OpeningBook        string    `json:"opening_book"`
+	OpeningBookSHA256  string    `json:"opening_book_sha256"`
+	OpeningBlockIndex  int       `json:"opening_block_index"`
+	OpeningBlockSize   int       `json:"opening_block_size"`
+	OpeningBlockFile   string    `json:"opening_block_file"`
+	OpeningBlockSHA256 string    `json:"opening_block_sha256"`
+	RandomSeed         int64     `json:"random_seed"`
+	ColorSwap          bool      `json:"color_swap"`
+	TargetGames        int       `json:"target_games"`
+	Games              int       `json:"games"`
+	Wins               int       `json:"wins"`
+	Losses             int       `json:"losses"`
+	Draws              int       `json:"draws"`
+	Score              float64   `json:"score_percent"`
+	Decision           string    `json:"decision,omitempty"`
+	Error              string    `json:"error,omitempty"`
+	PGNAudit           *pgnAudit `json:"pgn_audit,omitempty"`
+	StartedAt          time.Time `json:"started_at"`
+	FinishedAt         time.Time `json:"finished_at,omitempty"`
+}
+
 type pgnGame struct {
 	round        string
 	fen          string
@@ -105,6 +140,13 @@ type matchConfig struct {
 	Fastchess              string `json:"fastchess"`
 	Baseline               string `json:"baseline"`
 	Candidate              string `json:"candidate"`
+	OpeningBook            string `json:"opening_book,omitempty"`
+	OpeningBlockIndex      int    `json:"opening_block_index"`
+	OpeningBlockSize       int    `json:"opening_block_size"`
+	OpeningBlockFile       string `json:"opening_block_file,omitempty"`
+	OpeningBookSHA256      string `json:"opening_book_sha256,omitempty"`
+	OpeningBlockSHA256     string `json:"opening_block_sha256,omitempty"`
+	OpeningBlockColorSwap  bool   `json:"opening_block_color_swap,omitempty"`
 	BaselineParameterFile  string `json:"baseline_parameter_file,omitempty"`
 	CandidateParameterFile string `json:"candidate_parameter_file,omitempty"`
 	OptimizerMode          bool   `json:"optimizer_mode,omitempty"`
@@ -188,6 +230,8 @@ func main() {
 		err = benchCommand(os.Args[2:])
 	case "audit-pgn":
 		err = auditPGNCommand(os.Args[2:])
+	case "materialize-openings":
+		err = materializeOpeningBlockCommand(os.Args[2:])
 	case "validate":
 		err = validateCommand(os.Args[2:])
 	case "start":
@@ -233,7 +277,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|bench|validate|start|status|progress|follow|wait|stop|pipeline|snapshot|record-decision|retry-evaluation|campaign-init|campaign-tick|campaign-run|campaign-status|prescan> [options]")
+	fmt.Fprintln(os.Stderr, "usage: testmonitor <audit-pgn|materialize-openings|bench|validate|start|status|progress|follow|wait|stop|pipeline|snapshot|record-decision|retry-evaluation|campaign-init|campaign-tick|campaign-run|campaign-status|prescan> [options]")
 }
 
 func auditPGNCommand(args []string) error {
@@ -369,11 +413,27 @@ func startCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	baselineIdentity, candidateIdentity, err := matchBinaryIdentities(cfg)
-	if err != nil {
-		return err
+	if report, reportErr := loadOpeningBlockReport(cfg.RunDir); reportErr == nil && report.Valid && report.Counted && report.State == "completed" {
+		fmt.Printf("opening block already counted: run_dir=%s games=%d\n", cfg.RunDir, report.Games)
+		return nil
+	}
+	if previous, readErr := loadStatus(cfg.RunDir); readErr == nil {
+		if previous.State == "completed" {
+			fmt.Printf("opening block already completed: run_dir=%s games=%d\n", cfg.RunDir, previous.Games)
+			return nil
+		}
+		if previous.State == "running" || previous.State == "stopping" {
+			return fmt.Errorf("opening block is already active: run_dir=%s state=%s", cfg.RunDir, previous.State)
+		}
 	}
 	if err := os.MkdirAll(cfg.RunDir, 0o755); err != nil {
+		return err
+	}
+	if err := prepareOpeningBlock(&cfg); err != nil {
+		return err
+	}
+	baselineIdentity, candidateIdentity, err := matchBinaryIdentities(cfg)
+	if err != nil {
 		return err
 	}
 	if err := writeJSON(filepath.Join(cfg.RunDir, "monitor-config.json"), cfg); err != nil {
@@ -388,7 +448,11 @@ func startCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", cfg.Openings, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--hash", strconv.Itoa(cfg.HashMB), "--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir}
+	openingSource := cfg.OpeningBook
+	if openingSource == "" {
+		openingSource = cfg.Openings
+	}
+	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", openingSource, "--block-index", strconv.Itoa(cfg.OpeningBlockIndex), "--block-size", strconv.Itoa(cfg.OpeningBlockSize), "--opening-block-file", cfg.OpeningBlockFile, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--hash", strconv.Itoa(cfg.HashMB), "--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir}
 	childArgs = append(childArgs,
 		"--change-class", cfg.ChangeClass,
 		"--validation-policy", cfg.ValidationPolicy,
@@ -421,23 +485,46 @@ func startCommand(args []string) error {
 	if cfg.TablebaseStats {
 		childArgs = append(childArgs, "--tablebase-stats")
 	}
+	status := initialStatus(cfg)
+	status.BaselineIdentity = &baselineIdentity
+	status.CandidateIdentity = &candidateIdentity
+	if err := saveStatus(cfg.RunDir, &status); err != nil {
+		_ = logFile.Close()
+		return err
+	}
+	if err := writeOpeningBlockReport(cfg, status); err != nil {
+		_ = logFile.Close()
+		return err
+	}
 	cmd := exec.Command(exe, childArgs...)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
+		status.State = "failed"
+		status.Stage = "finished"
+		status.FinishedAt = time.Now()
+		status.Error = err.Error()
+		_ = saveStatus(cfg.RunDir, &status)
+		_ = writeOpeningBlockReport(cfg, status)
 		_ = logFile.Close()
 		return err
 	}
 	go func() { _ = cmd.Wait() }()
 	_ = logFile.Close()
 
-	status := initialStatus(cfg)
-	status.BaselineIdentity = &baselineIdentity
-	status.CandidateIdentity = &candidateIdentity
-	status.PID = cmd.Process.Pid
-	if err := saveStatus(cfg.RunDir, &status); err != nil {
-		return err
+	if latest, readErr := loadStatus(cfg.RunDir); readErr == nil {
+		if latest.State == "starting" || latest.State == "running" || latest.State == "stopping" {
+			latest.PID = cmd.Process.Pid
+			if err := saveStatus(cfg.RunDir, &latest); err != nil {
+				return err
+			}
+		}
+	} else {
+		status.PID = cmd.Process.Pid
+		if err := saveStatus(cfg.RunDir, &status); err != nil {
+			return err
+		}
 	}
 	fmt.Printf("match started: pid=%d run_dir=%s\n", cmd.Process.Pid, cfg.RunDir)
 	fmt.Printf("status: go run ./cmd/testmonitor status --run-dir %s\n", cfg.RunDir)
@@ -456,11 +543,24 @@ func runMatchCommand(args []string) error {
 	if err != nil {
 		return err
 	}
+	if report, reportErr := loadOpeningBlockReport(cfg.RunDir); reportErr == nil && report.Valid && report.Counted && report.State == "completed" {
+		fmt.Printf("opening block already counted: run_dir=%s games=%d\n", cfg.RunDir, report.Games)
+		return nil
+	}
 	if cfg.RunDir == "" {
 		return errors.New("--run-dir is required")
 	}
 	if cfg.Openings == "" {
 		return errors.New("--openings is required")
+	}
+	if cfg.OpeningBlockFile != "" {
+		if err := verifyOpeningBlockFile(&cfg); err != nil {
+			return err
+		}
+	} else {
+		if err := prepareOpeningBlock(&cfg); err != nil {
+			return err
+		}
 	}
 	baselineIdentity, candidateIdentity, err := matchBinaryIdentities(cfg)
 	if err != nil {
@@ -490,6 +590,9 @@ func runMatchCommand(args []string) error {
 	status.State = "running"
 	status.Stage = "fastchess"
 	if err := saveStatus(cfg.RunDir, &status); err != nil {
+		return err
+	}
+	if err := writeOpeningBlockReport(cfg, status); err != nil {
 		return err
 	}
 	_ = appendProgressSnapshot(cfg.RunDir, status)
@@ -614,9 +717,17 @@ func runMatchCommand(args []string) error {
 		} else {
 			status.Decision = matchDecision(status, cfg.SPRT)
 		}
+		if !openingBlockComplete(status, cfg) {
+			status.State = "failed"
+			status.Error = "opening block did not complete with exactly one color-swapped pair per opening"
+			status.Decision = "invalid_incomplete_block"
+		}
 	}
 	if saveErr := saveStatus(cfg.RunDir, &status); saveErr != nil {
 		return saveErr
+	}
+	if reportErr := writeOpeningBlockReport(cfg, status); reportErr != nil {
+		return reportErr
 	}
 	parser.finalProgress()
 	if cfg.AutoEvaluate {
@@ -707,6 +818,9 @@ func stopCommand(args []string) error {
 		if err := saveStatus(dir, &status); err != nil {
 			return err
 		}
+		if err := writeOpeningBlockReportFromStatus(status); err != nil {
+			return err
+		}
 		_ = appendProgressSnapshot(dir, status)
 		fmt.Printf("match stopped: monitor already exited run_dir=%s\n", dir)
 		return nil
@@ -754,6 +868,9 @@ func stopCommand(args []string) error {
 				if err := saveStatus(dir, &latest); err != nil {
 					return err
 				}
+				if err := writeOpeningBlockReportFromStatus(latest); err != nil {
+					return err
+				}
 				_ = appendProgressSnapshot(dir, latest)
 				fmt.Printf("match stopped: games=%d run_dir=%s\n", latest.Games, dir)
 				return nil
@@ -787,6 +904,9 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.Fastchess, "fastchess", defaultFastchess, "fastchess executable")
 	fs.StringVar(&cfg.Baseline, "baseline", "", "baseline engine")
 	fs.StringVar(&cfg.Candidate, "candidate", "", "candidate engine")
+	fs.IntVar(&cfg.OpeningBlockIndex, "block-index", 0, "deterministic opening block index")
+	fs.IntVar(&cfg.OpeningBlockSize, "block-size", 0, "number of unique openings in a block; defaults to games/2")
+	fs.StringVar(&cfg.OpeningBlockFile, "opening-block-file", "", "internal materialized opening block file")
 	fs.StringVar(&cfg.BaselineParameterFile, "baseline-parameter-file", "", "baseline named parameter file")
 	fs.StringVar(&cfg.CandidateParameterFile, "candidate-parameter-file", "", "candidate named parameter file")
 	fs.BoolVar(&cfg.OptimizerMode, "optimizer-mode", false, "allow the same binary with different validated parameter files")
@@ -827,6 +947,9 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	}
 	if cfg.Games < 2 || cfg.Games%2 != 0 {
 		return cfg, errors.New("--games must be a positive even number")
+	}
+	if cfg.OpeningBlockIndex < 0 || cfg.OpeningBlockSize < 0 {
+		return cfg, errors.New("--block-index must be non-negative and --block-size cannot be negative")
 	}
 	if cfg.Concurrency < 1 {
 		return cfg, errors.New("--concurrency must be positive")
@@ -873,6 +996,15 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 
 func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 	var err error
+	if cfg.OpeningBlockSize == 0 {
+		cfg.OpeningBlockSize = cfg.Games / 2
+	}
+	if cfg.OpeningBlockSize != cfg.Games/2 {
+		return cfg, errors.New("--block-size must equal games/2 so every opening receives one color-swapped pair")
+	}
+	if cfg.OpeningBook == "" {
+		cfg.OpeningBook = cfg.Openings
+	}
 	if cfg.SPRTTC == "" {
 		cfg.SPRTTC = defaultSPRTTC
 	}
@@ -950,10 +1082,11 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 			return cfg, err
 		}
 	}
-	if cfg.Openings != "" {
-		if cfg.Openings, err = existingAbs(cfg.Openings); err != nil {
+	if cfg.OpeningBook != "" {
+		if cfg.OpeningBook, err = existingAbs(cfg.OpeningBook); err != nil {
 			return cfg, err
 		}
+		cfg.Openings = cfg.OpeningBook
 		cfg.BookFormat = openingFormat(cfg.Openings)
 		cfg.BookCount, err = countOpenings(cfg.Openings, cfg.BookFormat)
 		if err != nil {
@@ -965,6 +1098,14 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 		if cfg.Games/2 > cfg.BookCount {
 			return cfg, fmt.Errorf("%d paired openings requested, but the book only has %d", cfg.Games/2, cfg.BookCount)
 		}
+	}
+	if cfg.OpeningBlockFile != "" {
+		if cfg.OpeningBlockFile, err = existingAbs(cfg.OpeningBlockFile); err != nil {
+			return cfg, err
+		}
+		cfg.Openings = cfg.OpeningBlockFile
+		cfg.BookFormat = openingFormat(cfg.OpeningBlockFile)
+		cfg.BookCount = cfg.OpeningBlockSize
 	}
 	if cfg.Seed == 0 {
 		cfg.Seed = randomSeed()
@@ -1056,7 +1197,103 @@ func initialStatus(cfg matchConfig) matchStatus {
 		RunID: filepath.Base(cfg.RunDir), State: "starting", Stage: "setup", StartedAt: now, UpdatedAt: now,
 		Baseline: cfg.Baseline, Candidate: cfg.Candidate, OptimizerMode: cfg.OptimizerMode, ChangeClass: cfg.ChangeClass, ValidationPolicy: cfg.ValidationPolicy, TimeControl: cfg.TC, TargetGames: cfg.Games,
 		ProgressEvery: cfg.ProgressEvery, ProgressTime: cfg.ProgressTime, OpeningFile: cfg.Openings, OpeningCount: cfg.BookCount, RandomSeed: cfg.Seed, RunDir: cfg.RunDir,
+		OpeningBook: cfg.OpeningBook, OpeningBlockIndex: cfg.OpeningBlockIndex, OpeningBlockSize: cfg.OpeningBlockSize,
+		OpeningBookSHA256: cfg.OpeningBookSHA256, OpeningBlockSHA256: cfg.OpeningBlockSHA256, OpeningBlockColorSwap: cfg.OpeningBlockColorSwap,
 	}
+}
+
+func openingBlockReportFor(cfg matchConfig, status matchStatus) openingBlockReport {
+	state := "running"
+	valid := false
+	counted := false
+	switch status.State {
+	case "completed":
+		if openingBlockComplete(status, cfg) {
+			state = "completed"
+			valid = true
+			counted = true
+		} else {
+			state = "invalid"
+		}
+	case "stopped":
+		state = "interrupted"
+	case "failed":
+		state = "invalid"
+	}
+	return openingBlockReport{
+		SchemaVersion:      openingBlockReportSchema,
+		State:              state,
+		Valid:              valid,
+		Counted:            counted,
+		RunID:              status.RunID,
+		RunDir:             status.RunDir,
+		OpeningBook:        cfg.OpeningBook,
+		OpeningBookSHA256:  status.OpeningBookSHA256,
+		OpeningBlockIndex:  status.OpeningBlockIndex,
+		OpeningBlockSize:   status.OpeningBlockSize,
+		OpeningBlockFile:   status.OpeningFile,
+		OpeningBlockSHA256: status.OpeningBlockSHA256,
+		RandomSeed:         status.RandomSeed,
+		ColorSwap:          status.OpeningBlockColorSwap,
+		TargetGames:        status.TargetGames,
+		Games:              status.Games,
+		Wins:               status.Wins,
+		Losses:             status.Losses,
+		Draws:              status.Draws,
+		Score:              status.Score,
+		Decision:           status.Decision,
+		Error:              status.Error,
+		PGNAudit:           status.PGNAudit,
+		StartedAt:          status.StartedAt,
+		FinishedAt:         status.FinishedAt,
+	}
+}
+
+func openingBlockComplete(status matchStatus, cfg matchConfig) bool {
+	if status.State != "completed" || status.Games != cfg.Games || status.PGNAudit == nil {
+		return false
+	}
+	expectedPairs := cfg.OpeningBlockSize
+	if expectedPairs == 0 {
+		expectedPairs = cfg.Games / 2
+	}
+	audit := status.PGNAudit
+	return audit.Games == cfg.Games && audit.UniqueOpenings == expectedPairs && audit.OpeningGroupsWrongSize == 0
+}
+
+func writeOpeningBlockReport(cfg matchConfig, status matchStatus) error {
+	report := openingBlockReportFor(cfg, status)
+	return writeJSON(filepath.Join(cfg.RunDir, "block-report.json"), report)
+}
+
+func loadOpeningBlockReport(runDir string) (openingBlockReport, error) {
+	var report openingBlockReport
+	data, err := os.ReadFile(filepath.Join(runDir, "block-report.json"))
+	if err != nil {
+		return report, err
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		return report, err
+	}
+	return report, nil
+}
+
+func writeOpeningBlockReportFromStatus(status matchStatus) error {
+	cfg := matchConfig{
+		OpeningBook:           status.OpeningBook,
+		OpeningBlockIndex:     status.OpeningBlockIndex,
+		OpeningBlockSize:      status.OpeningBlockSize,
+		OpeningBlockFile:      status.OpeningFile,
+		OpeningBookSHA256:     status.OpeningBookSHA256,
+		OpeningBlockSHA256:    status.OpeningBlockSHA256,
+		OpeningBlockColorSwap: status.OpeningBlockColorSwap,
+		Openings:              status.OpeningFile,
+		BookCount:             status.OpeningCount,
+		Seed:                  status.RandomSeed,
+		Games:                 status.TargetGames,
+		RunDir:                status.RunDir,
+	}
+	return writeOpeningBlockReport(cfg, status)
 }
 
 func openingFormat(path string) string {
@@ -1278,7 +1515,11 @@ func matchDecision(status matchStatus, sprt bool) string {
 	if status.PGNAudit == nil {
 		return "invalid_missing_pgn_audit"
 	}
-	if status.PGNAudit.UniqueOpenings < minimumOpenings {
+	minimumRequired := minimumOpenings
+	if status.OpeningBlockSize > 0 {
+		minimumRequired = status.OpeningBlockSize
+	}
+	if status.PGNAudit.UniqueOpenings < minimumRequired {
 		return "invalid_insufficient_openings"
 	}
 	if !sprt && status.PGNAudit.OpeningGroupsWrongSize != 0 {

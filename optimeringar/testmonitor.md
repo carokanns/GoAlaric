@@ -84,6 +84,29 @@ parallella partier och kan därför avslutas med ett eller flera ofullständiga
 öppningspar. PGN-auditen rapporterar dem, men de underkänner inte Fastchess
 SPRT-beslut. Ett manuellt stopp avbryter matchen omedelbart.
 
+### Deterministiska öppningsblock
+
+En match materialiserar först ett block från hela boken. Samma bok, seed,
+blockindex och antal par ger samma byte-identiska PGN-/EPD-fil; olika index
+väljer disjunkta delar av samma seedade ordning. Fastchess kör varje öppning
+med `-repeat`, så varje block spelas som färdiga par med växlade färger.
+
+Ett block kan också materialiseras fristående:
+
+```bash
+go run ./cmd/testmonitor materialize-openings \
+  --openings .tools/books/8moves_v3.pgn \
+  --seed 12345 --block-index 3 --pairs 20 \
+  --output artifacts/openings-block-000003.pgn
+```
+
+Varje matchkatalog innehåller dessutom `block-report.json`. Det är en atomiskt
+skriven sammanfattning av blockets identitet, W-D-L, PGN-audit och giltighet.
+Ett färdigt giltigt block markeras `counted: true` och startas inte om. Ett
+stoppat eller ofullständigt block markeras som `interrupted`/`invalid`, räknas
+inte och kan startas om med samma seed och blockparametrar. Den befintliga
+materialiserade filen verifieras då mot bok, seed, blockindex och storlek.
+
 Fastchess dömer vinst när båda motorerna är överens om minst 500 centipawns
 fördel för samma sida under tre på varandra följande bedömningar. Det motsvarar
 ungefär värdet av ett torn. Remiavdömningen börjar efter drag 40 och kräver åtta
