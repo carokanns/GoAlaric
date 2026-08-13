@@ -10,7 +10,7 @@ from .canonical import canonical_json, sha256_json, utc_now
 from .config import CampaignDefinition
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 CAMPAIGN_STATES = {"pending", "running", "completed", "failed", "interrupted", "paused", "rejected"}
 TRIAL_STATES = CAMPAIGN_STATES
 BLOCK_STATES = {"pending", "running", "completed", "failed", "interrupted", "rejected"}
@@ -124,6 +124,10 @@ CREATE TABLE IF NOT EXISTS match_blocks (
     materialized_openings_sha256 TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('pending','running','completed','failed','interrupted','rejected')),
     pid INTEGER,
+    process_group_id INTEGER,
+    attempt INTEGER NOT NULL DEFAULT 0,
+    run_dir TEXT,
+    command_json TEXT,
     wins INTEGER NOT NULL DEFAULT 0,
     draws INTEGER NOT NULL DEFAULT 0,
     losses INTEGER NOT NULL DEFAULT 0,
@@ -243,10 +247,20 @@ class Database:
             existing = connection.execute(
                 "SELECT value FROM schema_meta WHERE key='schema_version'"
             ).fetchone()
-            if existing is not None and existing["value"] != str(SCHEMA_VERSION):
-                raise DatabaseError(
-                    f"unsupported database schema version: {existing['value']} (expected {SCHEMA_VERSION})"
-                )
+            if existing is not None:
+                version = int(existing["value"])
+                if version == 1:
+                    connection.execute("ALTER TABLE match_blocks ADD COLUMN process_group_id INTEGER")
+                    connection.execute("ALTER TABLE match_blocks ADD COLUMN attempt INTEGER NOT NULL DEFAULT 0")
+                    connection.execute("ALTER TABLE match_blocks ADD COLUMN run_dir TEXT")
+                    connection.execute("ALTER TABLE match_blocks ADD COLUMN command_json TEXT")
+                    connection.execute(
+                        "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
+                    )
+                elif version != SCHEMA_VERSION:
+                    raise DatabaseError(
+                        f"unsupported database schema version: {existing['value']} (expected {SCHEMA_VERSION})"
+                    )
             connection.execute(
                 "INSERT OR IGNORE INTO schema_meta(key, value) VALUES('schema_version', ?)",
                 (str(SCHEMA_VERSION),),
@@ -514,6 +528,269 @@ class Database:
             )
             return block_id
 
+    def ensure_fake_schedule(
+        self,
+        campaign_id: str,
+        block_count: int,
+        pairs_per_block: int,
+        partition_name: str = "fake",
+    ) -> tuple[str, list[str]]:
+        """Create an idempotent fake trial and deterministic fake blocks.
+
+        This is deliberately a test-only schedule. It never invokes an engine
+        and gives the phase-6 scheduler stable identities to replay.
+        """
+        if block_count < 1 or pairs_per_block < 1:
+            raise DatabaseError("block_count and pairs_per_block must be positive")
+        now = utc_now()
+        with self._transaction() as connection:
+            campaign = self._campaign(connection, campaign_id)
+            config = json.loads(campaign["config_json"])
+            if config.get("mode") != "fake":
+                raise DatabaseError("the fake scheduler requires a campaign with mode=fake")
+            baseline = connection.execute(
+                "SELECT parameter_set_id FROM parameter_sets WHERE campaign_id=? AND group_name='baseline' "
+                "ORDER BY created_at LIMIT 1",
+                (campaign_id,),
+            ).fetchone()
+            if baseline is None:
+                raise DatabaseError("baseline parameter set is missing")
+            existing_trial = connection.execute(
+                "SELECT trial_id FROM trials WHERE campaign_id=? AND parameter_set_id=?",
+                (campaign_id, baseline["parameter_set_id"]),
+            ).fetchone()
+            if existing_trial is None:
+                number = connection.execute(
+                    "SELECT COUNT(*) FROM trials WHERE campaign_id=?", (campaign_id,)
+                ).fetchone()[0] + 1
+                trial_id = f"trial-{number:06d}"
+                connection.execute(
+                    "INSERT INTO trials(trial_id,campaign_id,parameter_set_id,status,algorithm,seed,created_at,updated_at) "
+                    "VALUES(?,?,?,?,?,?,?,?)",
+                    (trial_id, campaign_id, baseline["parameter_set_id"], "pending", "fake", campaign["master_seed"], now, now),
+                )
+                self._event(
+                    connection,
+                    campaign_id,
+                    "trial_created",
+                    "trial",
+                    trial_id,
+                    {"parameter_set_id": baseline["parameter_set_id"], "algorithm": "fake", "seed": campaign["master_seed"]},
+                    to_status="pending",
+                )
+            else:
+                trial_id = str(existing_trial["trial_id"])
+
+            book_hash = sha256_json(["fake-opening-book-v1", campaign_id, partition_name])
+            block_ids: list[str] = []
+            for block_index in range(block_count):
+                openings_hash = sha256_json(
+                    ["fake-opening-block-v1", campaign_id, partition_name, block_index, campaign["master_seed"]]
+                )
+                identity = [
+                    campaign_id,
+                    trial_id,
+                    partition_name,
+                    block_index,
+                    pairs_per_block,
+                    campaign["master_seed"],
+                    book_hash,
+                    openings_hash,
+                ]
+                block_id = f"block-{sha256_json(identity)[:20]}"
+                existing_block = connection.execute(
+                    "SELECT block_id FROM match_blocks WHERE block_id=?", (block_id,)
+                ).fetchone()
+                if existing_block is None:
+                    connection.execute(
+                        "INSERT INTO match_blocks(block_id,campaign_id,trial_id,partition_name,block_index,pairs_per_block,"
+                        "master_seed,opening_book_sha256,materialized_openings_sha256,status,created_at,updated_at) "
+                        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (
+                            block_id,
+                            campaign_id,
+                            trial_id,
+                            partition_name,
+                            block_index,
+                            pairs_per_block,
+                            campaign["master_seed"],
+                            book_hash,
+                            openings_hash,
+                            "pending",
+                            now,
+                            now,
+                        ),
+                    )
+                    self._event(
+                        connection,
+                        campaign_id,
+                        "block_created",
+                        "match_block",
+                        block_id,
+                        {"trial_id": trial_id, "block_index": block_index, "fake": True},
+                        to_status="pending",
+                    )
+                block_ids.append(block_id)
+            return trial_id, block_ids
+
+    def claim_next_block(self, campaign_id: str) -> dict[str, Any] | None:
+        """Reserve the first missing block, enforcing one running block."""
+        with self._transaction() as connection:
+            campaign = self._campaign(connection, campaign_id)
+            if campaign["status"] != "running":
+                return None
+            running = connection.execute(
+                "SELECT COUNT(*) FROM match_blocks WHERE campaign_id=? AND status='running'", (campaign_id,)
+            ).fetchone()[0]
+            if running:
+                raise CampaignBusy(f"campaign {campaign_id} already has a running match block")
+            row = connection.execute(
+                "SELECT * FROM match_blocks WHERE campaign_id=? AND status IN ('pending','interrupted') "
+                "ORDER BY block_index,created_at,block_id LIMIT 1",
+                (campaign_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            now = utc_now()
+            connection.execute(
+                "UPDATE match_blocks SET status='running',attempt=attempt+1,pid=NULL,process_group_id=NULL,"
+                "run_dir=NULL,command_json=NULL,error=NULL,started_at=?,finished_at=NULL,updated_at=? WHERE block_id=?",
+                (now, now, row["block_id"]),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "match_block_started",
+                "match_block",
+                row["block_id"],
+                {"attempt": int(row["attempt"]) + 1},
+                from_status=row["status"],
+                to_status="running",
+            )
+            return dict(connection.execute("SELECT * FROM match_blocks WHERE block_id=?", (row["block_id"],)).fetchone())
+
+    def set_block_process(
+        self,
+        campaign_id: str,
+        block_id: str,
+        pid: int,
+        process_group_id: int,
+        run_dir: str,
+        command: list[str],
+    ) -> dict[str, Any]:
+        if pid < 1 or process_group_id < 1:
+            raise DatabaseError("process identifiers must be positive")
+        with self._transaction() as connection:
+            block = connection.execute(
+                "SELECT status FROM match_blocks WHERE block_id=? AND campaign_id=?",
+                (block_id, campaign_id),
+            ).fetchone()
+            if block is None:
+                raise DatabaseError(f"unknown match block: {block_id}")
+            if block["status"] != "running":
+                raise InvalidTransition(f"cannot attach a process to block {block_id} from {block['status']}")
+            connection.execute(
+                "UPDATE match_blocks SET pid=?,process_group_id=?,run_dir=?,command_json=?,updated_at=? "
+                "WHERE block_id=? AND campaign_id=?",
+                (pid, process_group_id, run_dir, _json(command), utc_now(), block_id, campaign_id),
+            )
+            return dict(connection.execute("SELECT * FROM match_blocks WHERE block_id=?", (block_id,)).fetchone())
+
+    def running_block_processes(self, campaign_id: str) -> list[dict[str, Any]]:
+        with self._read() as connection:
+            self._campaign(connection, campaign_id)
+            rows = connection.execute(
+                "SELECT * FROM match_blocks WHERE campaign_id=? AND status='running' ORDER BY block_index",
+                (campaign_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def interrupt_block(self, campaign_id: str, block_id: str, reason: str) -> dict[str, Any]:
+        with self._transaction() as connection:
+            block = connection.execute(
+                "SELECT * FROM match_blocks WHERE block_id=? AND campaign_id=?", (block_id, campaign_id)
+            ).fetchone()
+            if block is None:
+                raise DatabaseError(f"unknown match block: {block_id}")
+            if block["status"] != "running":
+                return dict(block)
+            now = utc_now()
+            connection.execute(
+                "UPDATE match_blocks SET status='interrupted',pid=NULL,process_group_id=NULL,run_dir=NULL,"
+                "command_json=NULL,error=?,finished_at=?,updated_at=? WHERE block_id=? AND campaign_id=?",
+                (reason, now, now, block_id, campaign_id),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "match_block_interrupted",
+                "match_block",
+                block_id,
+                {"reason": reason, "attempt": block["attempt"]},
+                from_status="running",
+                to_status="interrupted",
+            )
+            return dict(connection.execute("SELECT * FROM match_blocks WHERE block_id=?", (block_id,)).fetchone())
+
+    def finish_completed_work(self, campaign_id: str) -> dict[str, int | bool]:
+        """Finish trials/campaign only after every planned block is complete."""
+        with self._transaction() as connection:
+            campaign = self._campaign(connection, campaign_id)
+            trial_rows = connection.execute(
+                "SELECT trial_id,status FROM trials WHERE campaign_id=? ORDER BY created_at", (campaign_id,)
+            ).fetchall()
+            completed_trials = 0
+            for trial in trial_rows:
+                counts = connection.execute(
+                    "SELECT COUNT(*) AS total, COALESCE(SUM(status='completed'),0) AS completed "
+                    "FROM match_blocks WHERE campaign_id=? AND trial_id=?",
+                    (campaign_id, trial["trial_id"]),
+                ).fetchone()
+                if counts["total"] and counts["total"] == counts["completed"] and trial["status"] != "completed":
+                    now = utc_now()
+                    connection.execute(
+                        "UPDATE trials SET status='completed',finished_at=?,updated_at=? WHERE trial_id=?",
+                        (now, now, trial["trial_id"]),
+                    )
+                    self._event(
+                        connection,
+                        campaign_id,
+                        "trial_status_changed",
+                        "trial",
+                        trial["trial_id"],
+                        {"reason": "all match blocks completed"},
+                        from_status=trial["status"],
+                        to_status="completed",
+                    )
+                    completed_trials += 1
+            total_blocks = connection.execute(
+                "SELECT COUNT(*) FROM match_blocks WHERE campaign_id=?", (campaign_id,)
+            ).fetchone()[0]
+            incomplete_blocks = connection.execute(
+                "SELECT COUNT(*) FROM match_blocks WHERE campaign_id=? AND status!='completed'", (campaign_id,)
+            ).fetchone()[0]
+            completed = bool(
+                campaign["status"] == "running" and total_blocks and incomplete_blocks == 0
+            )
+            if completed:
+                now = utc_now()
+                connection.execute(
+                    "UPDATE campaigns SET status='completed',finished_at=?,updated_at=?,revision=revision+1 "
+                    "WHERE campaign_id=?",
+                    (now, now, campaign_id),
+                )
+                self._event(
+                    connection,
+                    campaign_id,
+                    "campaign_status_changed",
+                    "campaign",
+                    campaign_id,
+                    {"reason": "all match blocks completed"},
+                    from_status="running",
+                    to_status="completed",
+                )
+            return {"completed_trials": completed_trials, "campaign_completed": completed}
+
     def _transition(
         self,
         connection: sqlite3.Connection,
@@ -543,6 +820,8 @@ class Database:
         if new_status == "running":
             assignments.append("started_at=COALESCE(started_at, ?)")
             values.append(now)
+            assignments.append("finished_at=NULL")
+            assignments.append("error=NULL")
         if new_status in {"completed", "failed", "interrupted", "rejected"}:
             assignments.append("finished_at=?")
             values.append(now)
@@ -583,10 +862,14 @@ class Database:
             if new_status not in CAMPAIGN_TRANSITIONS[old_status]:
                 raise InvalidTransition(f"cannot transition campaign {campaign_id} from {old_status} to {new_status}")
             now = utc_now()
-            finished = now if new_status in {"completed", "failed", "interrupted", "rejected"} else None
             connection.execute(
-                "UPDATE campaigns SET status=?,updated_at=?,finished_at=COALESCE(?,finished_at),revision=revision+1 WHERE campaign_id=?",
-                (new_status, now, finished, campaign_id),
+                "UPDATE campaigns SET status=?,updated_at=?,finished_at=?,revision=revision+1 WHERE campaign_id=?",
+                (
+                    new_status,
+                    now,
+                    now if new_status in {"completed", "failed", "interrupted", "rejected"} else None,
+                    campaign_id,
+                ),
             )
             self._event(
                 connection,
@@ -669,7 +952,22 @@ class Database:
     ) -> tuple[dict[str, Any], tuple[int, str]]:
         if min(wins, draws, losses) < 0:
             raise DatabaseError("block result counts cannot be negative")
+        game_results = result.get("games") if isinstance(result, dict) else None
+        if game_results is not None:
+            if not isinstance(game_results, list):
+                raise DatabaseError("block result games must be a list")
+            if len(game_results) != wins + draws + losses:
+                raise DatabaseError("block result game count does not match W-D-L")
+            for game in game_results:
+                value = game.get("result") if isinstance(game, dict) else game
+                if value not in {"1-0", "0-1", "1/2-1/2"}:
+                    raise DatabaseError(f"unsupported fake game result: {value}")
         with self._transaction() as connection:
+            campaign = self._campaign(connection, campaign_id)
+            if campaign["status"] != "running":
+                raise InvalidTransition(
+                    f"cannot complete block {block_id} while campaign is {campaign['status']}"
+                )
             block = connection.execute(
                 "SELECT * FROM match_blocks WHERE block_id=? AND campaign_id=?", (block_id, campaign_id)
             ).fetchone()
@@ -679,7 +977,8 @@ class Database:
                 raise InvalidTransition(f"cannot complete block {block_id} from {block['status']}")
             now = utc_now()
             connection.execute(
-                "UPDATE match_blocks SET status='completed',wins=?,draws=?,losses=?,score=?,result_json=?,finished_at=?,updated_at=? "
+                "UPDATE match_blocks SET status='completed',wins=?,draws=?,losses=?,score=?,result_json=?,pid=NULL,"
+                "process_group_id=NULL,run_dir=NULL,command_json=NULL,finished_at=?,updated_at=? "
                 "WHERE block_id=? AND campaign_id=?",
                 (wins, draws, losses, score, _json(result), now, now, block_id, campaign_id),
             )
@@ -693,6 +992,15 @@ class Database:
                 from_status="running",
                 to_status="completed",
             )
+            if game_results is not None:
+                for game_index, game in enumerate(game_results):
+                    value = game.get("result") if isinstance(game, dict) else game
+                    game_id = f"{block_id}-game-{game_index:04d}"
+                    connection.execute(
+                        "INSERT INTO games(game_id,campaign_id,block_id,game_index,result,created_at) "
+                        "VALUES(?,?,?,?,?,?)",
+                        (game_id, campaign_id, block_id, game_index, value, now),
+                    )
             state_row = connection.execute(
                 "SELECT revision FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
             ).fetchone()
@@ -715,7 +1023,7 @@ class Database:
             updated = dict(connection.execute("SELECT * FROM match_blocks WHERE block_id=?", (block_id,)).fetchone())
             return updated, (revision, checkpoint_hash)
 
-    def recover_abandoned_jobs(self, campaign_id: str) -> dict[str, int]:
+    def recover_abandoned_jobs(self, campaign_id: str, reason: str = "running job has no trusted owner") -> dict[str, int]:
         recovered = {"trials": 0, "blocks": 0}
         with self._transaction() as connection:
             self._campaign(connection, campaign_id)
@@ -725,8 +1033,9 @@ class Database:
             ).fetchall()
             for row in blocks:
                 connection.execute(
-                    "UPDATE match_blocks SET status='interrupted',error=?,finished_at=?,updated_at=? WHERE block_id=?",
-                    ("running job recovered as interrupted", now, now, row["block_id"]),
+                    "UPDATE match_blocks SET status='interrupted',pid=NULL,process_group_id=NULL,run_dir=NULL,"
+                    "command_json=NULL,error=?,finished_at=?,updated_at=? WHERE block_id=?",
+                    (reason, now, now, row["block_id"]),
                 )
                 self._event(
                     connection,
@@ -734,7 +1043,7 @@ class Database:
                     "abandoned_job_recovered",
                     "match_block",
                     row["block_id"],
-                    {"reason": "running job has no trusted owner"},
+                    {"reason": reason},
                     from_status="running",
                     to_status="interrupted",
                 )
@@ -745,7 +1054,7 @@ class Database:
             for row in trials:
                 connection.execute(
                     "UPDATE trials SET status='interrupted',error=?,finished_at=?,updated_at=? WHERE trial_id=?",
-                    ("running job recovered as interrupted", now, now, row["trial_id"]),
+                    (reason, now, now, row["trial_id"]),
                 )
                 self._event(
                     connection,
@@ -753,7 +1062,7 @@ class Database:
                     "abandoned_job_recovered",
                     "trial",
                     row["trial_id"],
-                    {"reason": "running job has no trusted owner"},
+                    {"reason": reason},
                     from_status="running",
                     to_status="interrupted",
                 )

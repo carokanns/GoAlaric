@@ -105,6 +105,7 @@ class Phase5Test(unittest.TestCase):
         self.assertEqual(trial, database.create_trial("fake-phase5", parameter_set, "fake", 42))
         block = database.create_match_block("fake-phase5", trial, "training", 0, 2, 42, "book", "openings")
         self.assertEqual(block, database.create_match_block("fake-phase5", trial, "training", 0, 2, 42, "book", "openings"))
+        database.transition_campaign("fake-phase5", "running")
         database.transition_trial("fake-phase5", trial, "running")
         database.transition_block("fake-phase5", block, "running")
         with self.assertRaises(InvalidTransition):

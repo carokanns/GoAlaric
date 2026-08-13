@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -19,6 +20,7 @@ from .service import (
     run_campaign,
     stop_campaign,
 )
+from .scheduler import SchedulerError, run_fake_scheduler
 
 
 def _data_dir(value: str | None) -> Path:
@@ -40,6 +42,13 @@ def _parser() -> argparse.ArgumentParser:
     run = commands.add_parser("run", help="enter the fake campaign running state")
     run.add_argument("campaign_id")
     run.add_argument("--fake", action="store_true", help="explicitly select the phase-5 fake execution path")
+    run.add_argument(
+        "--monitor-command",
+        help="phase-6 fake testmonitor command as one shell-like string; it must write the supplied result JSON",
+    )
+    run.add_argument("--blocks", type=int, default=1, help="number of deterministic fake blocks")
+    run.add_argument("--pairs-per-block", type=int, default=1)
+    run.add_argument("--poll-interval", type=float, default=0.05)
     _add_data_dir(run)
 
     status = commands.add_parser("status", help="read campaign status")
@@ -97,7 +106,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         if args.command == "run":
-            _print(run_campaign(data_dir, args.campaign_id, fake=True))
+            if args.monitor_command:
+                if not args.fake:
+                    raise ServiceError("--monitor-command is only available with --fake in phase 6")
+                _print(
+                    run_fake_scheduler(
+                        data_dir,
+                        args.campaign_id,
+                        shlex.split(args.monitor_command),
+                        block_count=args.blocks,
+                        pairs_per_block=args.pairs_per_block,
+                        poll_interval=args.poll_interval,
+                    )
+                )
+            else:
+                _print(run_campaign(data_dir, args.campaign_id, fake=True))
             return 0
         if args.command == "status":
             if not args.watch:
@@ -135,6 +158,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print(trials[0])
             return 0
         raise ServiceError(f"unsupported command: {args.command}")
-    except (DatabaseError, InvalidTransition, ServiceError, ValueError) as exc:
+    except (DatabaseError, InvalidTransition, ServiceError, SchedulerError, ValueError) as exc:
         print(f"goalaric_optimizer: {exc}", file=sys.stderr)
         return 1
