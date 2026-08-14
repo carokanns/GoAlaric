@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import shlex
 from dataclasses import dataclass, replace
@@ -47,6 +48,8 @@ class OptimizeSettings:
     max_evaluations: int
     max_passes: int
     parameter_names: tuple[str, ...] | None
+    exploratory: bool
+    exploratory_min_score: float
     adaptive: AdaptivePolicy
     fake_optimum: dict[str, int] | None
     confirmation: ConfirmationSettings
@@ -89,6 +92,25 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
     else:
         raise OptimizationError("goals.optimizer.parameters must be a list of names")
 
+    raw_exploratory = optimizer_goals.get("exploratory", False)
+    if isinstance(raw_exploratory, bool):
+        exploratory = raw_exploratory
+        exploratory_min_score = 51.0
+    elif isinstance(raw_exploratory, dict):
+        exploratory = raw_exploratory.get("enabled", True)
+        exploratory_min_score = raw_exploratory.get("min_score", 51.0)
+        if not isinstance(exploratory, bool):
+            raise OptimizationError("goals.optimizer.exploratory.enabled must be boolean")
+    else:
+        raise OptimizationError("goals.optimizer.exploratory must be boolean or an object")
+    if (
+        isinstance(exploratory_min_score, bool)
+        or not isinstance(exploratory_min_score, (int, float))
+        or not math.isfinite(float(exploratory_min_score))
+        or not 0.0 <= float(exploratory_min_score) <= 100.0
+    ):
+        raise OptimizationError("goals.optimizer.exploratory.min_score must be between 0 and 100")
+
     adaptive = AdaptivePolicy(
         min_blocks=_integer(adaptive_goals.get("min_blocks", 1), "adaptive.min_blocks", 1),
         max_blocks=_integer(adaptive_goals.get("max_blocks", 2), "adaptive.max_blocks", 1),
@@ -118,6 +140,8 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
         max_evaluations=max_evaluations,
         max_passes=max_passes,
         parameter_names=parameter_names,
+        exploratory=exploratory,
+        exploratory_min_score=float(exploratory_min_score),
         adaptive=adaptive,
         fake_optimum=fake_optimum,
         confirmation=confirmation,
@@ -418,8 +442,10 @@ def _materialize_recommendation(
     if snapshot is None or snapshot.get("status") != "completed":
         return None
     recommendation_hash = snapshot.get("recommendation_parameter_hash")
+    if recommendation_hash is None:
+        return None
     if not isinstance(recommendation_hash, str) or not recommendation_hash:
-        raise OptimizationError("completed confirmation has no recommendation parameter hash")
+        raise OptimizationError("completed confirmation has an invalid recommendation parameter hash")
     if recommendation_hash == snapshot.get("candidate_parameter_hash"):
         document = snapshot.get("candidate_document")
     elif recommendation_hash == snapshot.get("baseline_parameter_hash"):
@@ -522,6 +548,8 @@ class AutonomousOptimizer:
             evaluator,
             max_passes=settings.max_passes,
             parameter_names=list(settings.parameter_names) if settings.parameter_names is not None else None,
+            exploratory=settings.exploratory,
+            exploratory_min_score=settings.exploratory_min_score,
         )
         self.processed = 0
 

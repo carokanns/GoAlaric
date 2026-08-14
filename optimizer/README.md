@@ -1,4 +1,4 @@
-# GoAlaric optimizer – version 1.1
+# GoAlaric optimizer – version 1.1.1
 
 ## Version 1 / fas 11
 
@@ -140,8 +140,8 @@ gallring och kan återupptas med samma kommando:
 
 Utfallet är `confirmed` när intervallets nedre gräns är över 50 procent,
 `rejected` när den övre gränsen är under 50 procent, annars `inconclusive`.
-Endast `confirmed` får ge en kandidatstatus som rekommenderad; övriga utfall
-behåller baseline som rekommendation. Ingen kod eller parameterfil promoveras
+Endast `confirmed` får ge en kandidatstatus som rekommenderad. Vid övriga
+utfall görs ingen rekommendation och ingen kod eller parameterfil promoveras
 automatiskt.
 
 För falska verifieringskampanjer kan `confirmation.fake_result` anges som
@@ -152,10 +152,9 @@ flödet använder samma `goals.real`-konfiguration som den autonoma
 intervall; kampanjens vanliga matchbudget räknar inte bekräftelsepartierna.
 
 När bekräftelsen är färdig skrivs `recommended-parameters.json` i kampanjens
-datakatalog och registreras som ett separat SQLite-artifact. Vid `confirmed`
-innehåller den slutkandidaten; vid `rejected` eller `inconclusive` innehåller
-den ursprunglig baseline. Filen är endast ett underlag för manuell granskning;
-ingen automatisk promotion sker.
+datakatalog och registreras som ett separat SQLite-artifact endast vid
+`confirmed`. Vid `rejected` eller `inconclusive` lämnas rekommendationsfält och
+rekommendationsfil tomma. Ingen automatisk promotion sker.
 
 ## Slutverifiering för v1.1
 
@@ -164,6 +163,35 @@ Körbara JSON-exempel finns i
 [`examples/phase15-v1.1-registry.json`](examples/phase15-v1.1-registry.json).
 Den fullständiga terminalrunbooken finns i
 [`docs/phase15-v1.1-runbook.md`](docs/phase15-v1.1-runbook.md).
+
+## v1.1.1 / explorativ sökning
+
+Den vanliga sökningen är fortsatt strikt och flyttar endast ankaret efter ett
+statistiskt `accept`. För nattliga sökningar kan kampanjen uttryckligen slå på
+ett separat explorativt läge:
+
+```json
+{
+  "goals": {
+    "optimizer": {
+      "parameters": ["activity_bias"],
+      "exploratory": {
+        "enabled": true,
+        "min_score": 51.0
+      }
+    }
+  }
+}
+```
+
+När kandidatens maximala adaptiva sökbudget är förbrukad används punktresultatet
+endast i detta läge: `score > min_score` blir `accept_exploratory` och flyttar
+ankaret, annars blir det `reject_exploratory`. Resultatet märks med
+`exploratory: true` och är inte statistiskt bekräftat. Standardläget är strikt.
+
+Den avslutande fasta bekräftelsen påverkas inte och behåller sitt strikta
+95-procentsintervall. Ett explorativt sökbeslut kan därför aldrig ensamt bli en
+rekommendation eller promotion.
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och

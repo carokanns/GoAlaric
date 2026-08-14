@@ -84,9 +84,16 @@ class ConfirmationFakeOutcomesTest(unittest.TestCase):
                 self.assertEqual(report["result"]["automatic_promotion"], False)
                 self.assertEqual(
                     report["recommendation_parameter_hash"],
-                    report["candidate_parameter_hash"] if expected == "confirmed" else report["baseline_parameter_hash"],
+                    report["candidate_parameter_hash"] if expected == "confirmed" else None,
                 )
                 self.assertNotEqual(report["candidate_parameter_hash"], report["baseline_parameter_hash"])
+                self.assertEqual(
+                    report["recommendation"], "candidate" if expected == "confirmed" else None
+                )
+                self.assertEqual(
+                    "recommendation_parameter_file" in report,
+                    expected == "confirmed",
+                )
                 self.assertEqual(len(report["blocks"]), 10)
                 self.assertEqual(sum(block["status"] == "completed" for block in report["blocks"]), 10)
                 with database._read() as connection:

@@ -455,9 +455,20 @@ class MultiResolutionCoordinateSearch:
         evaluator: Evaluator,
         max_passes: int = 100,
         parameter_names: list[str] | tuple[str, ...] | None = None,
+        exploratory: bool = False,
+        exploratory_min_score: float = 51.0,
     ) -> None:
         if max_passes < 1:
             raise CoordinateSearchError("max_passes must be positive")
+        if not isinstance(exploratory, bool):
+            raise CoordinateSearchError("exploratory must be boolean")
+        if (
+            isinstance(exploratory_min_score, bool)
+            or not isinstance(exploratory_min_score, (int, float))
+            or not math.isfinite(float(exploratory_min_score))
+            or not 0.0 <= float(exploratory_min_score) <= 100.0
+        ):
+            raise CoordinateSearchError("exploratory_min_score must be between 0 and 100")
         self.database = database
         self.campaign_id = campaign_id
         self.registry = registry
@@ -477,6 +488,8 @@ class MultiResolutionCoordinateSearch:
         self.parameter_names = selected_names
         self.specs = tuple(by_name[name] for name in selected_names)
         self.max_passes = max_passes
+        self.exploratory = exploratory
+        self.exploratory_min_score = float(exploratory_min_score)
 
     def run(self, max_results: int = 0) -> dict[str, Any]:
         if max_results < 0:
@@ -530,6 +543,13 @@ class MultiResolutionCoordinateSearch:
                 raise CoordinateSearchError("multi-resolution registry changed after initialization")
             if tuple(stored.get("parameter_names", ())) != self.parameter_names:
                 raise CoordinateSearchError("selected coordinate parameters changed after initialization")
+            stored_exploratory = stored.get("exploratory", {"enabled": False, "min_score": 51.0})
+            expected_exploratory = {
+                "enabled": self.exploratory,
+                "min_score": self.exploratory_min_score,
+            }
+            if stored_exploratory != expected_exploratory:
+                raise CoordinateSearchError("exploratory search policy changed after initialization")
             self.max_passes = int(stored["max_passes"])
             return stored
         if stored.get("algorithm") is not None:
@@ -562,6 +582,10 @@ class MultiResolutionCoordinateSearch:
             "registry_sha256": self.registry.sha256,
             "registry_name": self.registry.name,
             "parameter_names": list(self.parameter_names),
+            "exploratory": {
+                "enabled": self.exploratory,
+                "min_score": self.exploratory_min_score,
+            },
             "initial_steps": initial_steps,
             "min_steps": min_steps,
             "step_by_parameter": dict(initial_steps),
@@ -609,7 +633,12 @@ class MultiResolutionCoordinateSearch:
 
         candidate_hash = sha256_json(candidate)
         result, trial_id, is_new = self._evaluate_candidate(candidate, candidate_hash, state)
-        result = self._classify(result, state["coordinate_base_result"])
+        result = self._classify(
+            result,
+            state["coordinate_base_result"],
+            exploratory=self.exploratory,
+            exploratory_min_score=self.exploratory_min_score,
+        )
         result["direction"] = direction
         result["step"] = step
         updated = self._apply_coordinate_result(state, direction, candidate, candidate_hash, result)
@@ -730,7 +759,12 @@ class MultiResolutionCoordinateSearch:
         return _with_value(document, spec.name, value)
 
     @staticmethod
-    def _classify(result: dict[str, Any], anchor: dict[str, Any]) -> dict[str, Any]:
+    def _classify(
+        result: dict[str, Any],
+        anchor: dict[str, Any],
+        exploratory: bool = False,
+        exploratory_min_score: float = 51.0,
+    ) -> dict[str, Any]:
         reused_against_other_anchor = (
             result.get("reused")
             and "candidate_objective" not in result
@@ -750,7 +784,22 @@ class MultiResolutionCoordinateSearch:
             delta = float(result["score"]) - float(anchor["score"])
             margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
             decision = result.get("decision")
-            if decision == "accept":
+            if decision == "accept_exploratory":
+                classification = "win"
+                result["exploratory"] = True
+            elif decision == "reject_exploratory":
+                classification = "loss"
+                result["exploratory"] = True
+            elif decision == "uncertain" and exploratory:
+                result["exploratory"] = True
+                result["exploratory_threshold"] = exploratory_min_score
+                if float(result["score"]) > exploratory_min_score:
+                    result["decision"] = "accept_exploratory"
+                    classification = "win"
+                else:
+                    result["decision"] = "reject_exploratory"
+                    classification = "loss"
+            elif decision == "accept":
                 classification = "win"
             elif decision in {"reject", "reject_early"}:
                 classification = "loss"
@@ -859,6 +908,8 @@ class MultiResolutionCoordinateSearch:
         return {
             "campaign": campaign,
             "algorithm": self.ALGORITHM,
+            "search_mode": "exploratory" if algorithm_state.get("exploratory", {}).get("enabled") else "strict",
+            "exploratory": algorithm_state.get("exploratory", {"enabled": False, "min_score": 51.0}),
             "phase": algorithm_state.get("phase"),
             "pass": algorithm_state.get("pass"),
             "parameter_names": algorithm_state.get("parameter_names", []),

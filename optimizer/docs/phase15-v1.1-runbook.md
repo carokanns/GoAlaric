@@ -108,14 +108,15 @@ optimizer report "$CAMPAIGN_ID" --data-dir "$DATA_DIR" \
 optimizer report "$CAMPAIGN_ID" --data-dir "$DATA_DIR" \
   --format html --output "$DATA_DIR/$CAMPAIGN_ID/final-report.html"
 cat "$DATA_DIR/$CAMPAIGN_ID/final-report.json"
-cat "$DATA_DIR/$CAMPAIGN_ID/recommended-parameters.json"
+test ! -e "$DATA_DIR/$CAMPAIGN_ID/recommended-parameters.json" || \
+  cat "$DATA_DIR/$CAMPAIGN_ID/recommended-parameters.json"
 ```
 
 Bekräftelsen jämför alltid slutkandidaten med ursprunglig baseline. Utfallet
 `confirmed` får rekommendera kandidaten. Vid `rejected` eller `inconclusive`
-ska rapportens `recommendation` vara `baseline` och den skrivna
-`recommended-parameters.json` ha samma parameterhash som baseline. Fältet
-`automatic_promotion` ska alltid vara `false`.
+ska rapportens `recommendation` vara tomt och filen
+`recommended-parameters.json` saknas.
+Fältet `automatic_promotion` ska alltid vara `false`.
 
 ## Reproducerbar verifiering
 

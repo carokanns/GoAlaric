@@ -373,8 +373,8 @@ class ConfirmationCampaign:
             raise ConfirmationError("confirmation record was not initialized")
         if existing["candidate_parameter_hash"] == existing["baseline_parameter_hash"]:
             # A real runner must never be asked to play a self-match. There is
-            # no changed candidate to confirm, so baseline remains the only
-            # safe recommendation and the evidence is explicitly inconclusive.
+            # no changed candidate to confirm; the evidence is explicitly
+            # inconclusive and carries no recommendation.
             result = {
                 "blocks_completed": 0,
                 "games": 0,
@@ -388,8 +388,8 @@ class ConfirmationCampaign:
                 "confidence": self.settings.confidence,
                 "outcome": "inconclusive",
                 "block_ids": [],
-                "recommendation_parameter_hash": existing["baseline_parameter_hash"],
-                "recommendation": "baseline",
+                "recommendation_parameter_hash": None,
+                "recommendation": None,
                 "automatic_promotion": False,
             }
             return self.database.finalize_confirmation(self.campaign_id, result)
@@ -414,9 +414,12 @@ class ConfirmationCampaign:
                 if blocks and all(row["status"] == "completed" for row in blocks):
                     result = _summary(blocks, self.settings.confidence)
                     candidate_hash = str(snapshot["candidate_parameter_hash"])
-                    baseline_hash = str(snapshot["baseline_parameter_hash"])
-                    result["recommendation_parameter_hash"] = candidate_hash if result["outcome"] == "confirmed" else baseline_hash
-                    result["recommendation"] = "candidate" if result["outcome"] == "confirmed" else "baseline"
+                    if result["outcome"] == "confirmed":
+                        result["recommendation_parameter_hash"] = candidate_hash
+                        result["recommendation"] = "candidate"
+                    else:
+                        result["recommendation_parameter_hash"] = None
+                        result["recommendation"] = None
                     result["automatic_promotion"] = False
                     return self.database.finalize_confirmation(self.campaign_id, result)
                 raise ConfirmationError("confirmation has no runnable block but is not complete")

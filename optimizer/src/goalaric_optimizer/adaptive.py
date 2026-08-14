@@ -235,7 +235,14 @@ class AdaptiveCampaign:
             if (
                 isinstance(stored_result, dict)
                 and stored_result.get("phase") == "terminal"
-                and stored_result.get("decision") in {"accept", "reject", "reject_early", "uncertain"}
+                and stored_result.get("decision") in {
+                    "accept",
+                    "reject",
+                    "reject_early",
+                    "uncertain",
+                    "accept_exploratory",
+                    "reject_exploratory",
+                }
             ):
                 # A process may die after the adaptive controller has stored its
                 # terminal evidence but before coordinate search records it.
