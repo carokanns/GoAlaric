@@ -92,3 +92,76 @@ func TestCheckedInDefaultParameterFileMatchesExporter(t *testing.T) {
 		t.Fatalf("checked-in standard file differs from exporter:\n%s\nwant:\n%s", checkedIn, exported)
 	}
 }
+
+func TestSearchRegistryIsStableAndComplete(t *testing.T) {
+	registry := SearchRegistry()
+	if len(registry) != 1 {
+		t.Fatalf("search registry has %d parameters, want 1", len(registry))
+	}
+	got := registry[0]
+	if got.Name != "lmr_divisor_x100" || got.Default != 225 || got.Min != 125 || got.Max != 400 || got.Step != 5 {
+		t.Fatalf("search registry descriptor = %+v", got)
+	}
+	if Search.LMRDivisorX100 != got.Default {
+		t.Fatalf("search default=%d, want %d", Search.LMRDivisorX100, got.Default)
+	}
+}
+
+func TestSearchParameterFileRejectsInvalidRangeAndStep(t *testing.T) {
+	file := DefaultSearchParameterFile()
+
+	file.Parameters[0].Value = 124
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("search parameter below the allowed range was accepted")
+	}
+
+	file.Parameters[0].Value = 126
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("search parameter with an invalid step was accepted")
+	}
+
+	file.Parameters[0].Value = 401
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("search parameter above the allowed range was accepted")
+	}
+}
+
+func TestCheckedInDefaultSearchParameterFileMatchesExporter(t *testing.T) {
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	path := filepath.Join(filepath.Dir(source), "..", "optimizer", "registries", "search-lmr-v1-default.json")
+	checkedIn, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported, err := DefaultSearchParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(checkedIn, exported) {
+		t.Fatalf("checked-in search file differs from exporter:\n%s\nwant:\n%s", checkedIn, exported)
+	}
+}
+
+func TestSearchParameterFileLeavesEvaluationParametersUntouched(t *testing.T) {
+	originalParms := Parms
+	originalSearch := Search
+	t.Cleanup(func() {
+		Parms = originalParms
+		Search = originalSearch
+	})
+
+	file := DefaultSearchParameterFile()
+	file.Parameters[0].Value = 175
+	if err := ApplyParameterFile(file); err != nil {
+		t.Fatal(err)
+	}
+	if Search.LMRDivisorX100 != 175 {
+		t.Fatalf("LMR divisor = %d, want 175", Search.LMRDivisorX100)
+	}
+	if Parms != originalParms {
+		t.Fatal("search-lmr-v1 changed the legacy evaluation parameter vector")
+	}
+}

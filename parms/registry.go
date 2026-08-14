@@ -231,21 +231,26 @@ func ParseParameterFile(data []byte) (ParameterFile, error) {
 	return normalize(file)
 }
 
-// ApplyParameterFile applies the validated pilot values to the legacy Parms
-// vector. Derived evaluation state is refreshed by eval.ApplyParameterFile;
-// this package intentionally does not import eval.
+// ApplyParameterFile applies a validated parameter file to its own registry.
+// Derived evaluation and search state are refreshed by their respective
+// packages; parms intentionally does not import either package.
 func ApplyParameterFile(file ParameterFile) error {
 	normalized, err := normalize(file)
 	if err != nil {
 		return err
 	}
-	for _, value := range normalized.Parameters {
-		for _, descriptor := range pilotRegistry {
-			if descriptor.Name == value.Name {
-				Parms[descriptor.Index] = value.Value
-				break
+	switch normalized.Registry {
+	case registryName:
+		for _, value := range normalized.Parameters {
+			for _, descriptor := range pilotRegistry {
+				if descriptor.Name == value.Name {
+					Parms[descriptor.Index] = value.Value
+					break
+				}
 			}
 		}
+	case searchRegistryName:
+		Search.LMRDivisorX100 = normalized.Parameters[0].Value
 	}
 	return nil
 }
@@ -254,18 +259,24 @@ func normalize(file ParameterFile) (ParameterFile, error) {
 	if file.SchemaVersion != RegistryVersion {
 		return ParameterFile{}, fmt.Errorf("unsupported parameter schema %d", file.SchemaVersion)
 	}
-	if file.Registry != registryName {
+	var descriptors []ParameterDescriptor
+	switch file.Registry {
+	case registryName:
+		descriptors = pilotRegistry[:]
+	case searchRegistryName:
+		descriptors = searchRegistry[:]
+	default:
 		return ParameterFile{}, fmt.Errorf("unsupported parameter registry %q", file.Registry)
 	}
-	if len(file.Parameters) != len(pilotRegistry) {
-		return ParameterFile{}, fmt.Errorf("parameter count %d, want %d", len(file.Parameters), len(pilotRegistry))
+	if len(file.Parameters) != len(descriptors) {
+		return ParameterFile{}, fmt.Errorf("parameter count %d, want %d", len(file.Parameters), len(descriptors))
 	}
 
-	ordered := make([]ParameterValue, len(pilotRegistry))
-	seen := make([]bool, len(pilotRegistry))
+	ordered := make([]ParameterValue, len(descriptors))
+	seen := make([]bool, len(descriptors))
 	for _, value := range file.Parameters {
 		index := -1
-		for registryIndex, descriptor := range pilotRegistry {
+		for registryIndex, descriptor := range descriptors {
 			if descriptor.Name == value.Name {
 				index = registryIndex
 				break
@@ -278,7 +289,7 @@ func normalize(file ParameterFile) (ParameterFile, error) {
 			return ParameterFile{}, fmt.Errorf("duplicate parameter %q", value.Name)
 		}
 		seen[index] = true
-		descriptor := pilotRegistry[index]
+		descriptor := descriptors[index]
 		if value.Value < descriptor.Min || value.Value > descriptor.Max {
 			return ParameterFile{}, fmt.Errorf("parameter %q=%d outside [%d,%d]", descriptor.Name, value.Value, descriptor.Min, descriptor.Max)
 		}
@@ -287,7 +298,7 @@ func normalize(file ParameterFile) (ParameterFile, error) {
 		}
 		ordered[index] = ParameterValue{Name: descriptor.Name, Value: value.Value}
 	}
-	for index, descriptor := range pilotRegistry {
+	for index, descriptor := range descriptors {
 		if !seen[index] {
 			return ParameterFile{}, fmt.Errorf("missing parameter %q", descriptor.Name)
 		}

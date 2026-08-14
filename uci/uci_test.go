@@ -62,6 +62,49 @@ func TestSetoptionParameterFileLoadsAndReportsIdentity(t *testing.T) {
 	}
 }
 
+func TestSetoptionSearchParameterFileRefreshesLMR(t *testing.T) {
+	originalSearch := parms.Search
+	originalTellGUI := tellGUI
+	originalPath := parameterFilePath
+	originalSHA := parameterFileSHA
+	t.Cleanup(func() {
+		parms.Search = originalSearch
+		search.RefreshRuntimeParameters()
+		parameterFilePath = originalPath
+		parameterFileSHA = originalSHA
+		tellGUI = originalTellGUI
+	})
+
+	parms.Search.LMRDivisorX100 = 225
+	search.RefreshRuntimeParameters()
+	baseline := search.LMRReduction(12, 30)
+	file := parms.DefaultSearchParameterFile()
+	file.Parameters[0].Value = 175
+	data, err := parms.MarshalParameterFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir() + "/search-lmr.json"
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var output []string
+	tellGUI = func(line string) { output = append(output, line) }
+	HandleInput("setoption name ParameterFile value "+path, &chSearch)
+
+	if parms.Search.LMRDivisorX100 != 175 {
+		t.Fatalf("LMR divisor = %d, want 175", parms.Search.LMRDivisorX100)
+	}
+	if got := search.LMRReduction(12, 30); got <= baseline {
+		t.Fatalf("refreshed LMR reduction = %d, want greater than %d", got, baseline)
+	}
+	joined := strings.Join(output, "\n")
+	if !strings.Contains(joined, "registry_name=search-lmr-v1") {
+		t.Fatalf("search registry was not reported: %q", joined)
+	}
+}
+
 func TestSetoptionParameterFileRejectsInvalidFile(t *testing.T) {
 	original := parms.Parms
 	originalTellGUI := tellGUI

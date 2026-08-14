@@ -85,9 +85,14 @@ const tablebaseWinScore = EvalMAX - maxPly
 var lmrReductions [maxDepth + 1][lmrMoveLimit]int
 
 func initLMRReductions() {
+	lmrReductions = [maxDepth + 1][lmrMoveLimit]int{}
+	divisor := float64(parms.Search.LMRDivisorX100) / 100.0
+	if divisor <= 0 {
+		divisor = 2.25
+	}
 	for depth := 1; depth <= maxDepth; depth++ {
 		for moveNumber := 1; moveNumber < lmrMoveLimit; moveNumber++ {
-			reduction := int(0.75 + math.Log(float64(depth))*math.Log(float64(moveNumber))/2.25)
+			reduction := int(0.75 + math.Log(float64(depth))*math.Log(float64(moveNumber))/divisor)
 			if reduction > depth-2 {
 				reduction = depth - 2
 			}
@@ -96,6 +101,29 @@ func initLMRReductions() {
 			}
 		}
 	}
+}
+
+// RefreshRuntimeParameters rebuilds search-derived tables after a validated
+// runtime parameter file has been applied.
+func RefreshRuntimeParameters() {
+	initLMRReductions()
+}
+
+// LMRReduction returns the table value for diagnostics and regression tests.
+func LMRReduction(depth, moveNumber int) int {
+	if depth < 0 {
+		depth = 0
+	}
+	if depth > maxDepth {
+		depth = maxDepth
+	}
+	if moveNumber < 0 {
+		moveNumber = 0
+	}
+	if moveNumber >= lmrMoveLimit {
+		moveNumber = lmrMoveLimit - 1
+	}
+	return lmrReductions[depth][moveNumber]
 }
 
 // Different types of handling for the go command from GUI

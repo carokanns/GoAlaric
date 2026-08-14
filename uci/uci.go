@@ -486,10 +486,11 @@ func setParameterFile(path string) {
 		tellGUI("info string ParameterFile rejected: " + err.Error())
 		return
 	}
+	search.RefreshRuntimeParameters()
 	search.ClearSearchCaches()
 	parameterFilePath = path
 	parameterFileSHA = digest
-	tellGUI(fmt.Sprintf("info string ParameterFile loaded: registry=%d sha256=%s source=%s", parms.RegistryVersion, digest, source))
+	tellGUI(fmt.Sprintf("info string ParameterFile loaded: registry=%d registry_name=%s sha256=%s source=%s", file.SchemaVersion, file.Registry, digest, source))
 }
 
 // SetPosition sets up a position from the GUI position command (see UCI spec)

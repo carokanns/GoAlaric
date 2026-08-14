@@ -31,9 +31,9 @@ func identifyParameterFile(path string) (string, int, error) {
 		}
 		return sha, parms.RegistryVersion, nil
 	}
-	_, sha, err := parms.LoadParameterFile(path)
+	file, sha, err := parms.LoadParameterFile(path)
 	if err != nil {
 		return "", 0, fmt.Errorf("load parameter file %q: %w", path, err)
 	}
-	return sha, parms.RegistryVersion, nil
+	return sha, file.SchemaVersion, nil
 }
