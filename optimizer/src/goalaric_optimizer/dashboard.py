@@ -215,6 +215,22 @@ def _finished(campaign_status: str, trials: list[dict[str, Any]], blocks: list[d
     return not any(block["status"] in {"pending", "running", "interrupted"} for block in blocks)
 
 
+def _compact_report(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Remove per-block detail from the standard report, preserving summaries."""
+    def strip(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: strip(item)
+                for key, item in value.items()
+                if key not in {"block_ids", "blocks"}
+            }
+        if isinstance(value, list):
+            return [strip(item) for item in value]
+        return value
+
+    return strip(snapshot)
+
+
 class DashboardReader:
     """Read a campaign using a SQLite read-only connection for every snapshot."""
 
@@ -310,11 +326,11 @@ class DashboardReader:
             current = trials[0]
 
         completed_trials = [trial for trial in trials if trial["status"] == "completed"]
-        best_trial = max(
+        highest_local_trial = max(
             completed_trials,
             key=lambda trial: (
-                float(trial["metrics"].get("elo_estimate", 0.0)) if trial["metrics"].get("games", 0) else -100000.0,
                 float(trial["metrics"].get("score_percent", 0.0)),
+                float(trial["metrics"].get("elo_estimate", 0.0)) if trial["metrics"].get("games", 0) else -100000.0,
                 str(trial["created_at"]),
             ),
             default=None,
@@ -323,9 +339,9 @@ class DashboardReader:
             (item for item in parameters.values() if item is not None and item["group_name"] == "baseline"),
             None,
         )
-        best_parameter = best_trial["parameter"] if best_trial is not None else baseline
+        highest_local_parameter = highest_local_trial["parameter"] if highest_local_trial is not None else baseline
         baseline_values = baseline["values"] if baseline is not None else {}
-        best_values = best_parameter["values"] if best_parameter is not None else {}
+        highest_local_values = highest_local_parameter["values"] if highest_local_parameter is not None else {}
         all_metrics = _metrics(block_rows, None)
         counts = {"completed": 0, "rejected": 0, "waiting": 0}
         for trial in trials:
@@ -431,9 +447,67 @@ class DashboardReader:
                     recommendation_artifact["sha256"] if recommendation_artifact is not None else None
                 ),
             }
+        checkpoint_state = checkpoint.get("state", {}) if isinstance(checkpoint, dict) else {}
+        anchor_document = checkpoint_state.get("anchor_parameters")
+        if not isinstance(anchor_document, dict):
+            anchor_document = {}
+        anchor_hash = checkpoint_state.get("anchor_hash")
+        final_anchor = {
+            "source": "optimizer_checkpoint",
+            "parameter_hash": anchor_hash,
+            "parameters": anchor_document,
+            "values": _parameter_values(anchor_document),
+            "result": checkpoint_state.get("anchor_result"),
+            "phase": checkpoint_state.get("phase"),
+            "stop_reason": checkpoint_state.get("stop_reason"),
+            "result_count": checkpoint_state.get("result_count"),
+            "checkpoint_revision": checkpoint.get("revision") if isinstance(checkpoint, dict) else None,
+            "checkpoint_updated_at": checkpoint.get("updated_at") if isinstance(checkpoint, dict) else None,
+        }
+        highest_local = {
+            "source": "highest_local_trial",
+            "trial_id": highest_local_trial["trial_id"] if highest_local_trial is not None else None,
+            "parameter_set_id": (
+                highest_local_parameter["parameter_set_id"] if highest_local_parameter is not None else None
+            ),
+            "parameter_hash": (
+                highest_local_parameter["parameter_hash"] if highest_local_parameter is not None else None
+            ),
+            "parameters": (
+                highest_local_parameter["document"] if highest_local_parameter is not None else None
+            ),
+            "values": highest_local_values,
+            "metrics": highest_local_trial["metrics"] if highest_local_trial is not None else None,
+        }
+        confirmed_document = confirmation.get("candidate_parameters") if confirmation else None
+        if isinstance(confirmed_document, dict):
+            reported_values = _parameter_values(confirmed_document)
+        else:
+            reported_values = _parameter_values(anchor_document) or baseline_values
+        search_games = int(all_metrics.get("games", 0))
+        confirmation_games = int(confirmation.get("games", 0)) if confirmation else 0
+        total_games = search_games + confirmation_games
+        search_finished_at = (
+            checkpoint.get("updated_at")
+            if isinstance(checkpoint, dict) and checkpoint_state.get("phase") == "completed"
+            else campaign["finished_at"]
+        )
+        confirmation_started_at = confirmation.get("started_at") if confirmation else None
+        confirmation_finished_at = confirmation.get("finished_at") if confirmation else None
+        campaign_finished_at = (
+            confirmation_finished_at
+            if confirmation is not None and confirmation.get("status") == "completed"
+            else (campaign["finished_at"] if confirmation is None else None)
+        )
         raw_campaign_status = str(campaign["status"])
         display_campaign_status = raw_campaign_status
-        if confirmation is not None and confirmation["status"] != "completed" and raw_campaign_status == "completed":
+        if confirmation is not None and confirmation["status"] != "completed" and raw_campaign_status in {
+            "pending",
+            "running",
+            "paused",
+            "interrupted",
+            "completed",
+        }:
             display_campaign_status = "confirming"
         displayed_finished_at = campaign["finished_at"]
         if confirmation is not None and confirmation["status"] == "completed":
@@ -460,29 +534,41 @@ class DashboardReader:
                 "created_at": campaign["created_at"],
                 "updated_at": campaign["updated_at"],
                 "finished_at": displayed_finished_at,
+                "search_finished_at": search_finished_at,
+                "confirmation_finished_at": confirmation_finished_at,
             },
             "current_trial": current,
             "campaign_metrics": all_metrics,
             "confirmation": confirmation,
             "candidate_counts": counts,
             "candidates": trials,
-            "consumed_games": int(all_metrics.get("games", 0)),
+            "search_games": search_games,
+            "confirmation_games": confirmation_games,
+            "total_games": total_games,
+            "consumed_games": total_games,
+            "times": {
+                "campaign_created_at": campaign["created_at"],
+                "search_finished_at": search_finished_at,
+                "confirmation_started_at": confirmation_started_at,
+                "confirmation_finished_at": confirmation_finished_at,
+                "campaign_finished_at": campaign_finished_at,
+            },
             "checkpoint": checkpoint,
             "latest_error": error_rows[0] if error_rows else None,
-            "best_parameters": {
-                "source": "completed_trial" if best_trial is not None else "baseline",
-                "trial_id": best_trial["trial_id"] if best_trial is not None else None,
-                "parameter_set_id": best_parameter["parameter_set_id"] if best_parameter is not None else None,
-                "parameter_hash": best_parameter["parameter_hash"] if best_parameter is not None else None,
-                "values": best_values,
-                "metrics": best_trial["metrics"] if best_trial is not None else None,
-            },
+            "final_anchor": final_anchor,
+            "highest_local_trial": highest_local,
+            # Compatibility alias; it deliberately points to the checkpoint
+            # anchor, never to the highest-scoring local trial.
+            "best_parameters": final_anchor,
             "baseline_parameters": {
                 "parameter_set_id": baseline["parameter_set_id"] if baseline is not None else None,
                 "parameter_hash": baseline["parameter_hash"] if baseline is not None else None,
                 "values": baseline_values,
             },
-            "parameter_differences": _parameter_diff(baseline_values, best_values),
+            "final_anchor_parameter_differences": _parameter_diff(
+                baseline_values, final_anchor["values"]
+            ),
+            "parameter_differences": _parameter_diff(baseline_values, reported_values),
             "database": {"path": str(self.database_path), "journal_mode": "wal"},
         }
 
@@ -509,8 +595,15 @@ def _html_text(value: Any) -> str:
 def render_report_html(snapshot: dict[str, Any]) -> str:
     campaign = snapshot["campaign"]
     current = snapshot.get("current_trial") or {}
-    metrics = current.get("metrics") or snapshot.get("campaign_metrics") or {}
+    confirmation = snapshot.get("confirmation") or {}
+    metrics = (
+        confirmation.get("metrics")
+        if confirmation.get("status") == "completed"
+        else current.get("metrics") or snapshot.get("campaign_metrics") or {}
+    )
     counts = snapshot.get("candidate_counts") or {}
+    final_anchor = snapshot.get("final_anchor") or {}
+    highest_local = snapshot.get("highest_local_trial") or {}
     rows = "".join(
         "<tr>"
         f"<td>{_html_text(item.get('trial_id'))}</td>"
@@ -544,12 +637,15 @@ def render_report_html(snapshot: dict[str, Any]) -> str:
 <div class="card"><div class="label">Elo</div><div class="value">{_html_text(metrics.get('elo_estimate'))}</div></div>
 <div class="card"><div class="label">95% Elo CI</div><div class="value">{_html_text(metrics.get('elo_ci_low'))} … {_html_text(metrics.get('elo_ci_high'))}</div></div>
 <div class="card"><div class="label">95% score CI</div><div class="value">{_html_text(metrics.get('score_ci_low'))}% … {_html_text(metrics.get('score_ci_high'))}%</div></div>
-<div class="card"><div class="label">Consumed games</div><div class="value">{_html_text(snapshot.get('consumed_games'))}</div></div>
+<div class="card"><div class="label">Search games</div><div class="value">{_html_text(snapshot.get('search_games'))}</div></div>
+<div class="card"><div class="label">Confirmation games</div><div class="value">{_html_text(snapshot.get('confirmation_games'))}</div></div>
+<div class="card"><div class="label">Total games</div><div class="value">{_html_text(snapshot.get('total_games'))}</div></div>
 </div></section>
 <section><h2>Candidates</h2><p>Completed: {_html_text(counts.get('completed', 0))} · rejected: {_html_text(counts.get('rejected', 0))} · waiting: {_html_text(counts.get('waiting', 0))}</p>
 <table><thead><tr><th>Trial</th><th>Status</th><th>W–D–L</th><th>Score</th><th>Parameter hash</th></tr></thead><tbody>{rows}</tbody></table></section>
-<section><h2>Best parameters vs baseline</h2><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Best</th><th>Delta</th></tr></thead><tbody>{parameter_rows}</tbody></table></section>
-<section><h2>Fixed confirmation</h2><pre>{html.escape(json.dumps(snapshot.get('confirmation'), ensure_ascii=False, indent=2))}</pre></section>
+<section><h2>Final anchor from optimizer checkpoint</h2><pre>{html.escape(json.dumps(final_anchor, ensure_ascii=False, indent=2))}</pre><h3>Highest local trial (search history)</h3><pre>{html.escape(json.dumps(highest_local, ensure_ascii=False, indent=2))}</pre></section>
+<section><h2>Confirmed candidate vs baseline</h2><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Candidate</th><th>Delta</th></tr></thead><tbody>{parameter_rows}</tbody></table><pre>{html.escape(json.dumps(confirmation, ensure_ascii=False, indent=2))}</pre></section>
+<section><h2>Times</h2><pre>{html.escape(json.dumps(snapshot.get('times'), ensure_ascii=False, indent=2))}</pre></section>
 <section><h2>Latest checkpoint</h2><pre>{html.escape(checkpoint)}</pre><h2>Latest error</h2><pre>{html.escape(json.dumps(latest_error, ensure_ascii=False, indent=2))}</pre></section>
 <footer>Generated {_html_text(snapshot.get('generated_at'))}; SQLite source opened read-only.</footer></body></html>"""
 
@@ -568,7 +664,7 @@ table{border-collapse:collapse;width:100%}th,td{padding:.46rem;border-bottom:1px
 <section id="confirmation-section" hidden><h2>Confirmation</h2><p><strong id="confirmation-status">—</strong> · candidate hash: <code id="confirmation-candidate-hash">—</code></p><div class="grid"><div class="card"><div class="label">Opening pairs</div><div id="confirmation-pairs" class="value">—</div></div><div class="card"><div class="label">Games</div><div id="confirmation-games" class="value">—</div></div><div class="card"><div class="label">W–D–L</div><div id="confirmation-wdl" class="value">—</div></div><div class="card"><div class="label">Score</div><div id="confirmation-score" class="value">—</div></div><div class="card"><div class="label">Elo</div><div id="confirmation-elo" class="value">—</div></div><div class="card"><div class="label">95% CI (score)</div><div id="confirmation-score-ci" class="value">—</div></div><div class="card"><div class="label">Elapsed</div><div id="confirmation-elapsed" class="value">—</div></div><div class="card"><div class="label">Estimated remaining</div><div id="confirmation-eta" class="value">—</div></div></div><p id="confirmation-times" class="muted"></p><h3>Final candidate vs baseline</h3><div class="scroll"><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Candidate</th><th>Delta</th></tr></thead><tbody id="confirmation-parameters"></tbody></table></div></section>
 <section><h2>Candidate queue</h2><div class="grid"><div class="card"><div class="label">Completed</div><div id="completed-count" class="value">—</div></div><div class="card"><div class="label">Rejected</div><div id="rejected-count" class="value">—</div></div><div class="card"><div class="label">Waiting</div><div id="waiting-count" class="value">—</div></div></div><div class="scroll"><table><thead><tr><th>Trial</th><th>Status</th><th>Algorithm</th><th>W–D–L</th><th>Score</th><th>Elo</th><th>Parameter hash</th></tr></thead><tbody id="candidates"></tbody></table></div></section>
 <section><h2>Current trial</h2><div id="current-details" class="muted">—</div></section>
-<section><h2>Best parameter set vs baseline</h2><p id="best-source" class="muted">—</p><div class="scroll"><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Best</th><th>Delta</th></tr></thead><tbody id="parameters"></tbody></table></div></section>
+<section><h2>Final anchor from optimizer checkpoint</h2><p id="best-source" class="muted">—</p><div class="scroll"><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Anchor</th><th>Delta</th></tr></thead><tbody id="parameters"></tbody></table></div></section>
 <section><h2>Checkpoint and latest error</h2><pre id="checkpoint">—</pre><pre id="error">—</pre></section>
 <script>
 const refreshMs=__REFRESH_MS__;
@@ -590,8 +686,8 @@ function render(data){
  ['completed','rejected','waiting'].forEach(k=>document.getElementById(k+'-count').textContent=h(counts[k]||0));
  document.getElementById('candidates').innerHTML=(data.candidates||[]).map(item=>{const x=item.metrics||{};return '<tr><td>'+h(item.trial_id)+'</td><td>'+h(item.status)+'</td><td>'+h(item.algorithm)+'</td><td>'+h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses)+'</td><td>'+h(x.score_percent)+'%</td><td>'+h(x.elo_estimate)+'</td><td>'+h((item.parameter||{}).parameter_hash)+'</td></tr>';}).join('');
  const block=t.current_block; document.getElementById('current-details').innerHTML='<strong>Status:</strong> '+h(t.status)+' · <strong>parameter:</strong> '+h((t.parameter||{}).parameter_hash)+' · <strong>next/current block:</strong> '+h(block?block.block_index:'—')+' · <strong>attempt:</strong> '+h(block?block.attempt:'—')+'<br><strong>algorithm:</strong> '+h(t.algorithm)+' · <strong>error:</strong> '+h(t.error);
- const best=data.best_parameters||{};document.getElementById('best-source').textContent='Source: '+(best.source||'—')+' · trial: '+(best.trial_id||'—')+' · hash: '+(best.parameter_hash||'—');
- document.getElementById('parameters').innerHTML=(data.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');
+ const best=data.final_anchor||{};document.getElementById('best-source').textContent='Source: '+(best.source||'—')+' · checkpoint: '+(best.checkpoint_revision||'—')+' · hash: '+(best.parameter_hash||'—');
+ document.getElementById('parameters').innerHTML=(data.final_anchor_parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');
  const confirmationSection=document.getElementById('confirmation-section');confirmationSection.hidden=!confirmation;
  if(confirmation){const x=confirmation.metrics||confirmation;document.getElementById('confirmation-status').textContent=confirmation.status+(confirmation.outcome?' · '+confirmation.outcome:'');document.getElementById('confirmation-candidate-hash').textContent=confirmation.candidate_parameter_hash||'—';document.getElementById('confirmation-pairs').textContent=h(x.pairs_completed)+' / '+h(x.pairs_target);document.getElementById('confirmation-games').textContent=h(x.games_completed)+' / '+h(x.games_target);document.getElementById('confirmation-wdl').textContent=h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses);document.getElementById('confirmation-score').textContent=h(x.score_percent)+'%';document.getElementById('confirmation-elo').textContent=h(x.elo_estimate);document.getElementById('confirmation-score-ci').textContent=h(x.score_ci_low)+'% … '+h(x.score_ci_high)+'%';document.getElementById('confirmation-elapsed').textContent=h(confirmation.elapsed_seconds)+' s';document.getElementById('confirmation-eta').textContent=h(confirmation.estimated_remaining_seconds)+' s';document.getElementById('confirmation-times').textContent='Started: '+h(confirmation.started_at)+' · Finished: '+h(confirmation.finished_at)+' · Updated: '+h(confirmation.updated_at);document.getElementById('confirmation-parameters').innerHTML=(confirmation.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');}
  document.getElementById('checkpoint').textContent=JSON.stringify(data.checkpoint||null,null,2);
@@ -636,13 +732,16 @@ class _DashboardHandler(BaseHTTPRequestHandler):
                 if not snapshot["campaign"]["finished"]:
                     self._send_json({"error": "campaign is not finished"}, HTTPStatus.CONFLICT)
                 else:
-                    self._send_json(snapshot)
+                    self._send_json(_compact_report(snapshot))
                 return
             if route.path in {"/report", "/report.html"}:
                 if not snapshot["campaign"]["finished"]:
                     self._send_json({"error": "campaign is not finished"}, HTTPStatus.CONFLICT)
                 else:
-                    self._send(render_report_html(snapshot).encode("utf-8"), "text/html; charset=utf-8")
+                    self._send(
+                        render_report_html(_compact_report(snapshot)).encode("utf-8"),
+                        "text/html; charset=utf-8",
+                    )
                 return
             self._send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
         except (DashboardError, OSError, sqlite3.Error) as exc:
@@ -683,12 +782,19 @@ def serve_dashboard(
         server.server_close()
 
 
-def final_report(data_dir: Path, campaign_id: str, report_format: str = "html") -> tuple[dict[str, Any], str]:
+def final_report(
+    data_dir: Path,
+    campaign_id: str,
+    report_format: str = "html",
+    detail: bool = False,
+) -> tuple[dict[str, Any], str]:
     if report_format not in {"html", "json"}:
         raise DashboardError("report format must be html or json")
     snapshot = DashboardReader(data_dir, campaign_id).snapshot()
     if not snapshot["campaign"]["finished"]:
         raise DashboardError("campaign is not finished; final report is unavailable")
+    if not detail:
+        snapshot = _compact_report(snapshot)
     if report_format == "json":
         content = json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n"
     else:

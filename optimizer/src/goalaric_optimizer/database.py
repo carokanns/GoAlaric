@@ -1109,6 +1109,30 @@ class Database:
             )
             return dict(connection.execute("SELECT * FROM campaigns WHERE campaign_id=?", (campaign_id,)).fetchone())
 
+    def begin_confirmation(self, campaign_id: str) -> dict[str, Any]:
+        """Keep the persisted campaign non-terminal while confirmation runs."""
+        with self._transaction() as connection:
+            row = self._campaign(connection, campaign_id)
+            if row["status"] != "completed":
+                return dict(row)
+            now = utc_now()
+            connection.execute(
+                "UPDATE campaigns SET status='running',updated_at=?,finished_at=NULL,revision=revision+1 "
+                "WHERE campaign_id=?",
+                (now, campaign_id),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "campaign_status_changed",
+                "campaign",
+                campaign_id,
+                {"reason": "fixed confirmation started"},
+                from_status="completed",
+                to_status="running",
+            )
+            return dict(connection.execute("SELECT * FROM campaigns WHERE campaign_id=?", (campaign_id,)).fetchone())
+
     def transition_trial(
         self, campaign_id: str, trial_id: str, new_status: str, error: str | None = None, result: Any = None
     ) -> dict[str, Any]:
@@ -1752,6 +1776,23 @@ class Database:
                     confirmation["confirmation_id"],
                 ),
             )
+            campaign = self._campaign(connection, campaign_id)
+            if campaign["status"] != "completed":
+                connection.execute(
+                    "UPDATE campaigns SET status='completed',finished_at=?,updated_at=?,revision=revision+1 "
+                    "WHERE campaign_id=?",
+                    (now, now, campaign_id),
+                )
+                self._event(
+                    connection,
+                    campaign_id,
+                    "campaign_status_changed",
+                    "campaign",
+                    campaign_id,
+                    {"reason": "fixed confirmation completed"},
+                    from_status=campaign["status"],
+                    to_status="completed",
+                )
             self._event(
                 connection,
                 campaign_id,
@@ -1958,7 +1999,13 @@ class Database:
                 confirmation.update(live_metrics)
             raw_status = str(campaign["status"])
             display_status = raw_status
-            if confirmation is not None and confirmation["status"] != "completed" and raw_status == "completed":
+            if confirmation is not None and confirmation["status"] != "completed" and raw_status in {
+                "pending",
+                "running",
+                "paused",
+                "interrupted",
+                "completed",
+            }:
                 display_status = "confirming"
             return {
                 "campaign_id": campaign["campaign_id"],

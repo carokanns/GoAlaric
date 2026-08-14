@@ -177,6 +177,11 @@ def _parser() -> argparse.ArgumentParser:
     report.add_argument("campaign_id")
     report.add_argument("--format", choices=("html", "json"), default="html")
     report.add_argument("--output", type=Path)
+    report.add_argument(
+        "--detail",
+        action="store_true",
+        help="include per-block IDs and block records; standard reports are compact",
+    )
     _add_data_dir(report)
 
     status = commands.add_parser("status", help="read campaign status")
@@ -412,7 +417,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             serve_dashboard(data_dir, args.campaign_id, args.listen, args.refresh_ms)
             return 0
         if args.command in {"dashboard-report", "report"}:
-            snapshot, content = final_report(data_dir, args.campaign_id, args.format)
+            snapshot, content = final_report(data_dir, args.campaign_id, args.format, detail=args.detail)
             if args.output is None:
                 print(content, end="")
             else:

@@ -280,6 +280,23 @@ class Phase15FinalVerificationTest(unittest.TestCase):
             )
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertTrue(report["campaign"]["finished"])
+            self.assertEqual(report["campaign"]["status"], "completed")
+            self.assertEqual(report["final_anchor"]["source"], "optimizer_checkpoint")
+            self.assertEqual(report["highest_local_trial"]["source"], "highest_local_trial")
+            self.assertEqual(
+                report["confirmation"]["candidate_parameter_hash"],
+                report["final_anchor"]["parameter_hash"],
+            )
+            self.assertEqual(
+                report["parameter_differences"],
+                report["confirmation"]["parameter_differences"],
+            )
+            self.assertEqual(
+                report["total_games"],
+                report["search_games"] + report["confirmation_games"],
+            )
+            self.assertNotIn("blocks", report)
+            self.assertNotIn("block_ids", report)
             self.assertEqual(report["confirmation"]["outcome"], "confirmed")
             self.assertEqual(report["confirmation"]["recommendation_parameter_file"], str(recommendation_path))
 

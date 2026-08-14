@@ -196,7 +196,7 @@ class ConfirmationFakeOutcomesTest(unittest.TestCase):
 
             status = database.status_snapshot("confirmation-dashboard")
             self.assertEqual(status["status"], "confirming")
-            self.assertEqual(status["raw_status"], "completed")
+            self.assertEqual(status["raw_status"], "running")
             self.assertEqual(status["confirmation"]["games"], 4)
             self.assertEqual(status["confirmation"]["wins"], 4)
 

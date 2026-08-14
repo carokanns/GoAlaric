@@ -476,6 +476,9 @@ def _run_confirmation(
     confirmation_settings = settings.confirmation
     if not confirmation_settings.enabled:
         return {}
+    existing_confirmation = database.confirmation(definition.campaign_id)
+    if existing_confirmation is None or existing_confirmation["status"] != "completed":
+        database.begin_confirmation(definition.campaign_id)
     candidate = _final_search_candidate(database, definition.campaign_id)
     baseline = _original_baseline(database, definition.campaign_id)
     if database.confirmation(definition.campaign_id) is None:
