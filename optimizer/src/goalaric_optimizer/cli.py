@@ -470,3 +470,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     ) as exc:
         print(f"goalaric_optimizer: {exc}", file=sys.stderr)
         return 1
+    except KeyboardInterrupt:
+        # Ctrl-C is the normal way to leave status --watch.  Do not turn a
+        # clean observer shutdown into a traceback or a failed command.
+        return 0

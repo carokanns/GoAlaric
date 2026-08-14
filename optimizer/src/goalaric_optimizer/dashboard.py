@@ -177,6 +177,36 @@ def _parameter_diff(baseline: dict[str, int], best: dict[str, int]) -> list[dict
     ]
 
 
+def _timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+
+
+def _confirmation_timing(
+    started_at: str | None,
+    finished_at: str | None,
+    pairs_completed: int,
+    pairs_target: int,
+) -> dict[str, Any]:
+    started = _timestamp(started_at)
+    finished = _timestamp(finished_at)
+    end = finished or datetime.now(timezone.utc)
+    elapsed = max(0.0, (end - started).total_seconds()) if started is not None else None
+    remaining = None
+    if elapsed is not None and elapsed > 0 and pairs_completed > 0:
+        rate = pairs_completed / elapsed
+        remaining = max(0.0, (pairs_target - pairs_completed) / rate)
+    return {
+        "elapsed_seconds": round(elapsed, 3) if elapsed is not None else None,
+        "estimated_remaining_seconds": round(remaining, 3) if remaining is not None else None,
+    }
+
+
 def _finished(campaign_status: str, trials: list[dict[str, Any]], blocks: list[dict[str, Any]]) -> bool:
     if campaign_status in TERMINAL_CAMPAIGN_STATES:
         return True
@@ -307,6 +337,16 @@ class DashboardReader:
             confirmation_row = confirmation_connection.execute(
                 "SELECT * FROM confirmations WHERE campaign_id=?", (self.campaign_id,)
             ).fetchone()
+            confirmation_block_rows = []
+            if confirmation_row is not None:
+                confirmation_block_rows = [
+                    dict(row)
+                    for row in confirmation_connection.execute(
+                        "SELECT * FROM confirmation_blocks WHERE campaign_id=? AND confirmation_id=? "
+                        "ORDER BY block_index,block_id",
+                        (self.campaign_id, confirmation_row["confirmation_id"]),
+                    ).fetchall()
+                ]
             recommendation_artifact = confirmation_connection.execute(
                 "SELECT path,sha256 FROM artifacts WHERE campaign_id=? AND kind='recommended_parameters' "
                 "ORDER BY created_at DESC LIMIT 1",
@@ -315,20 +355,75 @@ class DashboardReader:
         confirmation: dict[str, Any] | None = None
         if confirmation_row is not None:
             confirmation_result = _json(confirmation_row["result_json"], {})
+            candidate_document = _json(confirmation_row["candidate_document_json"], {})
+            baseline_document = _json(confirmation_row["baseline_document_json"], {})
+            if not isinstance(candidate_document, dict):
+                candidate_document = {}
+            if not isinstance(baseline_document, dict):
+                baseline_document = {}
+            confirmation_metrics = aggregate_wdl(
+                confirmation_block_rows, confidence=float(confirmation_row["confidence"])
+            )
+            completed_blocks = [
+                block for block in confirmation_block_rows if block["status"] == "completed"
+            ]
+            pairs_completed = sum(int(block["pairs_per_block"]) for block in completed_blocks)
+            pairs_target = int(confirmation_row["games_target"]) // 2
+            confirmation_metrics.update(
+                {
+                    "pairs_completed": pairs_completed,
+                    "pairs_target": pairs_target,
+                    "games_completed": int(confirmation_metrics["games"]),
+                    "games_target": int(confirmation_row["games_target"]),
+                }
+            )
+            timing = _confirmation_timing(
+                confirmation_row["started_at"],
+                confirmation_row["finished_at"],
+                pairs_completed,
+                pairs_target,
+            )
             confirmation = {
                 "confirmation_id": confirmation_row["confirmation_id"],
                 "status": confirmation_row["status"],
                 "outcome": confirmation_row["outcome"],
+                "candidate_parameter_hash": confirmation_row["candidate_parameter_hash"],
+                "baseline_parameter_hash": confirmation_row["baseline_parameter_hash"],
+                "candidate_parameters": candidate_document,
+                "baseline_parameters": baseline_document,
+                "candidate_values": _parameter_values(candidate_document),
+                "baseline_values": _parameter_values(baseline_document),
+                "parameter_differences": _parameter_diff(
+                    _parameter_values(baseline_document), _parameter_values(candidate_document)
+                ),
                 "games_target": confirmation_row["games_target"],
-                "wins": confirmation_row["wins"],
-                "draws": confirmation_row["draws"],
-                "losses": confirmation_row["losses"],
-                "score": confirmation_row["score"],
-                "score_ci_low": confirmation_row["score_ci_low"],
-                "score_ci_high": confirmation_row["score_ci_high"],
+                "started_at": confirmation_row["started_at"],
+                "finished_at": confirmation_row["finished_at"],
+                "updated_at": confirmation_row["updated_at"],
+                "metrics": confirmation_metrics,
+                **confirmation_metrics,
+                **timing,
                 "recommendation_parameter_hash": confirmation_row["recommendation_parameter_hash"],
                 "recommendation": confirmation_result.get("recommendation"),
                 "automatic_promotion": confirmation_result.get("automatic_promotion"),
+                "blocks": [
+                    {
+                        "block_id": block["block_id"],
+                        "block_index": block["block_index"],
+                        "status": block["status"],
+                        "attempt": block["attempt"],
+                        "pairs_per_block": block["pairs_per_block"],
+                        "wins": block["wins"],
+                        "draws": block["draws"],
+                        "losses": block["losses"],
+                        "score": block["score"],
+                        "started_at": block["started_at"],
+                        "finished_at": block["finished_at"],
+                        "updated_at": block["updated_at"],
+                        "error": block["error"],
+                    }
+                    for block in confirmation_block_rows
+                ],
                 "recommendation_parameter_file": (
                     recommendation_artifact["path"] if recommendation_artifact is not None else None
                 ),
@@ -336,7 +431,14 @@ class DashboardReader:
                     recommendation_artifact["sha256"] if recommendation_artifact is not None else None
                 ),
             }
-        finished = _finished(str(campaign["status"]), trials, block_rows) and (
+        raw_campaign_status = str(campaign["status"])
+        display_campaign_status = raw_campaign_status
+        if confirmation is not None and confirmation["status"] != "completed" and raw_campaign_status == "completed":
+            display_campaign_status = "confirming"
+        displayed_finished_at = campaign["finished_at"]
+        if confirmation is not None and confirmation["status"] == "completed":
+            displayed_finished_at = confirmation["finished_at"] or displayed_finished_at
+        finished = _finished(raw_campaign_status, trials, block_rows) and (
             confirmation is None or confirmation["status"] == "completed"
         )
         return {
@@ -346,7 +448,8 @@ class DashboardReader:
             "campaign": {
                 "campaign_id": campaign["campaign_id"],
                 "name": campaign["name"],
-                "status": campaign["status"],
+                "status": display_campaign_status,
+                "raw_status": raw_campaign_status,
                 "finished": finished,
                 "config": config,
                 "config_hash": campaign["config_hash"],
@@ -356,7 +459,7 @@ class DashboardReader:
                 "master_seed": campaign["master_seed"],
                 "created_at": campaign["created_at"],
                 "updated_at": campaign["updated_at"],
-                "finished_at": campaign["finished_at"],
+                "finished_at": displayed_finished_at,
             },
             "current_trial": current,
             "campaign_metrics": all_metrics,
@@ -462,6 +565,7 @@ table{border-collapse:collapse;width:100%}th,td{padding:.46rem;border-bottom:1px
 </style></head><body>
 <header><div><h1>GoAlaric optimizer</h1><div id="campaign-name" class="muted">loading…</div></div><div><span id="readonly" class="ok">read-only</span> · <a href="/report">final report</a></div></header>
 <section><h2>Campaign</h2><div class="grid"><div class="card"><div class="label">Status</div><div id="status" class="value">—</div></div><div class="card"><div class="label">Current trial</div><div id="current-trial" class="value">—</div></div><div class="card"><div class="label">Score</div><div id="score" class="value">—</div></div><div class="card"><div class="label">Elo</div><div id="elo" class="value">—</div></div><div class="card"><div class="label">95% CI (score)</div><div id="score-ci" class="value">—</div></div><div class="card"><div class="label">95% CI (Elo)</div><div id="elo-ci" class="value">—</div></div><div class="card"><div class="label">W–D–L</div><div id="wdl" class="value">—</div></div><div class="card"><div class="label">Consumed games</div><div id="games" class="value">—</div></div></div><p id="updated" class="muted"></p></section>
+<section id="confirmation-section" hidden><h2>Confirmation</h2><p><strong id="confirmation-status">—</strong> · candidate hash: <code id="confirmation-candidate-hash">—</code></p><div class="grid"><div class="card"><div class="label">Opening pairs</div><div id="confirmation-pairs" class="value">—</div></div><div class="card"><div class="label">Games</div><div id="confirmation-games" class="value">—</div></div><div class="card"><div class="label">W–D–L</div><div id="confirmation-wdl" class="value">—</div></div><div class="card"><div class="label">Score</div><div id="confirmation-score" class="value">—</div></div><div class="card"><div class="label">Elo</div><div id="confirmation-elo" class="value">—</div></div><div class="card"><div class="label">95% CI (score)</div><div id="confirmation-score-ci" class="value">—</div></div><div class="card"><div class="label">Elapsed</div><div id="confirmation-elapsed" class="value">—</div></div><div class="card"><div class="label">Estimated remaining</div><div id="confirmation-eta" class="value">—</div></div></div><p id="confirmation-times" class="muted"></p><h3>Final candidate vs baseline</h3><div class="scroll"><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Candidate</th><th>Delta</th></tr></thead><tbody id="confirmation-parameters"></tbody></table></div></section>
 <section><h2>Candidate queue</h2><div class="grid"><div class="card"><div class="label">Completed</div><div id="completed-count" class="value">—</div></div><div class="card"><div class="label">Rejected</div><div id="rejected-count" class="value">—</div></div><div class="card"><div class="label">Waiting</div><div id="waiting-count" class="value">—</div></div></div><div class="scroll"><table><thead><tr><th>Trial</th><th>Status</th><th>Algorithm</th><th>W–D–L</th><th>Score</th><th>Elo</th><th>Parameter hash</th></tr></thead><tbody id="candidates"></tbody></table></div></section>
 <section><h2>Current trial</h2><div id="current-details" class="muted">—</div></section>
 <section><h2>Best parameter set vs baseline</h2><p id="best-source" class="muted">—</p><div class="scroll"><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Best</th><th>Delta</th></tr></thead><tbody id="parameters"></tbody></table></div></section>
@@ -471,7 +575,7 @@ const refreshMs=__REFRESH_MS__;
 const h=value=>String(value===null||value===undefined||value===''?'—':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const metric=(m,k)=>m&&m[k]!==undefined?m[k]:'—';
 function render(data){
- const c=data.campaign||{}, t=data.current_trial||{}, m=t.metrics||data.campaign_metrics||{}, counts=data.candidate_counts||{};
+ const c=data.campaign||{}, t=data.current_trial||{}, confirmation=data.confirmation||null, confirming=confirmation&&confirmation.status!=='completed', m=confirming?(confirmation.metrics||{}):(t.metrics||data.campaign_metrics||{}), counts=data.candidate_counts||{};
  document.title='GoAlaric · '+(c.name||c.campaign_id||'dashboard');
  document.getElementById('campaign-name').textContent=(c.name||'—')+' · '+(c.campaign_id||'—');
  document.getElementById('status').textContent=c.status||'—';
@@ -488,6 +592,8 @@ function render(data){
  const block=t.current_block; document.getElementById('current-details').innerHTML='<strong>Status:</strong> '+h(t.status)+' · <strong>parameter:</strong> '+h((t.parameter||{}).parameter_hash)+' · <strong>next/current block:</strong> '+h(block?block.block_index:'—')+' · <strong>attempt:</strong> '+h(block?block.attempt:'—')+'<br><strong>algorithm:</strong> '+h(t.algorithm)+' · <strong>error:</strong> '+h(t.error);
  const best=data.best_parameters||{};document.getElementById('best-source').textContent='Source: '+(best.source||'—')+' · trial: '+(best.trial_id||'—')+' · hash: '+(best.parameter_hash||'—');
  document.getElementById('parameters').innerHTML=(data.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');
+ const confirmationSection=document.getElementById('confirmation-section');confirmationSection.hidden=!confirmation;
+ if(confirmation){const x=confirmation.metrics||confirmation;document.getElementById('confirmation-status').textContent=confirmation.status+(confirmation.outcome?' · '+confirmation.outcome:'');document.getElementById('confirmation-candidate-hash').textContent=confirmation.candidate_parameter_hash||'—';document.getElementById('confirmation-pairs').textContent=h(x.pairs_completed)+' / '+h(x.pairs_target);document.getElementById('confirmation-games').textContent=h(x.games_completed)+' / '+h(x.games_target);document.getElementById('confirmation-wdl').textContent=h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses);document.getElementById('confirmation-score').textContent=h(x.score_percent)+'%';document.getElementById('confirmation-elo').textContent=h(x.elo_estimate);document.getElementById('confirmation-score-ci').textContent=h(x.score_ci_low)+'% … '+h(x.score_ci_high)+'%';document.getElementById('confirmation-elapsed').textContent=h(confirmation.elapsed_seconds)+' s';document.getElementById('confirmation-eta').textContent=h(confirmation.estimated_remaining_seconds)+' s';document.getElementById('confirmation-times').textContent='Started: '+h(confirmation.started_at)+' · Finished: '+h(confirmation.finished_at)+' · Updated: '+h(confirmation.updated_at);document.getElementById('confirmation-parameters').innerHTML=(confirmation.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');}
  document.getElementById('checkpoint').textContent=JSON.stringify(data.checkpoint||null,null,2);
  document.getElementById('error').textContent=JSON.stringify(data.latest_error||null,null,2);
  document.getElementById('readonly').textContent=data.read_only?'read-only':'unknown mode';

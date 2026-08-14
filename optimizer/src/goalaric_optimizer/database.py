@@ -8,6 +8,7 @@ from typing import Any, Iterator
 
 from .canonical import canonical_json, sha256_json, utc_now
 from .config import CampaignDefinition
+from .statistics import aggregate_wdl
 
 
 SCHEMA_VERSION = 3
@@ -266,6 +267,25 @@ def _row(row: sqlite3.Row | None) -> dict[str, Any] | None:
 
 def _json(value: Any) -> str:
     return canonical_json(value)
+
+
+def _confirmation_metrics(
+    confirmation: dict[str, Any], blocks: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Derive live confirmation evidence exclusively from completed SQLite blocks."""
+    metrics = aggregate_wdl(blocks, confidence=float(confirmation["confidence"]))
+    completed = [block for block in blocks if block.get("status") == "completed"]
+    pairs_completed = sum(int(block["pairs_per_block"]) for block in completed)
+    pairs_target = int(confirmation["games_target"]) // 2
+    metrics.update(
+        {
+            "pairs_completed": pairs_completed,
+            "pairs_target": pairs_target,
+            "games_completed": int(metrics["games"]),
+            "games_target": int(confirmation["games_target"]),
+        }
+    )
+    return metrics
 
 
 class Database:
@@ -1756,6 +1776,33 @@ class Database:
         if record is None:
             return None
         record["blocks"] = self.confirmation_blocks(campaign_id, str(record["confirmation_id"]))
+        metrics = _confirmation_metrics(record, record["blocks"])
+        # The confirmation row is finalized only once.  During a running
+        # campaign its counters are intentionally stale, so all live values
+        # come from completed confirmation blocks instead.
+        for key in (
+            "blocks_completed",
+            "games",
+            "games_completed",
+            "wins",
+            "draws",
+            "losses",
+            "score",
+            "score_percent",
+            "score_ci_low",
+            "score_ci_high",
+            "elo_estimate",
+            "elo_ci_low",
+            "elo_ci_high",
+            "uncertainty",
+            "block_ids",
+            "pairs_completed",
+            "pairs_target",
+            "games_target",
+        ):
+            if key in metrics:
+                record[key] = metrics[key]
+        record["metrics"] = metrics
         if isinstance(record.get("result"), dict):
             record["recommendation"] = record["result"].get("recommendation")
             record["automatic_promotion"] = record["result"].get("automatic_promotion")
@@ -1871,15 +1918,53 @@ class Database:
                 "SELECT COUNT(*) AS count FROM events WHERE campaign_id=?", (campaign_id,)
             ).fetchone()["count"]
             confirmation_row = connection.execute(
-                "SELECT confirmation_id,status,outcome,games_target,wins,draws,losses,score,"
-                "score_ci_low,score_ci_high,recommendation_parameter_hash FROM confirmations "
+                "SELECT * FROM confirmations "
                 "WHERE campaign_id=?",
                 (campaign_id,),
             ).fetchone()
+            confirmation = None
+            if confirmation_row is not None:
+                confirmation = dict(confirmation_row)
+                confirmation_blocks = [
+                    dict(row)
+                    for row in connection.execute(
+                        "SELECT * FROM confirmation_blocks WHERE campaign_id=? AND confirmation_id=? "
+                        "ORDER BY block_index,block_id",
+                        (campaign_id, confirmation["confirmation_id"]),
+                    ).fetchall()
+                ]
+                live_metrics = _confirmation_metrics(confirmation, confirmation_blocks)
+                confirmation = {
+                    key: confirmation[key]
+                    for key in (
+                        "confirmation_id",
+                        "status",
+                        "outcome",
+                        "games_target",
+                        "wins",
+                        "draws",
+                        "losses",
+                        "score",
+                        "score_ci_low",
+                        "score_ci_high",
+                        "recommendation_parameter_hash",
+                        "candidate_parameter_hash",
+                        "baseline_parameter_hash",
+                        "started_at",
+                        "finished_at",
+                        "updated_at",
+                    )
+                }
+                confirmation.update(live_metrics)
+            raw_status = str(campaign["status"])
+            display_status = raw_status
+            if confirmation is not None and confirmation["status"] != "completed" and raw_status == "completed":
+                display_status = "confirming"
             return {
                 "campaign_id": campaign["campaign_id"],
                 "name": campaign["name"],
-                "status": campaign["status"],
+                "status": display_status,
+                "raw_status": raw_status,
                 "config_hash": campaign["config_hash"],
                 "baseline_parameter_hash": campaign["baseline_parameter_hash"],
                 "master_seed": campaign["master_seed"],
@@ -1891,7 +1976,7 @@ class Database:
                 "games": int(games),
                 "checkpoint": dict(checkpoint) if checkpoint else None,
                 "event_count": int(event_count),
-                "confirmation": dict(confirmation_row) if confirmation_row else None,
+                "confirmation": confirmation,
                 "journal_mode": "wal",
             }
 

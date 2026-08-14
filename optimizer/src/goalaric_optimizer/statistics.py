@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from statistics import NormalDist
 from typing import Any, Iterable
 
 
@@ -14,8 +15,10 @@ def _elo_from_score(score_percent: float) -> float:
     return 400.0 * math.log10(score / (1.0 - score))
 
 
-def aggregate_wdl(blocks: Iterable[dict[str, Any]]) -> dict[str, Any]:
+def aggregate_wdl(blocks: Iterable[dict[str, Any]], confidence: float = 0.95) -> dict[str, Any]:
     """Aggregate only completed blocks, preserving their deterministic order."""
+    if not 0.0 < float(confidence) < 1.0:
+        raise ValueError("confidence must be between 0 and 1")
     completed = sorted(
         (block for block in blocks if block.get("status") == "completed"),
         key=lambda block: (int(block["block_index"]), str(block["block_id"])),
@@ -47,8 +50,9 @@ def aggregate_wdl(blocks: Iterable[dict[str, Any]]) -> dict[str, Any]:
     values = [1.0] * wins + [0.5] * draws + [0.0] * losses
     variance = sum((value - score) ** 2 for value in values) / games
     standard_error = math.sqrt(variance / games)
-    low = max(0.0, score - Z95 * standard_error)
-    high = min(1.0, score + Z95 * standard_error)
+    z = Z95 if float(confidence) == 0.95 else NormalDist().inv_cdf(0.5 + float(confidence) / 2.0)
+    low = max(0.0, score - z * standard_error)
+    high = min(1.0, score + z * standard_error)
     # A continuity correction keeps two-game all-win/all-loss blocks finite.
     corrected_score = (points + 0.5) / (games + 1.0)
     result = {

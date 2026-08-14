@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -13,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 from goalaric_optimizer.cli import main
 from goalaric_optimizer.canonical import sha256_json
 from goalaric_optimizer.database import Database
+from goalaric_optimizer.dashboard import DashboardReader
 from goalaric_optimizer.service import init_campaign
 
 
@@ -154,6 +158,102 @@ class ConfirmationFakeOutcomesTest(unittest.TestCase):
             with database._read() as connection:
                 self.assertEqual(connection.execute("SELECT COUNT(*) FROM confirmation_blocks").fetchone()[0], 10)
                 self.assertEqual(connection.execute("SELECT COUNT(*) FROM confirmation_games").fetchone()[0], 20)
+
+    def test_live_confirmation_metrics_are_read_from_completed_blocks(self) -> None:
+        """The read-only views must expose partial confirmation progress."""
+        with tempfile.TemporaryDirectory(prefix="goalaric-confirmation-dashboard-") as temp:
+            root = Path(temp)
+            data_dir = root / "campaigns"
+            campaign, _ = self._campaign(
+                root,
+                "confirmation-dashboard",
+                {"wins": 10, "draws": 0, "losses": 10},
+                9101,
+            )
+            self.assertEqual(
+                main(["optimize", str(campaign), "--data-dir", str(data_dir), "--max-results", "3"]),
+                0,
+            )
+            self.assertEqual(
+                main(["optimize", str(campaign), "--data-dir", str(data_dir), "--max-results", "2"]),
+                0,
+            )
+
+            database = Database(data_dir / "confirmation-dashboard" / "campaign.db")
+            confirmation = database.confirmation_snapshot("confirmation-dashboard")
+            self.assertIsNotNone(confirmation)
+            assert confirmation is not None
+            self.assertEqual(confirmation["status"], "running")
+            self.assertEqual(confirmation["blocks_completed"], 2)
+            self.assertEqual(confirmation["pairs_completed"], 2)
+            self.assertEqual(confirmation["pairs_target"], 10)
+            self.assertEqual(confirmation["games"], 4)
+            self.assertEqual(confirmation["wins"], 4)
+            self.assertEqual(confirmation["draws"], 0)
+            self.assertEqual(confirmation["losses"], 0)
+            self.assertEqual(confirmation["score_percent"], 100.0)
+            self.assertEqual(confirmation["metrics"]["games"], 4)
+
+            status = database.status_snapshot("confirmation-dashboard")
+            self.assertEqual(status["status"], "confirming")
+            self.assertEqual(status["raw_status"], "completed")
+            self.assertEqual(status["confirmation"]["games"], 4)
+            self.assertEqual(status["confirmation"]["wins"], 4)
+
+            dashboard = DashboardReader(data_dir, "confirmation-dashboard")
+            first = dashboard.snapshot()
+            second = dashboard.snapshot()
+            self.assertTrue(first["read_only"])
+            self.assertEqual(first["campaign"]["status"], "confirming")
+            self.assertFalse(first["campaign"]["finished"])
+            self.assertEqual(first["confirmation"]["status"], "running")
+            self.assertEqual(first["confirmation"]["metrics"]["games"], 4)
+            self.assertEqual(first["confirmation"]["metrics"], second["confirmation"]["metrics"])
+            self.assertEqual(first["confirmation"]["candidate_values"]["p"], 1)
+            self.assertEqual(first["confirmation"]["baseline_values"]["p"], 0)
+            self.assertEqual(first["confirmation"]["parameter_differences"][0]["delta"], 1)
+
+            # A v1.1.1 database is read directly; no schema migration or
+            # match-file result is needed to display the live confirmation.
+            with database._read() as connection:
+                self.assertEqual(connection.execute("PRAGMA query_only").fetchone()[0], 1)
+                self.assertEqual(
+                    connection.execute("SELECT COUNT(*) FROM confirmation_games").fetchone()[0], 4
+                )
+
+            environment = os.environ.copy()
+            source_path = str(Path(__file__).parents[1] / "src")
+            environment["PYTHONPATH"] = os.pathsep.join(
+                item for item in (source_path, environment.get("PYTHONPATH")) if item
+            )
+            watcher = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "goalaric_optimizer",
+                    "status",
+                    "confirmation-dashboard",
+                    "--data-dir",
+                    str(data_dir),
+                    "--watch",
+                    "--interval",
+                    "0.01",
+                ],
+                env=environment,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                time.sleep(0.1)
+                watcher.send_signal(signal.SIGINT)
+                _, stderr = watcher.communicate(timeout=5)
+            finally:
+                if watcher.poll() is None:
+                    watcher.kill()
+                    watcher.wait(timeout=5)
+            self.assertEqual(watcher.returncode, 0)
+            self.assertNotIn("Traceback", stderr)
 
 
 class ConfirmationMinimalRealTest(unittest.TestCase):
