@@ -14,6 +14,7 @@ from typing import Any, Protocol
 from .canonical import sha256_bytes, sha256_json
 from .database import Database, DatabaseError, InvalidTransition
 from .process import terminate_process_group
+from .profiles import MatchProfile
 from .real_integration import RealTestmonitorConfig, _materialize_real_block, RealTestmonitorScheduler
 from .scheduler import SchedulerError
 from .service import campaign_dir
@@ -30,6 +31,7 @@ class ConfirmationSettings:
     seed: int
     confidence: float
     fake_results: tuple[str, ...]
+    profile: MatchProfile | None = None
 
 
 def _validate_game(value: Any) -> str:
@@ -59,7 +61,9 @@ def _fake_results(raw: Any, games: int) -> tuple[str, ...]:
     raise ConfirmationError("confirmation.fake_results must be a result list or W-D-L object")
 
 
-def parse_confirmation_settings(goals: dict[str, Any], master_seed: int) -> ConfirmationSettings:
+def parse_confirmation_settings(
+    goals: dict[str, Any], master_seed: int, profile: MatchProfile | None = None
+) -> ConfirmationSettings:
     raw = goals.get("confirmation", {})
     if raw is None:
         raw = {}
@@ -69,7 +73,7 @@ def parse_confirmation_settings(goals: dict[str, Any], master_seed: int) -> Conf
     if not isinstance(enabled, bool):
         raise ConfirmationError("confirmation.enabled must be boolean")
     if not enabled:
-        return ConfirmationSettings(False, 0, master_seed, 0.95, ())
+        return ConfirmationSettings(False, 0, master_seed, 0.95, (), profile)
     games = raw.get("games")
     if not isinstance(games, int) or isinstance(games, bool) or games < 2 or games % 2:
         raise ConfirmationError("confirmation.games must be an even integer >= 2")
@@ -88,6 +92,7 @@ def parse_confirmation_settings(goals: dict[str, Any], master_seed: int) -> Conf
         seed,
         float(confidence),
         _fake_results(fake_raw, games),
+        profile,
     )
 
 
@@ -143,10 +148,17 @@ def _summary(blocks: list[dict[str, Any]], confidence: float) -> dict[str, Any]:
 
 
 class FakeConfirmationRunner:
-    def __init__(self, database: Database, campaign_id: str, results: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        database: Database,
+        campaign_id: str,
+        results: tuple[str, ...],
+        profile: dict[str, Any] | None = None,
+    ) -> None:
         self.database = database
         self.campaign_id = campaign_id
         self.results = results
+        self.profile = dict(profile) if profile is not None else None
 
     def prepare_block(self, block_index: int, pairs_per_block: int) -> tuple[str, str]:
         return (
@@ -172,6 +184,8 @@ class FakeConfirmationRunner:
             "runner": "fake-confirmation-v1",
             "block_index": int(block["block_index"]),
         }
+        if self.profile is not None:
+            result["profile"] = dict(self.profile)
         self.database.complete_confirmation_block_atomically(
             self.campaign_id,
             str(block["block_id"]),
@@ -392,6 +406,8 @@ class ConfirmationCampaign:
                 "recommendation": None,
                 "automatic_promotion": False,
             }
+            if self.settings.profile is not None:
+                result["profile"] = self.settings.profile.as_dict()
             return self.database.finalize_confirmation(self.campaign_id, result)
         self._ensure_schedule()
         terminate_active_confirmation_blocks(
@@ -421,6 +437,8 @@ class ConfirmationCampaign:
                         result["recommendation_parameter_hash"] = None
                         result["recommendation"] = None
                     result["automatic_promotion"] = False
+                    if self.settings.profile is not None:
+                        result["profile"] = self.settings.profile.as_dict()
                     return self.database.finalize_confirmation(self.campaign_id, result)
                 raise ConfirmationError("confirmation has no runnable block but is not complete")
             self.runner.run(block)
@@ -435,6 +453,7 @@ def initialize_confirmation(
     candidate_document: dict[str, Any],
     baseline_document: dict[str, Any],
     settings: ConfirmationSettings,
+    profile: dict[str, Any] | None = None,
 ) -> str:
     if not settings.enabled:
         raise ConfirmationError("confirmation is disabled")
@@ -445,4 +464,7 @@ def initialize_confirmation(
         settings.games,
         settings.seed,
         settings.confidence,
+        profile_name=profile.get("name") if profile else None,
+        profile_hash=profile.get("hash") if profile else None,
+        profile_tc=profile.get("tc") if profile else None,
     )

@@ -11,7 +11,7 @@ from .config import CampaignDefinition
 from .statistics import aggregate_wdl
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 CAMPAIGN_STATES = {"pending", "running", "completed", "failed", "interrupted", "paused", "rejected"}
 TRIAL_STATES = CAMPAIGN_STATES
 BLOCK_STATES = {"pending", "running", "completed", "failed", "interrupted", "rejected"}
@@ -103,6 +103,9 @@ CREATE TABLE IF NOT EXISTS trials (
     status TEXT NOT NULL CHECK (status IN ('pending','running','completed','failed','interrupted','paused','rejected')),
     algorithm TEXT NOT NULL,
     seed INTEGER NOT NULL,
+    profile_name TEXT,
+    profile_hash TEXT,
+    profile_tc TEXT,
     result_json TEXT,
     error TEXT,
     pid INTEGER,
@@ -200,6 +203,9 @@ CREATE TABLE IF NOT EXISTS confirmations (
     games_target INTEGER NOT NULL CHECK (games_target > 0),
     seed INTEGER NOT NULL,
     confidence REAL NOT NULL,
+    profile_name TEXT,
+    profile_hash TEXT,
+    profile_tc TEXT,
     outcome TEXT CHECK (outcome IN ('confirmed','rejected','inconclusive')),
     wins INTEGER NOT NULL DEFAULT 0,
     draws INTEGER NOT NULL DEFAULT 0,
@@ -347,10 +353,34 @@ class Database:
                     connection.execute("ALTER TABLE match_blocks ADD COLUMN attempt INTEGER NOT NULL DEFAULT 0")
                     connection.execute("ALTER TABLE match_blocks ADD COLUMN run_dir TEXT")
                     connection.execute("ALTER TABLE match_blocks ADD COLUMN command_json TEXT")
+                    connection.execute("ALTER TABLE trials ADD COLUMN profile_name TEXT")
+                    connection.execute("ALTER TABLE trials ADD COLUMN profile_hash TEXT")
+                    connection.execute("ALTER TABLE trials ADD COLUMN profile_tc TEXT")
+                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_name TEXT")
+                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_hash TEXT")
+                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_tc TEXT")
                     connection.execute(
                         "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
                     )
                 elif version == 2:
+                    connection.execute("ALTER TABLE trials ADD COLUMN profile_name TEXT")
+                    connection.execute("ALTER TABLE trials ADD COLUMN profile_hash TEXT")
+                    connection.execute("ALTER TABLE trials ADD COLUMN profile_tc TEXT")
+                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_name TEXT")
+                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_hash TEXT")
+                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_tc TEXT")
+                    connection.execute(
+                        "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
+                    )
+                elif version == 3:
+                    for table in ("trials", "confirmations"):
+                        columns = {
+                            row["name"]
+                            for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+                        }
+                        for column in ("profile_name", "profile_hash", "profile_tc"):
+                            if column not in columns:
+                                connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
                     connection.execute(
                         "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
                     )
@@ -556,7 +586,16 @@ class Database:
             result["document"] = json.loads(result.pop("document_json"))
             return result
 
-    def create_trial(self, campaign_id: str, parameter_set_id: str, algorithm: str, seed: int) -> str:
+    def create_trial(
+        self,
+        campaign_id: str,
+        parameter_set_id: str,
+        algorithm: str,
+        seed: int,
+        profile_name: str | None = None,
+        profile_hash: str | None = None,
+        profile_tc: str | None = None,
+    ) -> str:
         now = utc_now()
         with self._transaction() as connection:
             campaign = self._campaign(connection, campaign_id)
@@ -569,19 +608,43 @@ class Database:
             if parameter is None:
                 raise DatabaseError(f"unknown parameter set for campaign: {parameter_set_id}")
             existing = connection.execute(
-                "SELECT trial_id FROM trials WHERE campaign_id=? AND parameter_set_id=?",
+                "SELECT * FROM trials WHERE campaign_id=? AND parameter_set_id=?",
                 (campaign_id, parameter_set_id),
             ).fetchone()
             if existing is not None:
+                existing_profile = (
+                    existing["profile_name"],
+                    existing["profile_hash"],
+                    existing["profile_tc"],
+                )
+                requested_profile = (profile_name, profile_hash, profile_tc)
+                if (
+                    any(value is not None for value in existing_profile)
+                    and any(value is not None for value in requested_profile)
+                    and existing_profile != requested_profile
+                ):
+                    raise CampaignConflict("trial already exists with a different profile")
                 return str(existing["trial_id"])
             number = connection.execute(
                 "SELECT COUNT(*) FROM trials WHERE campaign_id=?", (campaign_id,)
             ).fetchone()[0] + 1
             trial_id = f"trial-{number:06d}"
             connection.execute(
-                "INSERT INTO trials(trial_id,campaign_id,parameter_set_id,status,algorithm,seed,created_at,updated_at) "
-                "VALUES(?,?,?,?,?,?,?,?)",
-                (trial_id, campaign_id, parameter_set_id, "pending", algorithm, seed, now, now),
+                "INSERT INTO trials(trial_id,campaign_id,parameter_set_id,status,algorithm,seed,profile_name,"
+                "profile_hash,profile_tc,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    trial_id,
+                    campaign_id,
+                    parameter_set_id,
+                    "pending",
+                    algorithm,
+                    seed,
+                    profile_name,
+                    profile_hash,
+                    profile_tc,
+                    now,
+                    now,
+                ),
             )
             self._event(
                 connection,
@@ -593,6 +656,40 @@ class Database:
                 to_status="pending",
             )
             return trial_id
+
+    def bind_trial_profile(
+        self, campaign_id: str, trial_id: str, profile_name: str, profile_hash: str, profile_tc: str
+    ) -> dict[str, Any]:
+        """Bind or validate an immutable profile identity for a trial."""
+        values = (profile_name, profile_hash, profile_tc)
+        if any(not isinstance(value, str) or not value for value in values):
+            raise DatabaseError("trial profile identity must contain non-empty strings")
+        with self._transaction() as connection:
+            row = connection.execute(
+                "SELECT * FROM trials WHERE campaign_id=? AND trial_id=?", (campaign_id, trial_id)
+            ).fetchone()
+            if row is None:
+                raise DatabaseError(f"unknown trial: {trial_id}")
+            existing = (row["profile_name"], row["profile_hash"], row["profile_tc"])
+            if any(value is not None for value in existing) and existing != values:
+                raise CampaignConflict(f"trial {trial_id} already uses a different profile")
+            if existing == values:
+                return dict(row)
+            now = utc_now()
+            connection.execute(
+                "UPDATE trials SET profile_name=?,profile_hash=?,profile_tc=?,updated_at=? "
+                "WHERE campaign_id=? AND trial_id=?",
+                (*values, now, campaign_id, trial_id),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "trial_profile_bound",
+                "trial",
+                trial_id,
+                {"profile_name": profile_name, "profile_hash": profile_hash, "profile_tc": profile_tc},
+            )
+            return dict(connection.execute("SELECT * FROM trials WHERE trial_id=?", (trial_id,)).fetchone())
 
     def trial(self, campaign_id: str, trial_id: str) -> dict[str, Any]:
         with self._read() as connection:
@@ -654,10 +751,20 @@ class Database:
                 raise InvalidTransition(f"cannot record coordinate result for trial {trial_id} from {trial['status']}")
 
             state_row = connection.execute(
-                "SELECT revision FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
+                "SELECT revision,state_json FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
             ).fetchone()
             if state_row is None:
                 raise DatabaseError(f"optimizer state is missing for campaign: {campaign_id}")
+            stored_state = json.loads(state_row["state_json"])
+            if not isinstance(stored_state, dict):
+                raise DatabaseError("optimizer checkpoint state is not an object")
+            state = dict(state)
+            stored_profile = stored_state.get("search_profile")
+            requested_profile = state.get("search_profile")
+            if stored_profile is not None and requested_profile is not None and stored_profile != requested_profile:
+                raise CampaignConflict("checkpoint already uses a different search profile")
+            if stored_profile is not None and requested_profile is None:
+                state["search_profile"] = stored_profile
             revision = int(state_row["revision"]) + 1
             checkpoint_hash = sha256_json(state)
             connection.execute(
@@ -1229,10 +1336,21 @@ class Database:
         with self._transaction() as connection:
             self._campaign(connection, campaign_id)
             row = connection.execute(
-                "SELECT revision FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
+                "SELECT revision,state_json FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
             ).fetchone()
             if row is None:
                 raise DatabaseError(f"optimizer state is missing for campaign: {campaign_id}")
+            stored_state = json.loads(row["state_json"])
+            if not isinstance(stored_state, dict):
+                raise DatabaseError("optimizer checkpoint state is not an object")
+            state = dict(state)
+            for immutable_key in ("search_profile",):
+                stored_profile = stored_state.get(immutable_key)
+                requested_profile = state.get(immutable_key)
+                if stored_profile is not None and requested_profile is not None and stored_profile != requested_profile:
+                    raise CampaignConflict(f"checkpoint already uses a different {immutable_key}")
+                if stored_profile is not None and requested_profile is None:
+                    state[immutable_key] = stored_profile
             revision = int(row["revision"]) + 1
             checkpoint_hash = sha256_json(state)
             now = utc_now()
@@ -1249,6 +1367,49 @@ class Database:
                 {"revision": revision, "checkpoint_hash": checkpoint_hash},
             )
             return revision, checkpoint_hash
+
+    def bind_optimizer_profile(
+        self, campaign_id: str, role: str, profile: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Persist and validate the immutable profile used by a search role."""
+        if role not in {"search"}:
+            raise DatabaseError(f"unsupported optimizer profile role: {role}")
+        if not isinstance(profile, dict) or not all(
+            isinstance(profile.get(key), str) and profile.get(key) for key in ("name", "hash", "tc")
+        ):
+            raise DatabaseError("optimizer profile must contain name, hash and tc")
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            row = connection.execute(
+                "SELECT revision,state_json FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
+            ).fetchone()
+            if row is None:
+                raise DatabaseError(f"optimizer state is missing for campaign: {campaign_id}")
+            state = json.loads(row["state_json"])
+            key = f"{role}_profile"
+            existing = state.get(key)
+            if existing is not None and existing != profile:
+                raise CampaignConflict(f"campaign already uses a different {role} profile")
+            if existing == profile:
+                return state
+            state[key] = dict(profile)
+            revision = int(row["revision"]) + 1
+            checkpoint_hash = sha256_json(state)
+            now = utc_now()
+            connection.execute(
+                "UPDATE optimizer_state SET revision=?,state_json=?,checkpoint_hash=?,updated_at=? "
+                "WHERE campaign_id=?",
+                (revision, _json(state), checkpoint_hash, now, campaign_id),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "optimizer_profile_bound",
+                "optimizer_state",
+                campaign_id,
+                {"role": role, "profile": profile, "revision": revision},
+            )
+            return state
 
     def complete_block_atomically(
         self,
@@ -1313,10 +1474,20 @@ class Database:
                         (game_id, campaign_id, block_id, game_index, value, now),
                     )
             state_row = connection.execute(
-                "SELECT revision FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
+                "SELECT revision,state_json FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
             ).fetchone()
             if state_row is None:
                 raise DatabaseError(f"optimizer state is missing for campaign: {campaign_id}")
+            stored_state = json.loads(state_row["state_json"])
+            if not isinstance(stored_state, dict):
+                raise DatabaseError("optimizer checkpoint state is not an object")
+            checkpoint_state = dict(checkpoint_state)
+            stored_profile = stored_state.get("search_profile")
+            requested_profile = checkpoint_state.get("search_profile")
+            if stored_profile is not None and requested_profile is not None and stored_profile != requested_profile:
+                raise CampaignConflict("checkpoint already uses a different search profile")
+            if stored_profile is not None and requested_profile is None:
+                checkpoint_state["search_profile"] = stored_profile
             revision = int(state_row["revision"]) + 1
             checkpoint_hash = sha256_json(checkpoint_state)
             connection.execute(
@@ -1342,6 +1513,9 @@ class Database:
         games_target: int,
         seed: int,
         confidence: float,
+        profile_name: str | None = None,
+        profile_hash: str | None = None,
+        profile_tc: str | None = None,
     ) -> str:
         """Create the immutable confirmation record, independently of search state."""
         if games_target < 2 or games_target % 2:
@@ -1366,11 +1540,26 @@ class Database:
                     or float(existing["confidence"]) != float(confidence)
                 ):
                     raise CampaignConflict("confirmation already exists with different inputs")
+                existing_profile = (
+                    existing["profile_name"],
+                    existing["profile_hash"],
+                    existing["profile_tc"],
+                )
+                requested_profile = (profile_name, profile_hash, profile_tc)
+                if any(value is not None for value in existing_profile) and existing_profile != requested_profile:
+                    raise CampaignConflict("confirmation already exists with a different profile")
+                if any(value is not None for value in requested_profile) and existing_profile != requested_profile:
+                    connection.execute(
+                        "UPDATE confirmations SET profile_name=?,profile_hash=?,profile_tc=?,updated_at=? "
+                        "WHERE confirmation_id=?",
+                        (*requested_profile, now, existing["confirmation_id"]),
+                    )
                 return str(existing["confirmation_id"])
             connection.execute(
                 "INSERT INTO confirmations(confirmation_id,campaign_id,status,candidate_parameter_hash,"
                 "baseline_parameter_hash,candidate_document_json,baseline_document_json,games_target,seed,"
-                "confidence,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "confidence,profile_name,profile_hash,profile_tc,created_at,updated_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     confirmation_id,
                     campaign_id,
@@ -1382,6 +1571,9 @@ class Database:
                     games_target,
                     seed,
                     float(confidence),
+                    profile_name,
+                    profile_hash,
+                    profile_tc,
                     now,
                     now,
                 ),
@@ -1398,6 +1590,9 @@ class Database:
                     "games": games_target,
                     "seed": seed,
                     "confidence": confidence,
+                    "profile_name": profile_name,
+                    "profile_hash": profile_hash,
+                    "profile_tc": profile_tc,
                 },
                 to_status="pending",
             )
@@ -1952,7 +2147,7 @@ class Database:
                 (campaign_id,),
             ).fetchone()["games"]
             checkpoint = connection.execute(
-                "SELECT revision,checkpoint_hash,updated_at FROM optimizer_state WHERE campaign_id=?",
+                "SELECT revision,checkpoint_hash,updated_at,state_json FROM optimizer_state WHERE campaign_id=?",
                 (campaign_id,),
             ).fetchone()
             event_count = connection.execute(
@@ -1976,7 +2171,7 @@ class Database:
                 ]
                 live_metrics = _confirmation_metrics(confirmation, confirmation_blocks)
                 confirmation = {
-                    key: confirmation[key]
+                    key: confirmation.get(key)
                     for key in (
                         "confirmation_id",
                         "status",
@@ -1991,6 +2186,9 @@ class Database:
                         "recommendation_parameter_hash",
                         "candidate_parameter_hash",
                         "baseline_parameter_hash",
+                        "profile_name",
+                        "profile_hash",
+                        "profile_tc",
                         "started_at",
                         "finished_at",
                         "updated_at",
@@ -2007,6 +2205,22 @@ class Database:
                 "completed",
             }:
                 display_status = "confirming"
+            checkpoint_dict = dict(checkpoint) if checkpoint else None
+            checkpoint_state: dict[str, Any] = {}
+            if checkpoint_dict is not None:
+                try:
+                    decoded_state = json.loads(checkpoint_dict.pop("state_json"))
+                except (TypeError, json.JSONDecodeError):
+                    decoded_state = {}
+                if isinstance(decoded_state, dict):
+                    checkpoint_state = decoded_state
+            confirmation_profile = None
+            if confirmation is not None and confirmation.get("profile_name"):
+                confirmation_profile = {
+                    "name": confirmation.get("profile_name"),
+                    "hash": confirmation.get("profile_hash"),
+                    "tc": confirmation.get("profile_tc"),
+                }
             return {
                 "campaign_id": campaign["campaign_id"],
                 "name": campaign["name"],
@@ -2021,7 +2235,9 @@ class Database:
                 "trials": {row["status"]: row["count"] for row in trial_rows},
                 "blocks": {row["status"]: row["count"] for row in block_rows},
                 "games": int(games),
-                "checkpoint": dict(checkpoint) if checkpoint else None,
+                "checkpoint": checkpoint_dict,
+                "search_profile": checkpoint_state.get("search_profile"),
+                "confirmation_profile": confirmation_profile,
                 "event_count": int(event_count),
                 "confirmation": confirmation,
                 "journal_mode": "wal",

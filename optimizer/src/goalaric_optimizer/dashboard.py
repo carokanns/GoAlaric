@@ -114,6 +114,13 @@ def _trial_record(row: dict[str, Any], parameter: dict[str, Any] | None, blocks:
     result = _json(row.get("result_json"), None)
     if not isinstance(result, dict):
         result = None
+    profile = result.get("profile") if isinstance(result, dict) else None
+    if not isinstance(profile, dict) and row.get("profile_name"):
+        profile = {
+            "name": row.get("profile_name"),
+            "hash": row.get("profile_hash"),
+            "tc": row.get("profile_tc"),
+        }
     metrics = _metrics(blocks, result)
     current_block = next((block for block in blocks if block["status"] == "running"), None)
     if current_block is None:
@@ -132,6 +139,7 @@ def _trial_record(row: dict[str, Any], parameter: dict[str, Any] | None, blocks:
         "parameter": parameter,
         "metrics": metrics,
         "result": result,
+        "profile": profile,
         "blocks": [
             {
                 "block_id": block["block_id"],
@@ -370,6 +378,7 @@ class DashboardReader:
             ).fetchone()
         confirmation: dict[str, Any] | None = None
         if confirmation_row is not None:
+            confirmation_row_dict = dict(confirmation_row)
             confirmation_result = _json(confirmation_row["result_json"], {})
             candidate_document = _json(confirmation_row["candidate_document_json"], {})
             baseline_document = _json(confirmation_row["baseline_document_json"], {})
@@ -422,6 +431,19 @@ class DashboardReader:
                 "recommendation_parameter_hash": confirmation_row["recommendation_parameter_hash"],
                 "recommendation": confirmation_result.get("recommendation"),
                 "automatic_promotion": confirmation_result.get("automatic_promotion"),
+                "profile": (
+                    confirmation_result.get("profile")
+                    if isinstance(confirmation_result.get("profile"), dict)
+                    else (
+                        {
+                            "name": confirmation_row_dict.get("profile_name"),
+                            "hash": confirmation_row_dict.get("profile_hash"),
+                            "tc": confirmation_row_dict.get("profile_tc"),
+                        }
+                        if confirmation_row_dict.get("profile_name")
+                        else None
+                    )
+                ),
                 "blocks": [
                     {
                         "block_id": block["block_id"],
@@ -463,6 +485,7 @@ class DashboardReader:
             "result_count": checkpoint_state.get("result_count"),
             "checkpoint_revision": checkpoint.get("revision") if isinstance(checkpoint, dict) else None,
             "checkpoint_updated_at": checkpoint.get("updated_at") if isinstance(checkpoint, dict) else None,
+            "profile": checkpoint_state.get("search_profile"),
         }
         highest_local = {
             "source": "highest_local_trial",
@@ -540,6 +563,8 @@ class DashboardReader:
             "current_trial": current,
             "campaign_metrics": all_metrics,
             "confirmation": confirmation,
+            "search_profile": checkpoint_state.get("search_profile"),
+            "confirmation_profile": confirmation.get("profile") if confirmation else None,
             "candidate_counts": counts,
             "candidates": trials,
             "search_games": search_games,
@@ -604,6 +629,8 @@ def render_report_html(snapshot: dict[str, Any]) -> str:
     counts = snapshot.get("candidate_counts") or {}
     final_anchor = snapshot.get("final_anchor") or {}
     highest_local = snapshot.get("highest_local_trial") or {}
+    search_profile = snapshot.get("search_profile") or {}
+    confirmation_profile = snapshot.get("confirmation_profile") or {}
     rows = "".join(
         "<tr>"
         f"<td>{_html_text(item.get('trial_id'))}</td>"
@@ -613,6 +640,7 @@ def render_report_html(snapshot: dict[str, Any]) -> str:
         f"{_html_text(item.get('metrics', {}).get('losses'))}</td>"
         f"<td>{_html_text(item.get('metrics', {}).get('score_percent'))}%</td>"
         f"<td>{_html_text(item.get('parameter', {}).get('parameter_hash') if item.get('parameter') else None)}</td>"
+        f"<td>{_html_text((item.get('profile') or {}).get('name'))} · {_html_text((item.get('profile') or {}).get('tc'))}</td>"
         "</tr>"
         for item in snapshot.get("candidates", [])
     )
@@ -640,11 +668,13 @@ def render_report_html(snapshot: dict[str, Any]) -> str:
 <div class="card"><div class="label">Search games</div><div class="value">{_html_text(snapshot.get('search_games'))}</div></div>
 <div class="card"><div class="label">Confirmation games</div><div class="value">{_html_text(snapshot.get('confirmation_games'))}</div></div>
 <div class="card"><div class="label">Total games</div><div class="value">{_html_text(snapshot.get('total_games'))}</div></div>
+<div class="card"><div class="label">Search profile</div><div class="value">{_html_text(search_profile.get('name'))} · {_html_text(search_profile.get('tc'))}</div></div>
+<div class="card"><div class="label">Confirmation profile</div><div class="value">{_html_text(confirmation_profile.get('name'))} · {_html_text(confirmation_profile.get('tc'))}</div></div>
 </div></section>
 <section><h2>Candidates</h2><p>Completed: {_html_text(counts.get('completed', 0))} · rejected: {_html_text(counts.get('rejected', 0))} · waiting: {_html_text(counts.get('waiting', 0))}</p>
-<table><thead><tr><th>Trial</th><th>Status</th><th>W–D–L</th><th>Score</th><th>Parameter hash</th></tr></thead><tbody>{rows}</tbody></table></section>
+<table><thead><tr><th>Trial</th><th>Status</th><th>W–D–L</th><th>Score</th><th>Parameter hash</th><th>Profile</th></tr></thead><tbody>{rows}</tbody></table></section>
 <section><h2>Final anchor from optimizer checkpoint</h2><pre>{html.escape(json.dumps(final_anchor, ensure_ascii=False, indent=2))}</pre><h3>Highest local trial (search history)</h3><pre>{html.escape(json.dumps(highest_local, ensure_ascii=False, indent=2))}</pre></section>
-<section><h2>Confirmed candidate vs baseline</h2><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Candidate</th><th>Delta</th></tr></thead><tbody>{parameter_rows}</tbody></table><pre>{html.escape(json.dumps(confirmation, ensure_ascii=False, indent=2))}</pre></section>
+<section><h2>Confirmed candidate vs baseline</h2><p>Profile: {_html_text(confirmation_profile.get('name'))} · tc: {_html_text(confirmation_profile.get('tc'))} · hash: {_html_text(confirmation_profile.get('hash'))}</p><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Candidate</th><th>Delta</th></tr></thead><tbody>{parameter_rows}</tbody></table><pre>{html.escape(json.dumps(confirmation, ensure_ascii=False, indent=2))}</pre></section>
 <section><h2>Times</h2><pre>{html.escape(json.dumps(snapshot.get('times'), ensure_ascii=False, indent=2))}</pre></section>
 <section><h2>Latest checkpoint</h2><pre>{html.escape(checkpoint)}</pre><h2>Latest error</h2><pre>{html.escape(json.dumps(latest_error, ensure_ascii=False, indent=2))}</pre></section>
 <footer>Generated {_html_text(snapshot.get('generated_at'))}; SQLite source opened read-only.</footer></body></html>"""
@@ -661,8 +691,8 @@ table{border-collapse:collapse;width:100%}th,td{padding:.46rem;border-bottom:1px
 </style></head><body>
 <header><div><h1>GoAlaric optimizer</h1><div id="campaign-name" class="muted">loading…</div></div><div><span id="readonly" class="ok">read-only</span> · <a href="/report">final report</a></div></header>
 <section><h2>Campaign</h2><div class="grid"><div class="card"><div class="label">Status</div><div id="status" class="value">—</div></div><div class="card"><div class="label">Current trial</div><div id="current-trial" class="value">—</div></div><div class="card"><div class="label">Score</div><div id="score" class="value">—</div></div><div class="card"><div class="label">Elo</div><div id="elo" class="value">—</div></div><div class="card"><div class="label">95% CI (score)</div><div id="score-ci" class="value">—</div></div><div class="card"><div class="label">95% CI (Elo)</div><div id="elo-ci" class="value">—</div></div><div class="card"><div class="label">W–D–L</div><div id="wdl" class="value">—</div></div><div class="card"><div class="label">Consumed games</div><div id="games" class="value">—</div></div></div><p id="updated" class="muted"></p></section>
-<section id="confirmation-section" hidden><h2>Confirmation</h2><p><strong id="confirmation-status">—</strong> · candidate hash: <code id="confirmation-candidate-hash">—</code></p><div class="grid"><div class="card"><div class="label">Opening pairs</div><div id="confirmation-pairs" class="value">—</div></div><div class="card"><div class="label">Games</div><div id="confirmation-games" class="value">—</div></div><div class="card"><div class="label">W–D–L</div><div id="confirmation-wdl" class="value">—</div></div><div class="card"><div class="label">Score</div><div id="confirmation-score" class="value">—</div></div><div class="card"><div class="label">Elo</div><div id="confirmation-elo" class="value">—</div></div><div class="card"><div class="label">95% CI (score)</div><div id="confirmation-score-ci" class="value">—</div></div><div class="card"><div class="label">Elapsed</div><div id="confirmation-elapsed" class="value">—</div></div><div class="card"><div class="label">Estimated remaining</div><div id="confirmation-eta" class="value">—</div></div></div><p id="confirmation-times" class="muted"></p><h3>Final candidate vs baseline</h3><div class="scroll"><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Candidate</th><th>Delta</th></tr></thead><tbody id="confirmation-parameters"></tbody></table></div></section>
-<section><h2>Candidate queue</h2><div class="grid"><div class="card"><div class="label">Completed</div><div id="completed-count" class="value">—</div></div><div class="card"><div class="label">Rejected</div><div id="rejected-count" class="value">—</div></div><div class="card"><div class="label">Waiting</div><div id="waiting-count" class="value">—</div></div></div><div class="scroll"><table><thead><tr><th>Trial</th><th>Status</th><th>Algorithm</th><th>W–D–L</th><th>Score</th><th>Elo</th><th>Parameter hash</th></tr></thead><tbody id="candidates"></tbody></table></div></section>
+<section id="confirmation-section" hidden><h2>Confirmation</h2><p><strong id="confirmation-status">—</strong> · profile: <code id="confirmation-profile">—</code> · candidate hash: <code id="confirmation-candidate-hash">—</code></p><div class="grid"><div class="card"><div class="label">Opening pairs</div><div id="confirmation-pairs" class="value">—</div></div><div class="card"><div class="label">Games</div><div id="confirmation-games" class="value">—</div></div><div class="card"><div class="label">W–D–L</div><div id="confirmation-wdl" class="value">—</div></div><div class="card"><div class="label">Score</div><div id="confirmation-score" class="value">—</div></div><div class="card"><div class="label">Elo</div><div id="confirmation-elo" class="value">—</div></div><div class="card"><div class="label">95% CI (score)</div><div id="confirmation-score-ci" class="value">—</div></div><div class="card"><div class="label">Elapsed</div><div id="confirmation-elapsed" class="value">—</div></div><div class="card"><div class="label">Estimated remaining</div><div id="confirmation-eta" class="value">—</div></div></div><p id="confirmation-times" class="muted"></p><h3>Final candidate vs baseline</h3><div class="scroll"><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Candidate</th><th>Delta</th></tr></thead><tbody id="confirmation-parameters"></tbody></table></div></section>
+<section><h2>Candidate queue</h2><div class="grid"><div class="card"><div class="label">Completed</div><div id="completed-count" class="value">—</div></div><div class="card"><div class="label">Rejected</div><div id="rejected-count" class="value">—</div></div><div class="card"><div class="label">Waiting</div><div id="waiting-count" class="value">—</div></div></div><div class="scroll"><table><thead><tr><th>Trial</th><th>Status</th><th>Algorithm</th><th>W–D–L</th><th>Score</th><th>Elo</th><th>Parameter hash</th><th>Profile</th></tr></thead><tbody id="candidates"></tbody></table></div></section>
 <section><h2>Current trial</h2><div id="current-details" class="muted">—</div></section>
 <section><h2>Final anchor from optimizer checkpoint</h2><p id="best-source" class="muted">—</p><div class="scroll"><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Anchor</th><th>Delta</th></tr></thead><tbody id="parameters"></tbody></table></div></section>
 <section><h2>Checkpoint and latest error</h2><pre id="checkpoint">—</pre><pre id="error">—</pre></section>
@@ -684,12 +714,12 @@ function render(data){
  document.getElementById('games').textContent=h(data.consumed_games);
  document.getElementById('updated').textContent='Last refresh: '+(data.generated_at||'—')+' · database: '+((data.database||{}).path||'—');
  ['completed','rejected','waiting'].forEach(k=>document.getElementById(k+'-count').textContent=h(counts[k]||0));
- document.getElementById('candidates').innerHTML=(data.candidates||[]).map(item=>{const x=item.metrics||{};return '<tr><td>'+h(item.trial_id)+'</td><td>'+h(item.status)+'</td><td>'+h(item.algorithm)+'</td><td>'+h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses)+'</td><td>'+h(x.score_percent)+'%</td><td>'+h(x.elo_estimate)+'</td><td>'+h((item.parameter||{}).parameter_hash)+'</td></tr>';}).join('');
- const block=t.current_block; document.getElementById('current-details').innerHTML='<strong>Status:</strong> '+h(t.status)+' · <strong>parameter:</strong> '+h((t.parameter||{}).parameter_hash)+' · <strong>next/current block:</strong> '+h(block?block.block_index:'—')+' · <strong>attempt:</strong> '+h(block?block.attempt:'—')+'<br><strong>algorithm:</strong> '+h(t.algorithm)+' · <strong>error:</strong> '+h(t.error);
- const best=data.final_anchor||{};document.getElementById('best-source').textContent='Source: '+(best.source||'—')+' · checkpoint: '+(best.checkpoint_revision||'—')+' · hash: '+(best.parameter_hash||'—');
+ document.getElementById('candidates').innerHTML=(data.candidates||[]).map(item=>{const x=item.metrics||{},p=item.profile||{};return '<tr><td>'+h(item.trial_id)+'</td><td>'+h(item.status)+'</td><td>'+h(item.algorithm)+'</td><td>'+h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses)+'</td><td>'+h(x.score_percent)+'%</td><td>'+h(x.elo_estimate)+'</td><td>'+h((item.parameter||{}).parameter_hash)+'</td><td>'+h(p.name)+' · '+h(p.tc)+'</td></tr>';}).join('');
+ const block=t.current_block,p=t.profile||{}; document.getElementById('current-details').innerHTML='<strong>Status:</strong> '+h(t.status)+' · <strong>parameter:</strong> '+h((t.parameter||{}).parameter_hash)+' · <strong>profile:</strong> '+h(p.name)+' · <strong>tc:</strong> '+h(p.tc)+' · <strong>next/current block:</strong> '+h(block?block.block_index:'—')+' · <strong>attempt:</strong> '+h(block?block.attempt:'—')+'<br><strong>algorithm:</strong> '+h(t.algorithm)+' · <strong>error:</strong> '+h(t.error);
+ const best=data.final_anchor||{},sp=data.search_profile||{};document.getElementById('best-source').textContent='Source: '+(best.source||'—')+' · profile: '+(sp.name||'—')+' · tc: '+(sp.tc||'—')+' · checkpoint: '+(best.checkpoint_revision||'—')+' · hash: '+(best.parameter_hash||'—');
  document.getElementById('parameters').innerHTML=(data.final_anchor_parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');
  const confirmationSection=document.getElementById('confirmation-section');confirmationSection.hidden=!confirmation;
- if(confirmation){const x=confirmation.metrics||confirmation;document.getElementById('confirmation-status').textContent=confirmation.status+(confirmation.outcome?' · '+confirmation.outcome:'');document.getElementById('confirmation-candidate-hash').textContent=confirmation.candidate_parameter_hash||'—';document.getElementById('confirmation-pairs').textContent=h(x.pairs_completed)+' / '+h(x.pairs_target);document.getElementById('confirmation-games').textContent=h(x.games_completed)+' / '+h(x.games_target);document.getElementById('confirmation-wdl').textContent=h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses);document.getElementById('confirmation-score').textContent=h(x.score_percent)+'%';document.getElementById('confirmation-elo').textContent=h(x.elo_estimate);document.getElementById('confirmation-score-ci').textContent=h(x.score_ci_low)+'% … '+h(x.score_ci_high)+'%';document.getElementById('confirmation-elapsed').textContent=h(confirmation.elapsed_seconds)+' s';document.getElementById('confirmation-eta').textContent=h(confirmation.estimated_remaining_seconds)+' s';document.getElementById('confirmation-times').textContent='Started: '+h(confirmation.started_at)+' · Finished: '+h(confirmation.finished_at)+' · Updated: '+h(confirmation.updated_at);document.getElementById('confirmation-parameters').innerHTML=(confirmation.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');}
+ if(confirmation){const x=confirmation.metrics||confirmation,cp=confirmation.profile||{};document.getElementById('confirmation-status').textContent=confirmation.status+(confirmation.outcome?' · '+confirmation.outcome:'');document.getElementById('confirmation-profile').textContent=(cp.name||'—')+' · '+(cp.tc||'—')+' · '+(cp.hash||'—');document.getElementById('confirmation-candidate-hash').textContent=confirmation.candidate_parameter_hash||'—';document.getElementById('confirmation-pairs').textContent=h(x.pairs_completed)+' / '+h(x.pairs_target);document.getElementById('confirmation-games').textContent=h(x.games_completed)+' / '+h(x.games_target);document.getElementById('confirmation-wdl').textContent=h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses);document.getElementById('confirmation-score').textContent=h(x.score_percent)+'%';document.getElementById('confirmation-elo').textContent=h(x.elo_estimate);document.getElementById('confirmation-score-ci').textContent=h(x.score_ci_low)+'% … '+h(x.score_ci_high)+'%';document.getElementById('confirmation-elapsed').textContent=h(confirmation.elapsed_seconds)+' s';document.getElementById('confirmation-eta').textContent=h(confirmation.estimated_remaining_seconds)+' s';document.getElementById('confirmation-times').textContent='Started: '+h(confirmation.started_at)+' · Finished: '+h(confirmation.finished_at)+' · Updated: '+h(confirmation.updated_at);document.getElementById('confirmation-parameters').innerHTML=(confirmation.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');}
  document.getElementById('checkpoint').textContent=JSON.stringify(data.checkpoint||null,null,2);
  document.getElementById('error').textContent=JSON.stringify(data.latest_error||null,null,2);
  document.getElementById('readonly').textContent=data.read_only?'read-only':'unknown mode';

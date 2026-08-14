@@ -208,6 +208,53 @@ bekräftelsen har avslutats som `confirmed`, `rejected` eller `inconclusive`.
 Dashboarden är fortsatt helt skrivskyddad och läser bara SQLite, även för den
 arkiverade v1.1.1-kampanjen.
 
+## v1.2 / profiler för matchtid
+
+v1.2 kan ge sökning och bekräftelse var sin namngiven tidsprofil. Profilen
+består av namn och faktisk `tc`; dess hash sparas i checkpoint, trial- och
+confirmation-resultat. Saknas `real.profiles` används fortfarande `real.tc`
+med profilnamnet `default`, så äldre kampanjer behåller samma tidskontroll.
+
+```json
+{
+  "goals": {
+    "real": {
+      "testmonitor_command": ["/path/to/testmonitor"],
+      "fastchess": "/path/to/fastchess",
+      "opening_book": "/path/to/openings.epd",
+      "tc": "0.2+0.01",
+      "profiles": {
+        "long-search": {"tc": "1+0.02"},
+        "long-confirmation": {"tc": "2+0.02"}
+      }
+    },
+    "optimizer": {
+      "parameters": ["mobility_weight"],
+      "profile": "long-search"
+    },
+    "confirmation": {
+      "enabled": true,
+      "games": 100,
+      "seed": 20260930,
+      "confidence": 0.95,
+      "profile": "long-confirmation"
+    }
+  }
+}
+```
+
+`optimizer optimize campaign.json` skickar den upplösta profilens `tc` till
+testmonitor och därifrån vidare till Fastchess. Dashboard, `status` och rapport
+visar profilnamn, profilhash och faktisk tidskontroll för sök- och
+bekräftelsefasen. En återstart med en annan profil avvisas av SQLite. Detta
+delmål innehåller ingen nodbudget och ändrar inte sökalgoritmen.
+
+Det reproducerbara underlaget finns i
+[`tests/test_phase18.py`](tests/test_phase18.py). Det täcker fake-runnerns
+profil- och återstartsflöde samt två små riktiga körningar av samma kandidat,
+först med `0.2+0.01` och sedan med `1+0.02`, där `monitor-config.json` och
+blockresultatet verifieras.
+
 Slutrapporten skiljer nu mellan `final_anchor` och `highest_local_trial`:
 `final_anchor` kommer alltid från optimizer-checkpointen och är kandidaten som
 bekräftas mot ursprunglig baseline. `highest_local_trial` är endast den högsta

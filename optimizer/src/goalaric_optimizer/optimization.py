@@ -22,6 +22,7 @@ from .confirmation import (
 )
 from .coordinate import MultiResolutionCoordinateSearch
 from .database import CampaignBusy, Database, DatabaseError
+from .profiles import MatchProfile, ProfileError, resolve_profile
 from .real_integration import RealTestmonitorConfig
 from .registry import Registry
 from .scheduler import terminate_active_blocks
@@ -52,6 +53,7 @@ class OptimizeSettings:
     exploratory_min_score: float
     adaptive: AdaptivePolicy
     fake_optimum: dict[str, int] | None
+    search_profile: MatchProfile
     confirmation: ConfirmationSettings
 
 
@@ -134,7 +136,22 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
                 raise OptimizationError(f"fake optimum contains unknown parameter: {name}")
             fake_optimum[name] = value
     confirmation_source = goals if "confirmation" in goals else {"confirmation": config.get("confirmation", {})}
-    confirmation = parse_confirmation_settings(confirmation_source, int(campaign["master_seed"]))
+    real_goals = goals.get("real", {})
+    if real_goals is None:
+        real_goals = {}
+    try:
+        search_profile = resolve_profile(real_goals, optimizer_goals.get("profile"), "search")
+        raw_confirmation = confirmation_source.get("confirmation", {})
+        confirmation_profile = None
+        if isinstance(raw_confirmation, dict) and raw_confirmation.get("enabled", False):
+            confirmation_profile = resolve_profile(
+                real_goals, raw_confirmation.get("profile"), "confirmation"
+            )
+    except ProfileError as exc:
+        raise OptimizationError(str(exc)) from exc
+    confirmation = parse_confirmation_settings(
+        confirmation_source, int(campaign["master_seed"]), profile=confirmation_profile
+    )
     return OptimizeSettings(
         max_games=max_games,
         max_evaluations=max_evaluations,
@@ -144,6 +161,7 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
         exploratory_min_score=float(exploratory_min_score),
         adaptive=adaptive,
         fake_optimum=fake_optimum,
+        search_profile=search_profile,
         confirmation=confirmation,
     )
 
@@ -157,7 +175,12 @@ def _runtime_path(value: Any, name: str, base_dir: Path) -> Path:
     return path.resolve()
 
 
-def _real_config(campaign_path: Path, data_dir: Path, definition: Any) -> RealTestmonitorConfig:
+def _real_config(
+    campaign_path: Path,
+    data_dir: Path,
+    definition: Any,
+    profile: MatchProfile | None = None,
+) -> RealTestmonitorConfig:
     config = definition.config
     goals = config.get("goals", {})
     runtime = goals.get("real", {}) if isinstance(goals, dict) else {}
@@ -182,6 +205,9 @@ def _real_config(campaign_path: Path, data_dir: Path, definition: Any) -> RealTe
     for name, path in (("engine", engine), ("fastchess", fastchess), ("opening_book", opening_book), ("workdir", workdir)):
         if not path.exists():
             raise OptimizationError(f"goals.real.{name} does not exist: {path}")
+    selected_profile = profile or MatchProfile.create(
+        "default", str(runtime.get("tc", "10+0.1")), "real.tc"
+    )
     campaign_path_root = campaign_dir(data_dir, definition.campaign_id)
     baseline_parameter_file = campaign_path_root / "baseline-parameters.json"
     return RealTestmonitorConfig(
@@ -193,13 +219,15 @@ def _real_config(campaign_path: Path, data_dir: Path, definition: Any) -> RealTe
         candidate_parameter_file=baseline_parameter_file,
         opening_book=opening_book,
         opening_block_file=campaign_path_root / "adaptive-blocks" / "placeholder.epd",
-        tc=str(runtime.get("tc", "10+0.1")),
+        tc=selected_profile.tc,
         seed=_integer(runtime.get("seed", definition.master_seed), "real.seed"),
         concurrency=_integer(runtime.get("concurrency", 1), "real.concurrency", 1),
         hash_mb=_integer(runtime.get("hash_mb", 16), "real.hash_mb", 16),
         threads=_integer(runtime.get("threads", 1), "real.threads", 1),
         syzygy_path=str(runtime.get("syzygy_path", "off")),
         workdir=workdir,
+        profile_name=selected_profile.name,
+        profile_hash=selected_profile.hash,
     )
 
 
@@ -218,6 +246,7 @@ class FakeAdaptiveMatchRunner:
         reference: dict[str, Any],
         optimum: dict[str, int],
         max_games: int,
+        profile: dict[str, Any] | None = None,
     ) -> None:
         self.database = database
         self.campaign_id = campaign_id
@@ -225,6 +254,7 @@ class FakeAdaptiveMatchRunner:
         self.reference = reference
         self.optimum = optimum
         self.max_games = max_games
+        self.profile = dict(profile) if profile is not None else None
 
     def _objective(self, document: dict[str, Any]) -> int:
         values = _parameter_values(document)
@@ -271,6 +301,8 @@ class FakeAdaptiveMatchRunner:
             "reference_objective": reference_score,
             "block_index": int(block["block_index"]),
         }
+        if self.profile is not None:
+            result["profile"] = dict(self.profile)
         checkpoint = self.database.optimizer_state(self.campaign_id)["state"]
         self.database.complete_block_atomically(
             self.campaign_id,
@@ -310,6 +342,7 @@ class FakeAdaptiveEvaluator:
         policy: AdaptivePolicy,
         optimum: dict[str, int],
         max_games: int,
+        profile: MatchProfile | None = None,
     ) -> None:
         self.database = database
         self.data_dir = data_dir
@@ -317,6 +350,7 @@ class FakeAdaptiveEvaluator:
         self.policy = policy
         self.optimum = optimum
         self.max_games = max_games
+        self.profile = profile
 
     def __call__(self, candidate: dict[str, Any], seed: int) -> dict[str, Any]:
         _materialize_candidate(self.database, self.data_dir, self.campaign_id, candidate)
@@ -331,6 +365,7 @@ class FakeAdaptiveEvaluator:
             reference,
             self.optimum,
             self.max_games,
+            self.profile.as_dict() if self.profile is not None else None,
         )
         controller = AdaptiveCampaign(
             self.database,
@@ -339,6 +374,7 @@ class FakeAdaptiveEvaluator:
             self.policy,
             runner,
             seed,
+            profile=self.profile.as_dict() if self.profile is not None else None,
             complete_trial=False,
         )
         return controller.run()
@@ -363,12 +399,14 @@ class RealAdaptiveEvaluator:
         campaign_id: str,
         config: RealTestmonitorConfig,
         policy: AdaptivePolicy,
+        profile: MatchProfile | None = None,
     ) -> None:
         self.database = database
         self.data_dir = data_dir
         self.campaign_id = campaign_id
         self.config = config
         self.policy = policy
+        self.profile = profile
 
     def __call__(self, candidate: dict[str, Any], seed: int) -> dict[str, Any]:
         candidate_hash = sha256_json(candidate)
@@ -388,6 +426,7 @@ class RealAdaptiveEvaluator:
                 "candidate_parameter_hash": candidate_hash,
                 "reference_parameter_hash": candidate_hash,
                 "matchless_reference": True,
+                "profile": self.profile.as_dict() if self.profile is not None else None,
             }
         state = self.database.optimizer_state(self.campaign_id)["state"]
         reference = state.get("coordinate_base_parameters") or state.get("anchor_parameters")
@@ -413,6 +452,7 @@ class RealAdaptiveEvaluator:
             runner,
             seed,
             block_hash_factory=runner.block_hashes,
+            profile=self.profile.as_dict() if self.profile is not None else None,
             complete_trial=False,
         )
         return controller.run()
@@ -488,6 +528,7 @@ def _run_confirmation(
             candidate,
             baseline,
             confirmation_settings,
+            profile=(confirmation_settings.profile.as_dict() if confirmation_settings.profile else None),
         )
 
     if definition.mode == "fake":
@@ -495,9 +536,10 @@ def _run_confirmation(
             database,
             definition.campaign_id,
             confirmation_settings.fake_results,
+            profile=(confirmation_settings.profile.as_dict() if confirmation_settings.profile else None),
         )
     else:
-        runtime = _real_config(campaign_path, data_dir, definition)
+        runtime = _real_config(campaign_path, data_dir, definition, confirmation_settings.profile)
         candidate_path = _materialize_candidate(database, data_dir, definition.campaign_id, candidate)
         runtime = replace(
             runtime,
@@ -606,12 +648,23 @@ def run_optimization(
         if settings.fake_optimum is None:
             raise OptimizationError("goals.fake_match.optimum is required for mode=fake")
         evaluator: Callable[[dict[str, Any], int], dict[str, Any]] = FakeAdaptiveEvaluator(
-            database, data_dir, definition.campaign_id, settings.adaptive, settings.fake_optimum, settings.max_games
+            database,
+            data_dir,
+            definition.campaign_id,
+            settings.adaptive,
+            settings.fake_optimum,
+            settings.max_games,
+            settings.search_profile,
         )
     elif definition.mode == "real":
-        runtime = _real_config(campaign_path, data_dir, definition)
+        runtime = _real_config(campaign_path, data_dir, definition, settings.search_profile)
         evaluator = RealAdaptiveEvaluator(
-            database, data_dir, definition.campaign_id, runtime, settings.adaptive
+            database,
+            data_dir,
+            definition.campaign_id,
+            runtime,
+            settings.adaptive,
+            settings.search_profile,
         )
     else:
         raise OptimizationError(f"unsupported campaign mode: {definition.mode}")
@@ -620,6 +673,9 @@ def run_optimization(
         token = f"optimizer-{os.getpid()}"
         try:
             database.claim_campaign(definition.campaign_id, token, takeover=True)
+            database.bind_optimizer_profile(
+                definition.campaign_id, "search", settings.search_profile.as_dict()
+            )
             # A previous optimizer may have died after handing a block to the
             # scheduler. Terminate that recorded process group before replay.
             terminate_active_blocks(data_dir, definition.campaign_id, "optimizer startup recovered abandoned job")

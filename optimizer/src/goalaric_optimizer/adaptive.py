@@ -114,6 +114,7 @@ def _evidence(
     decision: str,
     next_block_index: int | None,
     phase: str,
+    profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     result = {
         "schema_version": 1,
@@ -141,6 +142,8 @@ def _evidence(
             "elo_ci_high": aggregate["elo_ci_high"],
         }
     )
+    if profile is not None:
+        result["profile"] = dict(profile)
     return result
 
 
@@ -161,6 +164,7 @@ def _attach_runner_metadata(evidence: dict[str, Any], block: dict[str, Any]) -> 
         "reference_parameter_hash",
         "candidate_objective",
         "reference_objective",
+        "profile",
     ):
         if key in result:
             evidence[key] = result[key]
@@ -181,6 +185,7 @@ class AdaptiveCampaign:
         runner: BlockRunner,
         seed: int,
         block_hash_factory: Callable[[int], tuple[str, str]] | None = None,
+        profile: dict[str, Any] | None = None,
         complete_trial: bool = True,
     ) -> None:
         self.database = database
@@ -194,6 +199,7 @@ class AdaptiveCampaign:
             lambda index: _block_hashes(self.campaign_id, self.parameter_hash, index)
         )
         self.complete_trial = complete_trial
+        self.profile = dict(profile) if profile is not None else None
         self.trial_id: str | None = None
 
     def prepare(self) -> str:
@@ -201,8 +207,22 @@ class AdaptiveCampaign:
             self.campaign_id, self.candidate_document, group_name="adaptive"
         )
         self.trial_id = self.database.create_trial(
-            self.campaign_id, parameter_set_id, self.ALGORITHM, self.seed
+            self.campaign_id,
+            parameter_set_id,
+            self.ALGORITHM,
+            self.seed,
+            profile_name=self.profile.get("name") if self.profile else None,
+            profile_hash=self.profile.get("hash") if self.profile else None,
+            profile_tc=self.profile.get("tc") if self.profile else None,
         )
+        if self.profile is not None:
+            self.database.bind_trial_profile(
+                self.campaign_id,
+                self.trial_id,
+                self.profile["name"],
+                self.profile["hash"],
+                self.profile["tc"],
+            )
         for index in range(self.policy.max_blocks):
             book_hash, block_hash = self.block_hash_factory(index)
             self.database.create_match_block(
@@ -271,6 +291,7 @@ class AdaptiveCampaign:
                     "interrupted",
                     int(next_block["block_index"]),
                     "interrupted",
+                    self.profile,
                 )
                 self.database.checkpoint_trial_result(self.campaign_id, trial_id, interrupted)
                 return interrupted
@@ -300,6 +321,7 @@ class AdaptiveCampaign:
                 decision,
                 next_index,
                 phase,
+                self.profile,
             )
             _attach_runner_metadata(evidence, block)
             if decision == "continue":

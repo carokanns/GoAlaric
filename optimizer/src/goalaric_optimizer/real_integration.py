@@ -35,6 +35,8 @@ class RealTestmonitorConfig:
     threads: int = 1
     syzygy_path: str = "off"
     workdir: Path | None = None
+    profile_name: str = "default"
+    profile_hash: str = ""
 
 
 def _read_object(path: Path) -> dict[str, Any]:
@@ -97,6 +99,9 @@ def _ensure_real_schedule(
     seed: int,
     opening_book_sha256: str,
     materialized_openings_sha256: str,
+    profile_name: str | None = None,
+    profile_hash: str | None = None,
+    profile_tc: str | None = None,
 ) -> tuple[str, str]:
     campaign = database.campaign(campaign_id)
     config = json.loads(campaign["config_json"])
@@ -105,7 +110,15 @@ def _ensure_real_schedule(
     candidate_id = database.add_parameter_set(campaign_id, candidate_document, group_name="candidate")
     if database.parameter_set(candidate_id, campaign_id)["parameter_hash"] == campaign["baseline_parameter_hash"]:
         raise SchedulerError("candidate parameter hash is identical to the baseline")
-    trial_id = database.create_trial(campaign_id, candidate_id, "real-testmonitor", seed)
+    trial_id = database.create_trial(
+        campaign_id,
+        candidate_id,
+        "real-testmonitor",
+        seed,
+        profile_name=profile_name,
+        profile_hash=profile_hash,
+        profile_tc=profile_tc,
+    )
     block_id = database.create_match_block(
         campaign_id,
         trial_id,
@@ -314,6 +327,11 @@ class RealTestmonitorScheduler(Scheduler):
             "runner": "real-testmonitor-v1",
             "reference_parameter_hash": baseline_parameter_hash,
             "candidate_parameter_hash": candidate_parameter_hash,
+            "profile": {
+                "name": self.config.profile_name,
+                "hash": self.config.profile_hash,
+                "tc": self.config.tc,
+            },
         }
 
 
@@ -356,7 +374,17 @@ def run_real_testmonitor(
     _materialize_real_block(effective, seed)
     opening_book_hash = sha256_bytes(effective.opening_book.read_bytes())
     block_hash = sha256_bytes(effective.opening_block_file.read_bytes())
-    _ensure_real_schedule(database, campaign_id, candidate_document, seed, opening_book_hash, block_hash)
+    _ensure_real_schedule(
+        database,
+        campaign_id,
+        candidate_document,
+        seed,
+        opening_book_hash,
+        block_hash,
+        effective.profile_name if effective.profile_hash else None,
+        effective.profile_hash if effective.profile_hash else None,
+        effective.tc if effective.profile_hash else None,
+    )
     if database.campaign(campaign_id)["status"] == "completed":
         return database.status_snapshot(campaign_id)
     return RealTestmonitorScheduler(
