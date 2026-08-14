@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "registry": "phase15-v1.1-example",
+  "parameters": [
+    {"name": "p1", "value": 10, "min": 0, "max": 24, "step": 8, "min_step": 2},
+    {"name": "p2", "value": 20, "min": 0, "max": 40, "step": 16, "min_step": 4}
+  ]
+}

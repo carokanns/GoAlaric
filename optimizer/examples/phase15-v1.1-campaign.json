@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "campaign_id": "phase15-v1-1-example",
+  "name": "GoAlaric optimizer v1.1 example",
+  "mode": "fake",
+  "registry": "phase15-v1.1-registry.json",
+  "baseline": {"engine_id": "fake-engine"},
+  "master_seed": 20260814,
+  "partitions": {"optimization": {"name": "optimization"}},
+  "goals": {
+    "max_games": 200,
+    "max_evaluations": 100,
+    "max_passes": 20,
+    "optimizer": {"parameters": ["p1", "p2"]},
+    "adaptive": {"min_blocks": 1, "max_blocks": 1},
+    "fake_match": {"optimum": {"p1": 14, "p2": 28}},
+    "confirmation": {
+      "enabled": true,
+      "games": 8,
+      "seed": 20260830,
+      "confidence": 0.95,
+      "fake_result": {"wins": 8, "draws": 0, "losses": 0}
+    }
+  }
+}

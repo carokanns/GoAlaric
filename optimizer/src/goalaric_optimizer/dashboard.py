@@ -307,8 +307,14 @@ class DashboardReader:
             confirmation_row = confirmation_connection.execute(
                 "SELECT * FROM confirmations WHERE campaign_id=?", (self.campaign_id,)
             ).fetchone()
+            recommendation_artifact = confirmation_connection.execute(
+                "SELECT path,sha256 FROM artifacts WHERE campaign_id=? AND kind='recommended_parameters' "
+                "ORDER BY created_at DESC LIMIT 1",
+                (self.campaign_id,),
+            ).fetchone()
         confirmation: dict[str, Any] | None = None
         if confirmation_row is not None:
+            confirmation_result = _json(confirmation_row["result_json"], {})
             confirmation = {
                 "confirmation_id": confirmation_row["confirmation_id"],
                 "status": confirmation_row["status"],
@@ -321,6 +327,14 @@ class DashboardReader:
                 "score_ci_low": confirmation_row["score_ci_low"],
                 "score_ci_high": confirmation_row["score_ci_high"],
                 "recommendation_parameter_hash": confirmation_row["recommendation_parameter_hash"],
+                "recommendation": confirmation_result.get("recommendation"),
+                "automatic_promotion": confirmation_result.get("automatic_promotion"),
+                "recommendation_parameter_file": (
+                    recommendation_artifact["path"] if recommendation_artifact is not None else None
+                ),
+                "recommendation_parameter_file_sha256": (
+                    recommendation_artifact["sha256"] if recommendation_artifact is not None else None
+                ),
             }
         finished = _finished(str(campaign["status"]), trials, block_rows) and (
             confirmation is None or confirmation["status"] == "completed"
@@ -432,6 +446,7 @@ def render_report_html(snapshot: dict[str, Any]) -> str:
 <section><h2>Candidates</h2><p>Completed: {_html_text(counts.get('completed', 0))} · rejected: {_html_text(counts.get('rejected', 0))} · waiting: {_html_text(counts.get('waiting', 0))}</p>
 <table><thead><tr><th>Trial</th><th>Status</th><th>W–D–L</th><th>Score</th><th>Parameter hash</th></tr></thead><tbody>{rows}</tbody></table></section>
 <section><h2>Best parameters vs baseline</h2><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Best</th><th>Delta</th></tr></thead><tbody>{parameter_rows}</tbody></table></section>
+<section><h2>Fixed confirmation</h2><pre>{html.escape(json.dumps(snapshot.get('confirmation'), ensure_ascii=False, indent=2))}</pre></section>
 <section><h2>Latest checkpoint</h2><pre>{html.escape(checkpoint)}</pre><h2>Latest error</h2><pre>{html.escape(json.dumps(latest_error, ensure_ascii=False, indent=2))}</pre></section>
 <footer>Generated {_html_text(snapshot.get('generated_at'))}; SQLite source opened read-only.</footer></body></html>"""
 

@@ -1,4 +1,4 @@
-# GoAlaric optimizer – version 1 (fas 11)
+# GoAlaric optimizer – version 1.1
 
 ## Version 1 / fas 11
 
@@ -106,9 +106,12 @@ realblock valideras av testmonitor innan det skrivs atomiskt till SQLite.
 Valda parametrar måste ha sökmetadata (`min`, `max`, `step` och `min_step`) i
 Python-registret; Go-registrets namn och standardvärden är oförändrade.
 Minimalkedjan är verifierad med återstart, separat baseline-/kandidatfil,
-total matchbudget, dubbelräkningskontroll och processaudit. Längre
-stresstest och en separat bekräftelsefas finns nu som v1.1-underlag; full
-real-dokumentation kompletteras efter den fortsatta verifieringen.
+total matchbudget, dubbelräkningskontroll och processaudit. Den fulla
+v1.1-verifieringen körs från den installerade terminal-entrypointen och finns
+som reproducerbart test i `tests/test_phase15.py`. Den täcker en
+flerparametrig sökning till terminal checkpoint, avbrott/återstart i sökning
+och bekräftelse, read-only-dashboard, statusövervakning, slutrapport samt
+kontroll av unika spel och inga kvarvarande processer.
 
 ## Bekräftelsefas efter sökningen
 
@@ -147,6 +150,20 @@ flödet använder samma `goals.real`-konfiguration som den autonoma
 `testmonitor → Fastchess → GoAlaric`-kedjan. Under körning visar
 `status --watch` och dashboardens read-only API bekräftelsens status och
 intervall; kampanjens vanliga matchbudget räknar inte bekräftelsepartierna.
+
+När bekräftelsen är färdig skrivs `recommended-parameters.json` i kampanjens
+datakatalog och registreras som ett separat SQLite-artifact. Vid `confirmed`
+innehåller den slutkandidaten; vid `rejected` eller `inconclusive` innehåller
+den ursprunglig baseline. Filen är endast ett underlag för manuell granskning;
+ingen automatisk promotion sker.
+
+## Slutverifiering för v1.1
+
+Körbara JSON-exempel finns i
+[`examples/phase15-v1.1-campaign.json`](examples/phase15-v1.1-campaign.json) och
+[`examples/phase15-v1.1-registry.json`](examples/phase15-v1.1-registry.json).
+Den fullständiga terminalrunbooken finns i
+[`docs/phase15-v1.1-runbook.md`](docs/phase15-v1.1-runbook.md).
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och

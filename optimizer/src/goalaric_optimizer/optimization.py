@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 from .adaptive import AdaptiveCampaign, AdaptiveError, AdaptivePolicy, RealAdaptiveBlockRunner
-from .canonical import atomic_write_json, sha256_bytes, sha256_json
+from .canonical import atomic_write_json, canonical_json, sha256_bytes, sha256_json
 from .confirmation import (
     ConfirmationCampaign,
     ConfirmationSettings,
@@ -410,6 +410,34 @@ def _final_search_candidate(database: Database, campaign_id: str) -> dict[str, A
     return dict(candidate)
 
 
+def _materialize_recommendation(
+    database: Database, data_dir: Path, campaign_id: str
+) -> Path | None:
+    """Write the reviewed recommendation without changing the engine baseline."""
+    snapshot = database.confirmation_snapshot(campaign_id)
+    if snapshot is None or snapshot.get("status") != "completed":
+        return None
+    recommendation_hash = snapshot.get("recommendation_parameter_hash")
+    if not isinstance(recommendation_hash, str) or not recommendation_hash:
+        raise OptimizationError("completed confirmation has no recommendation parameter hash")
+    if recommendation_hash == snapshot.get("candidate_parameter_hash"):
+        document = snapshot.get("candidate_document")
+    elif recommendation_hash == snapshot.get("baseline_parameter_hash"):
+        document = snapshot.get("baseline_document")
+    else:
+        raise OptimizationError("confirmation recommendation does not match candidate or baseline")
+    if not isinstance(document, dict) or sha256_json(document) != recommendation_hash:
+        raise OptimizationError("confirmation recommendation document has an invalid hash")
+    path = campaign_dir(data_dir, campaign_id) / "recommended-parameters.json"
+    expected = (canonical_json(document) + "\n").encode("utf-8")
+    if path.exists() and path.read_bytes() != expected:
+        raise OptimizationError(f"recommendation parameter artifact differs: {path}")
+    if not path.exists():
+        atomic_write_json(path, document)
+    database.record_artifact(campaign_id, "recommended_parameters", str(path.resolve()), sha256_bytes(expected))
+    return path
+
+
 def _run_confirmation(
     database: Database,
     data_dir: Path,
@@ -585,6 +613,12 @@ def run_optimization(
                     invocation_limit,
                     controller.processed,
                 )
+                recommendation_path = _materialize_recommendation(
+                    database, data_dir, definition.campaign_id
+                )
+                if recommendation_path is not None:
+                    confirmation_report = database.confirmation_snapshot(definition.campaign_id) or confirmation_report
+                    confirmation_report["recommendation_parameter_file"] = str(recommendation_path.resolve())
                 report = dict(report)
                 report["confirmation"] = confirmation_report
             return report

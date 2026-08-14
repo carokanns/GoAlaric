@@ -1756,6 +1756,18 @@ class Database:
         if record is None:
             return None
         record["blocks"] = self.confirmation_blocks(campaign_id, str(record["confirmation_id"]))
+        if isinstance(record.get("result"), dict):
+            record["recommendation"] = record["result"].get("recommendation")
+            record["automatic_promotion"] = record["result"].get("automatic_promotion")
+        with self._read() as connection:
+            artifact = connection.execute(
+                "SELECT path,sha256 FROM artifacts WHERE campaign_id=? AND kind='recommended_parameters' "
+                "ORDER BY created_at DESC LIMIT 1",
+                (campaign_id,),
+            ).fetchone()
+        if artifact is not None:
+            record["recommendation_parameter_file"] = artifact["path"]
+            record["recommendation_parameter_file_sha256"] = artifact["sha256"]
         return record
 
     def recover_abandoned_jobs(self, campaign_id: str, reason: str = "running job has no trusted owner") -> dict[str, int]:
