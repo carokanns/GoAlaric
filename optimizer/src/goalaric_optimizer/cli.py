@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .database import DatabaseError, InvalidTransition
+from .confirmation import ConfirmationError
 from .service import (
     ServiceError,
     database_for,
@@ -462,6 +463,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         SchedulerError,
         AdaptiveError,
         CoordinateSearchError,
+        ConfirmationError,
         DashboardError,
         OptimizationError,
         ValueError,

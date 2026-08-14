@@ -10,7 +10,7 @@ from .canonical import canonical_json, sha256_json, utc_now
 from .config import CampaignDefinition
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 CAMPAIGN_STATES = {"pending", "running", "completed", "failed", "interrupted", "paused", "rejected"}
 TRIAL_STATES = CAMPAIGN_STATES
 BLOCK_STATES = {"pending", "running", "completed", "failed", "interrupted", "rejected"}
@@ -184,6 +184,79 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS events_campaign_idx ON events(campaign_id, event_id);
 CREATE INDEX IF NOT EXISTS trials_campaign_status_idx ON trials(campaign_id, status);
 CREATE INDEX IF NOT EXISTS blocks_campaign_status_idx ON match_blocks(campaign_id, status);
+
+-- Confirmation is deliberately isolated from optimizer trials, blocks and
+-- checkpoints.  It is evidence for the final recommendation, never search
+-- feedback.
+CREATE TABLE IF NOT EXISTS confirmations (
+    confirmation_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL REFERENCES campaigns(campaign_id),
+    status TEXT NOT NULL CHECK (status IN ('pending','running','completed','failed','interrupted')),
+    candidate_parameter_hash TEXT NOT NULL,
+    baseline_parameter_hash TEXT NOT NULL,
+    candidate_document_json TEXT NOT NULL,
+    baseline_document_json TEXT NOT NULL,
+    games_target INTEGER NOT NULL CHECK (games_target > 0),
+    seed INTEGER NOT NULL,
+    confidence REAL NOT NULL,
+    outcome TEXT CHECK (outcome IN ('confirmed','rejected','inconclusive')),
+    wins INTEGER NOT NULL DEFAULT 0,
+    draws INTEGER NOT NULL DEFAULT 0,
+    losses INTEGER NOT NULL DEFAULT 0,
+    score REAL,
+    score_ci_low REAL,
+    score_ci_high REAL,
+    recommendation_parameter_hash TEXT,
+    result_json TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT,
+    updated_at TEXT NOT NULL,
+    UNIQUE (campaign_id)
+);
+
+CREATE TABLE IF NOT EXISTS confirmation_blocks (
+    block_id TEXT PRIMARY KEY,
+    confirmation_id TEXT NOT NULL REFERENCES confirmations(confirmation_id),
+    campaign_id TEXT NOT NULL REFERENCES campaigns(campaign_id),
+    block_index INTEGER NOT NULL,
+    pairs_per_block INTEGER NOT NULL CHECK (pairs_per_block > 0),
+    master_seed INTEGER NOT NULL,
+    opening_book_sha256 TEXT NOT NULL,
+    materialized_openings_sha256 TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending','running','completed','failed','interrupted','rejected')),
+    pid INTEGER,
+    process_group_id INTEGER,
+    attempt INTEGER NOT NULL DEFAULT 0,
+    run_dir TEXT,
+    command_json TEXT,
+    wins INTEGER NOT NULL DEFAULT 0,
+    draws INTEGER NOT NULL DEFAULT 0,
+    losses INTEGER NOT NULL DEFAULT 0,
+    score REAL,
+    result_json TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT,
+    updated_at TEXT NOT NULL,
+    UNIQUE (confirmation_id, block_index, pairs_per_block, master_seed,
+            opening_book_sha256, materialized_openings_sha256)
+);
+
+CREATE TABLE IF NOT EXISTS confirmation_games (
+    game_id TEXT PRIMARY KEY,
+    confirmation_id TEXT NOT NULL REFERENCES confirmations(confirmation_id),
+    block_id TEXT NOT NULL REFERENCES confirmation_blocks(block_id),
+    game_index INTEGER NOT NULL,
+    result TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (block_id, game_index)
+);
+
+CREATE INDEX IF NOT EXISTS confirmations_campaign_idx ON confirmations(campaign_id);
+CREATE INDEX IF NOT EXISTS confirmation_blocks_status_idx ON confirmation_blocks(confirmation_id, status);
 """
 
 
@@ -257,6 +330,10 @@ class Database:
                     connection.execute(
                         "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
                     )
+                elif version == 2:
+                    connection.execute(
+                        "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
+                    )
                 elif version != SCHEMA_VERSION:
                     raise DatabaseError(
                         f"unsupported database schema version: {existing['value']} (expected {SCHEMA_VERSION})"
@@ -288,7 +365,15 @@ class Database:
         )
 
     def _campaign(self, connection: sqlite3.Connection, campaign_id: str) -> sqlite3.Row:
-        row = connection.execute("SELECT * FROM campaigns WHERE campaign_id=?", (campaign_id,)).fetchone()
+        try:
+            row = connection.execute("SELECT * FROM campaigns WHERE campaign_id=?", (campaign_id,)).fetchone()
+        except sqlite3.OperationalError as exc:
+            # A newly created SQLite file becomes visible before the creator
+            # has finished executing the schema script. Callers that poll for
+            # the file can safely retry this transient state.
+            if "no such table" in str(exc):
+                raise DatabaseError("database schema is still initializing") from exc
+            raise
         if row is None:
             raise DatabaseError(f"unknown campaign: {campaign_id}")
         return row
@@ -1205,6 +1290,474 @@ class Database:
             updated = dict(connection.execute("SELECT * FROM match_blocks WHERE block_id=?", (block_id,)).fetchone())
             return updated, (revision, checkpoint_hash)
 
+    def create_confirmation(
+        self,
+        campaign_id: str,
+        candidate_document: dict[str, Any],
+        baseline_document: dict[str, Any],
+        games_target: int,
+        seed: int,
+        confidence: float,
+    ) -> str:
+        """Create the immutable confirmation record, independently of search state."""
+        if games_target < 2 or games_target % 2:
+            raise DatabaseError("confirmation games must be a positive even number >= 2")
+        if seed < 0 or not 0 < confidence < 1:
+            raise DatabaseError("confirmation seed/confidence is invalid")
+        candidate_hash = sha256_json(candidate_document)
+        baseline_hash = sha256_json(baseline_document)
+        confirmation_id = f"confirmation-{sha256_json([campaign_id, candidate_hash, baseline_hash, seed])[:20]}"
+        now = utc_now()
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            existing = connection.execute(
+                "SELECT * FROM confirmations WHERE campaign_id=?", (campaign_id,)
+            ).fetchone()
+            if existing is not None:
+                if (
+                    existing["candidate_parameter_hash"] != candidate_hash
+                    or existing["baseline_parameter_hash"] != baseline_hash
+                    or int(existing["games_target"]) != games_target
+                    or int(existing["seed"]) != seed
+                    or float(existing["confidence"]) != float(confidence)
+                ):
+                    raise CampaignConflict("confirmation already exists with different inputs")
+                return str(existing["confirmation_id"])
+            connection.execute(
+                "INSERT INTO confirmations(confirmation_id,campaign_id,status,candidate_parameter_hash,"
+                "baseline_parameter_hash,candidate_document_json,baseline_document_json,games_target,seed,"
+                "confidence,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    confirmation_id,
+                    campaign_id,
+                    "pending",
+                    candidate_hash,
+                    baseline_hash,
+                    _json(candidate_document),
+                    _json(baseline_document),
+                    games_target,
+                    seed,
+                    float(confidence),
+                    now,
+                    now,
+                ),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "confirmation_created",
+                "confirmation",
+                confirmation_id,
+                {
+                    "candidate_parameter_hash": candidate_hash,
+                    "baseline_parameter_hash": baseline_hash,
+                    "games": games_target,
+                    "seed": seed,
+                    "confidence": confidence,
+                },
+                to_status="pending",
+            )
+            return confirmation_id
+
+    def confirmation(self, campaign_id: str) -> dict[str, Any] | None:
+        with self._read() as connection:
+            self._campaign(connection, campaign_id)
+            row = connection.execute(
+                "SELECT * FROM confirmations WHERE campaign_id=?", (campaign_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            result = dict(row)
+            result["candidate_document"] = json.loads(result.pop("candidate_document_json"))
+            result["baseline_document"] = json.loads(result.pop("baseline_document_json"))
+            if result.get("result_json"):
+                result["result"] = json.loads(result.pop("result_json"))
+            else:
+                result.pop("result_json", None)
+            return result
+
+    def create_confirmation_block(
+        self,
+        confirmation_id: str,
+        block_index: int,
+        pairs_per_block: int,
+        master_seed: int,
+        opening_book_sha256: str,
+        materialized_openings_sha256: str,
+    ) -> str:
+        if block_index < 0 or pairs_per_block < 1:
+            raise DatabaseError("confirmation block index/pairs are invalid")
+        now = utc_now()
+        with self._transaction() as connection:
+            confirmation = connection.execute(
+                "SELECT * FROM confirmations WHERE confirmation_id=?", (confirmation_id,)
+            ).fetchone()
+            if confirmation is None:
+                raise DatabaseError(f"unknown confirmation: {confirmation_id}")
+            existing = connection.execute(
+                "SELECT block_id FROM confirmation_blocks WHERE confirmation_id=? AND block_index=? "
+                "AND pairs_per_block=? AND master_seed=? AND opening_book_sha256=? "
+                "AND materialized_openings_sha256=?",
+                (
+                    confirmation_id,
+                    block_index,
+                    pairs_per_block,
+                    master_seed,
+                    opening_book_sha256,
+                    materialized_openings_sha256,
+                ),
+            ).fetchone()
+            if existing is not None:
+                return str(existing["block_id"])
+            identity = [
+                confirmation_id,
+                block_index,
+                pairs_per_block,
+                master_seed,
+                opening_book_sha256,
+                materialized_openings_sha256,
+            ]
+            block_id = f"confirmation-block-{sha256_json(identity)[:20]}"
+            connection.execute(
+                "INSERT INTO confirmation_blocks(block_id,confirmation_id,campaign_id,block_index,"
+                "pairs_per_block,master_seed,opening_book_sha256,materialized_openings_sha256,status,"
+                "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    block_id,
+                    confirmation_id,
+                    confirmation["campaign_id"],
+                    block_index,
+                    pairs_per_block,
+                    master_seed,
+                    opening_book_sha256,
+                    materialized_openings_sha256,
+                    "pending",
+                    now,
+                    now,
+                ),
+            )
+            self._event(
+                connection,
+                confirmation["campaign_id"],
+                "confirmation_block_created",
+                "confirmation_block",
+                block_id,
+                {"confirmation_id": confirmation_id, "block_index": block_index},
+                to_status="pending",
+            )
+            return block_id
+
+    def confirmation_blocks(self, campaign_id: str, confirmation_id: str | None = None) -> list[dict[str, Any]]:
+        with self._read() as connection:
+            self._campaign(connection, campaign_id)
+            if confirmation_id is None:
+                row = connection.execute(
+                    "SELECT confirmation_id FROM confirmations WHERE campaign_id=?", (campaign_id,)
+                ).fetchone()
+                if row is None:
+                    return []
+                confirmation_id = str(row["confirmation_id"])
+            rows = connection.execute(
+                "SELECT * FROM confirmation_blocks WHERE campaign_id=? AND confirmation_id=? "
+                "ORDER BY block_index,block_id",
+                (campaign_id, confirmation_id),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def claim_next_confirmation_block(self, campaign_id: str) -> dict[str, Any] | None:
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            confirmation = connection.execute(
+                "SELECT * FROM confirmations WHERE campaign_id=?", (campaign_id,)
+            ).fetchone()
+            if confirmation is None or confirmation["status"] == "completed":
+                return None
+            running = connection.execute(
+                "SELECT COUNT(*) FROM confirmation_blocks WHERE campaign_id=? AND status='running'",
+                (campaign_id,),
+            ).fetchone()[0]
+            if running:
+                raise CampaignBusy(f"campaign {campaign_id} already has a running confirmation block")
+            row = connection.execute(
+                "SELECT * FROM confirmation_blocks WHERE campaign_id=? AND confirmation_id=? "
+                "AND status IN ('pending','interrupted') ORDER BY block_index,block_id LIMIT 1",
+                (campaign_id, confirmation["confirmation_id"]),
+            ).fetchone()
+            if row is None:
+                return None
+            now = utc_now()
+            connection.execute(
+                "UPDATE confirmation_blocks SET status='running',attempt=attempt+1,pid=NULL,"
+                "process_group_id=NULL,run_dir=NULL,command_json=NULL,error=NULL,started_at=?,"
+                "finished_at=NULL,updated_at=? WHERE block_id=?",
+                (now, now, row["block_id"]),
+            )
+            connection.execute(
+                "UPDATE confirmations SET status='running',started_at=COALESCE(started_at,?),updated_at=? "
+                "WHERE confirmation_id=? AND status IN ('pending','interrupted')",
+                (now, now, confirmation["confirmation_id"]),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "confirmation_block_started",
+                "confirmation_block",
+                row["block_id"],
+                {"confirmation_id": confirmation["confirmation_id"], "attempt": int(row["attempt"]) + 1},
+                from_status=row["status"],
+                to_status="running",
+            )
+            return dict(connection.execute(
+                "SELECT * FROM confirmation_blocks WHERE block_id=?", (row["block_id"],)
+            ).fetchone())
+
+    def set_confirmation_block_process(
+        self,
+        campaign_id: str,
+        block_id: str,
+        pid: int,
+        process_group_id: int,
+        run_dir: str,
+        command: list[str],
+    ) -> dict[str, Any]:
+        if pid < 1 or process_group_id < 1:
+            raise DatabaseError("confirmation process identifiers must be positive")
+        with self._transaction() as connection:
+            block = connection.execute(
+                "SELECT status FROM confirmation_blocks WHERE block_id=? AND campaign_id=?",
+                (block_id, campaign_id),
+            ).fetchone()
+            if block is None:
+                raise DatabaseError(f"unknown confirmation block: {block_id}")
+            if block["status"] != "running":
+                raise InvalidTransition(f"cannot attach a process to confirmation block {block_id} from {block['status']}")
+            connection.execute(
+                "UPDATE confirmation_blocks SET pid=?,process_group_id=?,run_dir=?,command_json=?,updated_at=? "
+                "WHERE block_id=? AND campaign_id=?",
+                (pid, process_group_id, run_dir, _json(command), utc_now(), block_id, campaign_id),
+            )
+            return dict(connection.execute(
+                "SELECT * FROM confirmation_blocks WHERE block_id=?", (block_id,)
+            ).fetchone())
+
+    def running_confirmation_block_processes(self, campaign_id: str) -> list[dict[str, Any]]:
+        with self._read() as connection:
+            self._campaign(connection, campaign_id)
+            rows = connection.execute(
+                "SELECT * FROM confirmation_blocks WHERE campaign_id=? AND status='running' ORDER BY block_index",
+                (campaign_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def interrupt_confirmation_block(self, campaign_id: str, block_id: str, reason: str) -> dict[str, Any]:
+        with self._transaction() as connection:
+            block = connection.execute(
+                "SELECT * FROM confirmation_blocks WHERE block_id=? AND campaign_id=?", (block_id, campaign_id)
+            ).fetchone()
+            if block is None:
+                raise DatabaseError(f"unknown confirmation block: {block_id}")
+            if block["status"] != "running":
+                return dict(block)
+            now = utc_now()
+            connection.execute(
+                "UPDATE confirmation_blocks SET status='interrupted',pid=NULL,process_group_id=NULL,"
+                "run_dir=NULL,command_json=NULL,error=?,finished_at=?,updated_at=? WHERE block_id=?",
+                (reason, now, now, block_id),
+            )
+            connection.execute(
+                "UPDATE confirmations SET status='interrupted',error=?,updated_at=? "
+                "WHERE confirmation_id=? AND status='running'",
+                (reason, now, block["confirmation_id"]),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "confirmation_block_interrupted",
+                "confirmation_block",
+                block_id,
+                {"reason": reason, "attempt": block["attempt"]},
+                from_status="running",
+                to_status="interrupted",
+            )
+            return dict(connection.execute(
+                "SELECT * FROM confirmation_blocks WHERE block_id=?", (block_id,)
+            ).fetchone())
+
+    def complete_confirmation_block_atomically(
+        self,
+        campaign_id: str,
+        block_id: str,
+        wins: int,
+        draws: int,
+        losses: int,
+        score: float,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        if min(wins, draws, losses) < 0:
+            raise DatabaseError("confirmation result counts cannot be negative")
+        game_results = result.get("games") if isinstance(result, dict) else None
+        if not isinstance(game_results, list) or len(game_results) != wins + draws + losses:
+            raise DatabaseError("confirmation result games do not match W-D-L")
+        if any(value not in {"1-0", "0-1", "1/2-1/2"} for value in game_results):
+            raise DatabaseError("unsupported confirmation game result")
+        with self._transaction() as connection:
+            block = connection.execute(
+                "SELECT * FROM confirmation_blocks WHERE block_id=? AND campaign_id=?",
+                (block_id, campaign_id),
+            ).fetchone()
+            if block is None:
+                raise DatabaseError(f"unknown confirmation block: {block_id}")
+            if block["status"] != "running":
+                raise InvalidTransition(f"cannot complete confirmation block {block_id} from {block['status']}")
+            expected_games = int(block["pairs_per_block"]) * 2
+            if len(game_results) != expected_games:
+                raise DatabaseError("confirmation block result does not contain a complete opening pair set")
+            now = utc_now()
+            connection.execute(
+                "UPDATE confirmation_blocks SET status='completed',wins=?,draws=?,losses=?,score=?,"
+                "result_json=?,pid=NULL,process_group_id=NULL,run_dir=NULL,command_json=NULL,"
+                "finished_at=?,updated_at=? WHERE block_id=?",
+                (wins, draws, losses, score, _json(result), now, now, block_id),
+            )
+            for game_index, value in enumerate(game_results):
+                connection.execute(
+                    "INSERT INTO confirmation_games(game_id,confirmation_id,block_id,game_index,result,created_at) "
+                    "VALUES(?,?,?,?,?,?)",
+                    (
+                        f"{block_id}-game-{game_index:04d}",
+                        block["confirmation_id"],
+                        block_id,
+                        game_index,
+                        value,
+                        now,
+                    ),
+                )
+            self._event(
+                connection,
+                campaign_id,
+                "confirmation_block_completed",
+                "confirmation_block",
+                block_id,
+                {"wins": wins, "draws": draws, "losses": losses, "score": score},
+                from_status="running",
+                to_status="completed",
+            )
+            return dict(connection.execute(
+                "SELECT * FROM confirmation_blocks WHERE block_id=?", (block_id,)
+            ).fetchone())
+
+    def recover_abandoned_confirmation_jobs(
+        self, campaign_id: str, reason: str = "confirmation job has no trusted owner"
+    ) -> dict[str, int]:
+        recovered = {"blocks": 0}
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            now = utc_now()
+            rows = connection.execute(
+                "SELECT block_id,confirmation_id FROM confirmation_blocks WHERE campaign_id=? AND status='running'",
+                (campaign_id,),
+            ).fetchall()
+            for row in rows:
+                connection.execute(
+                    "UPDATE confirmation_blocks SET status='interrupted',pid=NULL,process_group_id=NULL,"
+                    "run_dir=NULL,command_json=NULL,error=?,finished_at=?,updated_at=? WHERE block_id=?",
+                    (reason, now, now, row["block_id"]),
+                )
+                self._event(
+                    connection,
+                    campaign_id,
+                    "abandoned_confirmation_recovered",
+                    "confirmation_block",
+                    row["block_id"],
+                    {"reason": reason},
+                    from_status="running",
+                    to_status="interrupted",
+                )
+                recovered["blocks"] += 1
+                connection.execute(
+                    "UPDATE confirmations SET status='interrupted',error=?,updated_at=? WHERE confirmation_id=?",
+                    (reason, now, row["confirmation_id"]),
+                )
+        return recovered
+
+    def finalize_confirmation(self, campaign_id: str, result: dict[str, Any]) -> dict[str, Any]:
+        outcome = result.get("outcome")
+        if outcome not in {"confirmed", "rejected", "inconclusive"}:
+            raise DatabaseError("invalid confirmation outcome")
+        with self._transaction() as connection:
+            confirmation = connection.execute(
+                "SELECT * FROM confirmations WHERE campaign_id=?", (campaign_id,)
+            ).fetchone()
+            if confirmation is None:
+                raise DatabaseError(f"no confirmation for campaign: {campaign_id}")
+            blocks = connection.execute(
+                "SELECT status FROM confirmation_blocks WHERE confirmation_id=?", (confirmation["confirmation_id"],)
+            ).fetchall()
+            if not blocks:
+                if not (
+                    confirmation["candidate_parameter_hash"] == confirmation["baseline_parameter_hash"]
+                    and outcome == "inconclusive"
+                    and int(result.get("games", 0)) == 0
+                ):
+                    raise DatabaseError("cannot finalize confirmation before every block is complete")
+            elif any(row["status"] != "completed" for row in blocks):
+                raise DatabaseError("cannot finalize confirmation before every block is complete")
+            expected_games = sum(
+                int(row["pairs_per_block"]) * 2
+                for row in connection.execute(
+                    "SELECT pairs_per_block FROM confirmation_blocks WHERE confirmation_id=?",
+                    (confirmation["confirmation_id"],),
+                ).fetchall()
+            )
+            if blocks and (expected_games != int(confirmation["games_target"]) or int(result.get("games", 0)) != expected_games):
+                raise DatabaseError("confirmation result does not cover the configured fixed game count")
+            now = utc_now()
+            recommendation_hash = result.get("recommendation_parameter_hash")
+            connection.execute(
+                "UPDATE confirmations SET status='completed',outcome=?,wins=?,draws=?,losses=?,score=?,"
+                "score_ci_low=?,score_ci_high=?,recommendation_parameter_hash=?,result_json=?,error=NULL,"
+                "finished_at=?,updated_at=? WHERE confirmation_id=?",
+                (
+                    outcome,
+                    int(result.get("wins", 0)),
+                    int(result.get("draws", 0)),
+                    int(result.get("losses", 0)),
+                    float(result.get("score", 0.0)),
+                    float(result.get("score_ci_low", 0.0)),
+                    float(result.get("score_ci_high", 100.0)),
+                    recommendation_hash,
+                    _json(result),
+                    now,
+                    now,
+                    confirmation["confirmation_id"],
+                ),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "confirmation_finalized",
+                "confirmation",
+                confirmation["confirmation_id"],
+                {"outcome": outcome, "recommendation_parameter_hash": recommendation_hash},
+                from_status=confirmation["status"],
+                to_status="completed",
+            )
+            row = connection.execute(
+                "SELECT * FROM confirmations WHERE confirmation_id=?", (confirmation["confirmation_id"],)
+            ).fetchone()
+            final = dict(row)
+            final["candidate_document"] = json.loads(final.pop("candidate_document_json"))
+            final["baseline_document"] = json.loads(final.pop("baseline_document_json"))
+            final["result"] = json.loads(final.pop("result_json"))
+            return final
+
+    def confirmation_snapshot(self, campaign_id: str) -> dict[str, Any] | None:
+        record = self.confirmation(campaign_id)
+        if record is None:
+            return None
+        record["blocks"] = self.confirmation_blocks(campaign_id, str(record["confirmation_id"]))
+        return record
+
     def recover_abandoned_jobs(self, campaign_id: str, reason: str = "running job has no trusted owner") -> dict[str, int]:
         recovered = {"trials": 0, "blocks": 0}
         with self._transaction() as connection:
@@ -1305,6 +1858,12 @@ class Database:
             event_count = connection.execute(
                 "SELECT COUNT(*) AS count FROM events WHERE campaign_id=?", (campaign_id,)
             ).fetchone()["count"]
+            confirmation_row = connection.execute(
+                "SELECT confirmation_id,status,outcome,games_target,wins,draws,losses,score,"
+                "score_ci_low,score_ci_high,recommendation_parameter_hash FROM confirmations "
+                "WHERE campaign_id=?",
+                (campaign_id,),
+            ).fetchone()
             return {
                 "campaign_id": campaign["campaign_id"],
                 "name": campaign["name"],
@@ -1320,6 +1879,7 @@ class Database:
                 "games": int(games),
                 "checkpoint": dict(checkpoint) if checkpoint else None,
                 "event_count": int(event_count),
+                "confirmation": dict(confirmation_row) if confirmation_row else None,
                 "journal_mode": "wal",
             }
 

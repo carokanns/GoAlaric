@@ -11,6 +11,14 @@ from typing import Any, Callable, Sequence
 
 from .adaptive import AdaptiveCampaign, AdaptiveError, AdaptivePolicy, RealAdaptiveBlockRunner
 from .canonical import atomic_write_json, sha256_bytes, sha256_json
+from .confirmation import (
+    ConfirmationCampaign,
+    ConfirmationSettings,
+    FakeConfirmationRunner,
+    RealConfirmationRunner,
+    initialize_confirmation,
+    parse_confirmation_settings,
+)
 from .coordinate import MultiResolutionCoordinateSearch
 from .database import CampaignBusy, Database, DatabaseError
 from .real_integration import RealTestmonitorConfig
@@ -41,6 +49,7 @@ class OptimizeSettings:
     parameter_names: tuple[str, ...] | None
     adaptive: AdaptivePolicy
     fake_optimum: dict[str, int] | None
+    confirmation: ConfirmationSettings
 
 
 def _settings(database: Database, campaign_id: str, registry: Registry) -> OptimizeSettings:
@@ -102,6 +111,8 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
             if name not in baseline:
                 raise OptimizationError(f"fake optimum contains unknown parameter: {name}")
             fake_optimum[name] = value
+    confirmation_source = goals if "confirmation" in goals else {"confirmation": config.get("confirmation", {})}
+    confirmation = parse_confirmation_settings(confirmation_source, int(campaign["master_seed"]))
     return OptimizeSettings(
         max_games=max_games,
         max_evaluations=max_evaluations,
@@ -109,6 +120,7 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
         parameter_names=parameter_names,
         adaptive=adaptive,
         fake_optimum=fake_optimum,
+        confirmation=confirmation,
     )
 
 
@@ -382,6 +394,81 @@ class RealAdaptiveEvaluator:
         return controller.run()
 
 
+def _original_baseline(database: Database, campaign_id: str) -> dict[str, Any]:
+    campaign = database.campaign(campaign_id)
+    row = database.parameter_set_by_hash(campaign_id, str(campaign["baseline_parameter_hash"]))
+    if row is None:
+        raise OptimizationError("original baseline parameter set is missing")
+    return dict(row["document"])
+
+
+def _final_search_candidate(database: Database, campaign_id: str) -> dict[str, Any]:
+    state = database.optimizer_state(campaign_id)["state"]
+    candidate = state.get("anchor_parameters") or state.get("coordinate_base_parameters")
+    if not isinstance(candidate, dict):
+        raise OptimizationError("completed search has no final candidate parameter set")
+    return dict(candidate)
+
+
+def _run_confirmation(
+    database: Database,
+    data_dir: Path,
+    campaign_path: Path,
+    definition: Any,
+    settings: OptimizeSettings,
+    invocation_limit: int,
+    search_processed: int,
+) -> dict[str, Any]:
+    confirmation_settings = settings.confirmation
+    if not confirmation_settings.enabled:
+        return {}
+    candidate = _final_search_candidate(database, definition.campaign_id)
+    baseline = _original_baseline(database, definition.campaign_id)
+    if database.confirmation(definition.campaign_id) is None:
+        initialize_confirmation(
+            database,
+            definition.campaign_id,
+            candidate,
+            baseline,
+            confirmation_settings,
+        )
+
+    if definition.mode == "fake":
+        runner: Any = FakeConfirmationRunner(
+            database,
+            definition.campaign_id,
+            confirmation_settings.fake_results,
+        )
+    else:
+        runtime = _real_config(campaign_path, data_dir, definition)
+        candidate_path = _materialize_candidate(database, data_dir, definition.campaign_id, candidate)
+        runtime = replace(
+            runtime,
+            seed=confirmation_settings.seed,
+            baseline_parameter_file=campaign_dir(data_dir, definition.campaign_id) / "baseline-parameters.json",
+            candidate_parameter_file=candidate_path,
+        )
+        runner = RealConfirmationRunner(
+            database,
+            data_dir,
+            definition.campaign_id,
+            runtime,
+            candidate_path,
+        )
+
+    if invocation_limit and search_processed >= invocation_limit:
+        snapshot = database.confirmation_snapshot(definition.campaign_id)
+        return snapshot or {}
+    remaining = max(0, invocation_limit - search_processed) if invocation_limit else 0
+    confirmation = ConfirmationCampaign(
+        database,
+        definition.campaign_id,
+        confirmation_settings,
+        runner,
+    )
+    return confirmation.run(max_blocks=remaining)
+
+
 class AutonomousOptimizer:
     """Drive one candidate at a time until search or campaign budget ends."""
 
@@ -408,27 +495,33 @@ class AutonomousOptimizer:
             max_passes=settings.max_passes,
             parameter_names=list(settings.parameter_names) if settings.parameter_names is not None else None,
         )
+        self.processed = 0
 
     def run(self) -> dict[str, Any]:
         processed = 0
         while True:
             state = self.database.optimizer_state(self.campaign_id)["state"]
             if state.get("phase") == "completed":
+                self.processed = processed
                 return self.search.report()
             if self.settings.max_evaluations and int(state.get("result_count", 0)) >= self.settings.max_evaluations:
+                self.processed = processed
                 return self.search.stop("evaluation_budget_exhausted")
             if self.settings.max_games:
                 consumed = int(self.database.status_snapshot(self.campaign_id)["games"])
                 worst_candidate_games = self.settings.adaptive.max_blocks * 2
                 if consumed + worst_candidate_games > self.settings.max_games:
+                    self.processed = processed
                     return self.search.stop("match_budget_exhausted")
             before = int(state.get("result_count", 0))
             report = self.search.run(max_results=1)
             after = int(report.get("result_count", before))
             processed += max(0, after - before)
             if report.get("phase") == "completed":
+                self.processed = processed
                 return report
             if self.invocation_limit and processed >= self.invocation_limit:
+                self.processed = processed
                 return report
 
 
@@ -481,7 +574,20 @@ def run_optimization(
                 evaluator,
                 invocation_limit=invocation_limit,
             )
-            return controller.run()
+            report = controller.run()
+            if settings.confirmation.enabled and report.get("phase") == "completed":
+                confirmation_report = _run_confirmation(
+                    database,
+                    data_dir,
+                    campaign_path,
+                    definition,
+                    settings,
+                    invocation_limit,
+                    controller.processed,
+                )
+                report = dict(report)
+                report["confirmation"] = confirmation_report
+            return report
         finally:
             try:
                 database.release_campaign(definition.campaign_id, token)

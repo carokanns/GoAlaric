@@ -303,7 +303,28 @@ class DashboardReader:
         config = _json(campaign["config_json"], {})
         if not isinstance(config, dict):
             config = {}
-        finished = _finished(str(campaign["status"]), trials, block_rows)
+        with self._connection() as confirmation_connection:
+            confirmation_row = confirmation_connection.execute(
+                "SELECT * FROM confirmations WHERE campaign_id=?", (self.campaign_id,)
+            ).fetchone()
+        confirmation: dict[str, Any] | None = None
+        if confirmation_row is not None:
+            confirmation = {
+                "confirmation_id": confirmation_row["confirmation_id"],
+                "status": confirmation_row["status"],
+                "outcome": confirmation_row["outcome"],
+                "games_target": confirmation_row["games_target"],
+                "wins": confirmation_row["wins"],
+                "draws": confirmation_row["draws"],
+                "losses": confirmation_row["losses"],
+                "score": confirmation_row["score"],
+                "score_ci_low": confirmation_row["score_ci_low"],
+                "score_ci_high": confirmation_row["score_ci_high"],
+                "recommendation_parameter_hash": confirmation_row["recommendation_parameter_hash"],
+            }
+        finished = _finished(str(campaign["status"]), trials, block_rows) and (
+            confirmation is None or confirmation["status"] == "completed"
+        )
         return {
             "schema_version": 1,
             "generated_at": _now(),
@@ -325,6 +346,7 @@ class DashboardReader:
             },
             "current_trial": current,
             "campaign_metrics": all_metrics,
+            "confirmation": confirmation,
             "candidate_counts": counts,
             "candidates": trials,
             "consumed_games": int(all_metrics.get("games", 0)),

@@ -133,6 +133,10 @@ def load_campaign_definition(path: Path) -> CampaignDefinition:
         "partitions": partitions,
         "goals": goals,
     }
+    # Keep the optional phase-15 confirmation block in the canonical campaign
+    # configuration as well; older optimizer settings remain under goals.
+    if "confirmation" in raw:
+        normalized_config["confirmation"] = raw["confirmation"]
     return CampaignDefinition(
         campaign_id=campaign_id,
         name=name.strip(),

@@ -107,7 +107,46 @@ Valda parametrar måste ha sökmetadata (`min`, `max`, `step` och `min_step`) i
 Python-registret; Go-registrets namn och standardvärden är oförändrade.
 Minimalkedjan är verifierad med återstart, separat baseline-/kandidatfil,
 total matchbudget, dubbelräkningskontroll och processaudit. Längre
-stresstest, slutlig bekräftelsefas och full real-dokumentation återstår.
+stresstest och en separat bekräftelsefas finns nu som v1.1-underlag; full
+real-dokumentation kompletteras efter den fortsatta verifieringen.
+
+## Bekräftelsefas efter sökningen
+
+När koordinatsökningen når en terminal checkpoint startar en aktiverad
+bekräftelsefas automatiskt. Den sparas i egna SQLite-tabeller
+(`confirmations`, `confirmation_blocks` och `confirmation_games`) och påverkar
+inte `optimizer_state`, ankaret eller nästa sökkandidat. Slutkandidaten jämförs
+alltid med kampanjens ursprungliga baseline.
+
+Bekräftelsen använder ett nytt seed och ett separat öppningskatalogträd. Alla
+öppningspar för det fasta spelantalet deklareras i förväg, körs utan adaptiv
+gallring och kan återupptas med samma kommando:
+
+```json
+{
+  "goals": {
+    "confirmation": {
+      "enabled": true,
+      "games": 800,
+      "seed": 20260830,
+      "confidence": 0.95
+    }
+  }
+}
+```
+
+Utfallet är `confirmed` när intervallets nedre gräns är över 50 procent,
+`rejected` när den övre gränsen är under 50 procent, annars `inconclusive`.
+Endast `confirmed` får ge en kandidatstatus som rekommenderad; övriga utfall
+behåller baseline som rekommendation. Ingen kod eller parameterfil promoveras
+automatiskt.
+
+För falska verifieringskampanjer kan `confirmation.fake_result` anges som
+W-D-L, till exempel `{"wins": 10, "draws": 0, "losses": 10}`. Det verkliga
+flödet använder samma `goals.real`-konfiguration som den autonoma
+`testmonitor → Fastchess → GoAlaric`-kedjan. Under körning visar
+`status --watch` och dashboardens read-only API bekräftelsens status och
+intervall; kampanjens vanliga matchbudget räknar inte bekräftelsepartierna.
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och
