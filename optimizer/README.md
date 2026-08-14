@@ -1,4 +1,4 @@
-# GoAlaric optimizer – version 1.1.1
+# GoAlaric optimizer – version 1.1.2
 
 ## Version 1 / fas 11
 
@@ -192,6 +192,43 @@ ankaret, annars blir det `reject_exploratory`. Resultatet märks med
 Den avslutande fasta bekräftelsen påverkas inte och behåller sitt strikta
 95-procentsintervall. Ett explorativt sökbeslut kan därför aldrig ensamt bli en
 rekommendation eller promotion.
+
+## v1.1.2 / livebekräftelse och korrekt slutrapport
+
+När sökningen har nått sin terminala checkpoint växlar dashboarden och
+`status --watch` till `confirming`. Kandidatlistan behålls som sökhistorik,
+men bekräftelsen blir dashboardens huvuddel och uppdateras från färdiga
+`confirmation_blocks` i SQLite efter varje öppningspar. Den visar kandidatens
+parameterhash och differenser mot baseline, öppningspar, partier, W-D-L, score,
+Elo, 95-procentsintervall samt förfluten och beräknad återstående tid.
+
+`confirming` betyder att koordinatsökningen är klar men den fasta
+bekräftelsen fortfarande körs. Kampanjen blir `completed` först när
+bekräftelsen har avslutats som `confirmed`, `rejected` eller `inconclusive`.
+Dashboarden är fortsatt helt skrivskyddad och läser bara SQLite, även för den
+arkiverade v1.1.1-kampanjen.
+
+Slutrapporten skiljer nu mellan `final_anchor` och `highest_local_trial`:
+`final_anchor` kommer alltid från optimizer-checkpointen och är kandidaten som
+bekräftas mot ursprunglig baseline. `highest_local_trial` är endast den högsta
+lokala matchscoren i sökhistoriken och är aldrig en slutrekommendation.
+Rapportens `parameter_differences` avser den faktiskt bekräftade kandidaten.
+
+Rapporten redovisar `search_games`, `confirmation_games` och `total_games`,
+liksom separata sluttider för sökning och bekräftelse. Standardrapporten är
+kompakt och utelämnar tusentals block-id:n. Använd `--detail` endast när
+blockdetaljer behövs:
+
+```bash
+optimizer report <campaign-id> --data-dir <campaigns> --format json
+optimizer report <campaign-id> --data-dir <campaigns> --format json --detail
+```
+
+Den arkiverade v1.1.1-databasen täcks av
+`tests/test_phase17.py`; testet öppnar den read-only och kontrollerar
+slutankare, bekräftelseutfall, partier, rapportkompakthet och att databasen
+inte ändras. Den praktiska release- och driftbeskrivningen finns i
+[`docs/phase17-v1.1.2-runbook.md`](docs/phase17-v1.1.2-runbook.md).
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och
