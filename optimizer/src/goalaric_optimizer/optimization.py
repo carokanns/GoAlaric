@@ -377,7 +377,21 @@ class FakeAdaptiveEvaluator:
             profile=self.profile.as_dict() if self.profile is not None else None,
             complete_trial=False,
         )
-        return controller.run()
+        result = controller.run()
+        # This runner models a deterministic synthetic objective.  Its
+        # adaptive evidence may contain a statistical decision, but the
+        # synthetic objective is the intended comparison signal here.  Leave
+        # decision absent so coordinate search uses its documented objective
+        # fallback, just like older synthetic result records.
+        result.pop("decision", None)
+        result.pop("uncertain", None)
+        if controller.trial_id is None:
+            raise OptimizationError("fake adaptive evaluator completed without a trial id")
+        stored = self.database.trial(self.campaign_id, controller.trial_id)
+        stored_result = json.loads(stored["result_json"] or "{}")
+        if "decision" in stored_result or "uncertain" in stored_result:
+            self.database.checkpoint_trial_result(self.campaign_id, controller.trial_id, result)
+        return result
 
 
 def _reference_parameter_file(
@@ -599,6 +613,11 @@ class AutonomousOptimizer:
         self.processed = 0
 
     def run(self) -> dict[str, Any]:
+        # Repair a checkpoint that contains completed coordinate directions but
+        # whose selection step was interrupted before it could be committed.
+        # This performs no evaluator call and is idempotent; the normal loop
+        # can then resume with the repaired anchor.
+        self.search.reconcile_checkpoint()
         processed = 0
         while True:
             state = self.database.optimizer_state(self.campaign_id)["state"]
@@ -690,7 +709,17 @@ def run_optimization(
                 invocation_limit=invocation_limit,
             )
             report = controller.run()
-            if settings.confirmation.enabled and report.get("phase") == "completed":
+            # A bounded invocation owns only its requested search results. If
+            # the last result also completed search, leave confirmation for
+            # the next invocation rather than silently spending more work than
+            # that quota. An invocation that starts with an already-completed
+            # search may proceed directly into confirmation.
+            quota_stopped_search = invocation_limit and controller.processed >= invocation_limit
+            if (
+                settings.confirmation.enabled
+                and report.get("phase") == "completed"
+                and (not quota_stopped_search or controller.processed == 0)
+            ):
                 confirmation_report = _run_confirmation(
                     database,
                     data_dir,

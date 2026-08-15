@@ -501,12 +501,38 @@ class MultiResolutionCoordinateSearch:
             state, produced_result = self._step(state)
             if produced_result:
                 processed += 1
+                if max_results and processed >= max_results:
+                    # The result and its search state are already committed
+                    # atomically by _step.  Complete the current coordinate
+                    # decision and, when needed, restart the pass before
+                    # honoring the result quota.  Do not walk into later
+                    # already-known candidates here: the quota belongs to
+                    # evaluations, and the next invocation should resume at
+                    # the new pass position.
+                    state = self._settle_after_result(state)
+                    break
         if state["phase"] == "completed":
-            campaign = self.database.campaign(self.campaign_id)
-            if campaign["status"] == "running":
-                self.database.transition_campaign(
-                    self.campaign_id, "completed", "multi-resolution coordinate search completed"
-                )
+            self._complete_campaign_if_finished(
+                "multi-resolution coordinate search completed"
+            )
+        return self.report()
+
+    def reconcile_checkpoint(self) -> dict[str, Any]:
+        """Apply pending deterministic coordinate transitions and stop.
+
+        This is safe for recovery of a checkpoint written immediately after a
+        candidate result.  It never evaluates a new candidate, so an operator
+        can repair an interrupted checkpoint before deciding whether to resume
+        the campaign.  Repeating it is idempotent: once the next step would
+        require an evaluation, no further state is changed.
+        """
+        self._enter_running_state()
+        state = self._load_or_initialize_state()
+        state = self._settle_without_evaluation(state)
+        if state["phase"] == "completed":
+            self._complete_campaign_if_finished(
+                "multi-resolution coordinate search completed during checkpoint reconciliation"
+            )
         return self.report()
 
     def stop(self, reason: str) -> dict[str, Any]:
@@ -522,10 +548,17 @@ class MultiResolutionCoordinateSearch:
             updated["parameter_index"] = len(self.specs)
             updated["coordinate_results"] = {}
             self.database.checkpoint(self.campaign_id, updated, event_type="coordinate_multires_stopped")
+        self._complete_campaign_if_finished(reason)
+        return self.report()
+
+    def _complete_campaign_if_finished(self, reason: str) -> None:
+        """Persist the terminal campaign status for a completed search state."""
+        state = self.database.optimizer_state(self.campaign_id)["state"]
+        if state.get("phase") != "completed":
+            return
         campaign = self.database.campaign(self.campaign_id)
         if campaign["status"] == "running":
             self.database.transition_campaign(self.campaign_id, "completed", reason)
-        return self.report()
 
     def _enter_running_state(self) -> None:
         campaign = self.database.campaign(self.campaign_id)
@@ -657,6 +690,73 @@ class MultiResolutionCoordinateSearch:
         self.database.checkpoint(self.campaign_id, updated, event_type="coordinate_multires_result_reused")
         return updated, False
 
+    def _next_step_produces_evaluation(self, state: dict[str, Any]) -> bool:
+        """Return whether _step would need a new evaluator invocation."""
+        phase = state.get("phase")
+        if phase == "completed":
+            return False
+        if phase == "baseline":
+            parameter_hash = state["anchor_hash"]
+            existing = self.database.trial_for_parameter_hash(self.campaign_id, parameter_hash)
+            return existing is None or existing["status"] != "completed"
+        if phase != "coordinate":
+            raise CoordinateSearchError(f"unknown multi-resolution phase: {phase}")
+        if int(state["parameter_index"]) >= len(self.specs):
+            return False
+        if int(state["direction_index"]) >= 2:
+            return False
+        spec = self.specs[int(state["parameter_index"])]
+        step = int(state["step_by_parameter"][spec.name])
+        direction = 1 if int(state["direction_index"]) == 0 else -1
+        candidate = self._candidate_at_step(
+            state["coordinate_base_parameters"], spec, direction, step
+        )
+        if candidate is None:
+            return False
+        existing = self.database.trial_for_parameter_hash(
+            self.campaign_id, sha256_json(candidate)
+        )
+        return existing is None or existing["status"] != "completed"
+
+    def _settle_without_evaluation(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Advance only checkpoint transitions until a new result is needed."""
+        while state["phase"] != "completed" and not self._next_step_produces_evaluation(state):
+            state, produced_result = self._step(state)
+            if produced_result:
+                raise CoordinateSearchError(
+                    "deterministic checkpoint settling unexpectedly evaluated a candidate"
+                )
+        return state
+
+    def _settle_after_result(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Commit the current coordinate decision without consuming a new result."""
+        while state["phase"] != "completed":
+            if state["phase"] != "coordinate":
+                return state
+            if int(state["direction_index"]) < 2:
+                if self._next_step_produces_evaluation(state):
+                    return state
+                state, produced_result = self._step(state)
+                if produced_result:
+                    raise CoordinateSearchError(
+                        "coordinate settling unexpectedly evaluated a candidate"
+                    )
+                continue
+
+            state, produced_result = self._step(state)
+            if produced_result:
+                raise CoordinateSearchError(
+                    "coordinate selection unexpectedly evaluated a candidate"
+                )
+            if int(state["parameter_index"]) >= len(self.specs):
+                state, produced_result = self._step(state)
+                if produced_result:
+                    raise CoordinateSearchError(
+                        "coordinate pass transition unexpectedly evaluated a candidate"
+                    )
+            return state
+        return state
+
     def _evaluate_baseline(self, state: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         baseline = state["anchor_parameters"]
         parameter_hash = state["anchor_hash"]
@@ -765,6 +865,7 @@ class MultiResolutionCoordinateSearch:
         exploratory: bool = False,
         exploratory_min_score: float = 51.0,
     ) -> dict[str, Any]:
+        decision = result.get("decision")
         reused_against_other_anchor = (
             result.get("reused")
             and "candidate_objective" not in result
@@ -772,25 +873,32 @@ class MultiResolutionCoordinateSearch:
             and anchor.get("parameter_hash")
             and result.get("reference_parameter_hash") != anchor.get("parameter_hash")
         )
+
+        # A terminal decision belongs to the adaptive comparison that produced
+        # it and is authoritative over optional synthetic objective metadata.
+        # A reused result whose reference hash belongs to another anchor is the
+        # one exception: its decision was made against a different comparison
+        # and must remain uncertain rather than moving the new anchor.
         if reused_against_other_anchor:
             delta = 0.0
             margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
             classification = "uncertain"
-        elif "candidate_objective" in result and "candidate_objective" in anchor:
-            delta = float(result["candidate_objective"]) - float(anchor["candidate_objective"])
-            margin = 0.0
-            classification = "win" if delta > 0 else ("loss" if delta < 0 else "uncertain")
-        else:
+        elif decision is not None:
             delta = float(result["score"]) - float(anchor["score"])
             margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
-            decision = result.get("decision")
-            if decision == "accept_exploratory":
+            if decision in {"accept", "accept_exploratory"}:
                 classification = "win"
-                result["exploratory"] = True
-            elif decision == "reject_exploratory":
+                if decision == "accept_exploratory":
+                    result["exploratory"] = True
+            elif decision in {"reject", "reject_early", "reject_exploratory"}:
                 classification = "loss"
-                result["exploratory"] = True
+                if decision == "reject_exploratory":
+                    result["exploratory"] = True
             elif decision == "uncertain" and exploratory:
+                # Exploratory mode deliberately converts a maximal but
+                # unresolved point result into an explicit exploratory
+                # decision.  Once converted, that decision follows the same
+                # authoritative path above on subsequent checkpoint replay.
                 result["exploratory"] = True
                 result["exploratory_threshold"] = exploratory_min_score
                 if float(result["score"]) > exploratory_min_score:
@@ -799,14 +907,24 @@ class MultiResolutionCoordinateSearch:
                 else:
                     result["decision"] = "reject_exploratory"
                     classification = "loss"
-            elif decision == "accept":
-                classification = "win"
-            elif decision in {"reject", "reject_early"}:
-                classification = "loss"
-            elif decision in {"continue", "uncertain", "interrupted"} or result.get("uncertain"):
+            elif decision in {"continue", "uncertain", "interrupted"}:
                 classification = "uncertain"
             else:
-                classification = "uncertain" if abs(delta) <= margin else ("win" if delta > 0 else "loss")
+                # Unknown decision values are not allowed to gain authority
+                # from objective metadata. Treat them conservatively.
+                classification = "uncertain"
+        elif "candidate_objective" in result and "candidate_objective" in anchor:
+            delta = float(result["candidate_objective"]) - float(anchor["candidate_objective"])
+            margin = 0.0
+            classification = "win" if delta > 0 else ("loss" if delta < 0 else "uncertain")
+        else:
+            delta = float(result["score"]) - float(anchor["score"])
+            margin = max(float(result["uncertainty"]), float(anchor["uncertainty"]))
+            classification = (
+                "uncertain"
+                if result.get("uncertain") or abs(delta) <= margin
+                else ("win" if delta > 0 else "loss")
+            )
         result["classification"] = classification
         result["score_delta"] = round(delta, 8)
         result["comparison_uncertainty"] = round(margin, 8)

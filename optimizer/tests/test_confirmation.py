@@ -209,9 +209,9 @@ class ConfirmationFakeOutcomesTest(unittest.TestCase):
             self.assertEqual(first["confirmation"]["status"], "running")
             self.assertEqual(first["confirmation"]["metrics"]["games"], 4)
             self.assertEqual(first["confirmation"]["metrics"], second["confirmation"]["metrics"])
-            self.assertEqual(first["confirmation"]["candidate_values"]["p"], 1)
+            self.assertEqual(first["confirmation"]["candidate_values"]["p"], 2)
             self.assertEqual(first["confirmation"]["baseline_values"]["p"], 0)
-            self.assertEqual(first["confirmation"]["parameter_differences"][0]["delta"], 1)
+            self.assertEqual(first["confirmation"]["parameter_differences"][0]["delta"], 2)
 
             # A v1.1.1 database is read directly; no schema migration or
             # match-file result is needed to display the live confirmation.
