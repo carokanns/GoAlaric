@@ -59,7 +59,8 @@ type matchStatus struct {
 	OptimizerMode         bool                  `json:"optimizer_mode,omitempty"`
 	ChangeClass           string                `json:"change_class,omitempty"`
 	ValidationPolicy      string                `json:"validation_policy,omitempty"`
-	TimeControl           string                `json:"time_control"`
+	TimeControl           string                `json:"time_control,omitempty"`
+	NodeBudget            int64                 `json:"node_budget,omitempty"`
 	TargetGames           int                   `json:"target_games"`
 	ProgressEvery         int                   `json:"progress_every_games"`
 	ProgressTime          string                `json:"progress_interval"`
@@ -127,6 +128,7 @@ type openingBlockReport struct {
 	PGNAudit           *pgnAudit `json:"pgn_audit,omitempty"`
 	StartedAt          time.Time `json:"started_at"`
 	FinishedAt         time.Time `json:"finished_at,omitempty"`
+	NodeBudget         int64     `json:"node_budget,omitempty"`
 }
 
 type pgnGame struct {
@@ -158,7 +160,8 @@ type matchConfig struct {
 	BookCount              int    `json:"book_count"`
 	Seed                   int64  `json:"random_seed"`
 	Games                  int    `json:"games"`
-	TC                     string `json:"time_control"`
+	TC                     string `json:"time_control,omitempty"`
+	Nodes                  int64  `json:"nodes,omitempty"`
 	SPRTTC                 string `json:"sprt_time_control,omitempty"`
 	Concurrency            int    `json:"concurrency"`
 	RunDir                 string `json:"run_dir"`
@@ -182,6 +185,8 @@ type matchConfig struct {
 	CandidateSyzygyPath    string `json:"candidate_syzygy_path,omitempty"`
 	BaselineSyzygyPath     string `json:"baseline_syzygy_path,omitempty"`
 	DrawMoveNumber         int    `json:"draw_move_number"`
+	NodesSet               bool   `json:"-"`
+	TCSet                  bool   `json:"-"`
 }
 
 type searchSample struct {
@@ -452,7 +457,9 @@ func startCommand(args []string) error {
 	if openingSource == "" {
 		openingSource = cfg.Openings
 	}
-	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", openingSource, "--block-index", strconv.Itoa(cfg.OpeningBlockIndex), "--block-size", strconv.Itoa(cfg.OpeningBlockSize), "--opening-block-file", cfg.OpeningBlockFile, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games), "--tc", cfg.TC, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--hash", strconv.Itoa(cfg.HashMB), "--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir}
+	childArgs := []string{"run-match", "--fastchess", cfg.Fastchess, "--baseline", cfg.Baseline, "--candidate", cfg.Candidate, "--openings", openingSource, "--block-index", strconv.Itoa(cfg.OpeningBlockIndex), "--block-size", strconv.Itoa(cfg.OpeningBlockSize), "--opening-block-file", cfg.OpeningBlockFile, "--seed", strconv.FormatInt(cfg.Seed, 10), "--games", strconv.Itoa(cfg.Games)}
+	childArgs = append(childArgs, matchLimitArgs(cfg)...)
+	childArgs = append(childArgs, "--concurrency", strconv.Itoa(cfg.Concurrency), "--progress-games", strconv.Itoa(cfg.ProgressEvery), "--progress-interval", cfg.ProgressTime, "--hash", strconv.Itoa(cfg.HashMB), "--threads", strconv.Itoa(cfg.Threads), "--run-dir", cfg.RunDir)
 	childArgs = append(childArgs,
 		"--change-class", cfg.ChangeClass,
 		"--validation-policy", cfg.ValidationPolicy,
@@ -606,13 +613,13 @@ func runMatchCommand(args []string) error {
 	fcArgs = append(fcArgs, fastchessEngineArgs(cfg.Candidate, "Candidate", cfg.CandidateSyzygyPath, cfg)...)
 	fcArgs = append(fcArgs, fastchessEngineArgs(cfg.Baseline, "Baseline", cfg.BaselineSyzygyPath, cfg)...)
 	fcArgs = append(fcArgs,
-		"-each", "tc="+cfg.TC,
+		"-each", mustMatchLimit(cfg),
 		"-openings", "file="+cfg.Openings, "format="+cfg.BookFormat, "order=random",
 		"-srand", strconv.FormatInt(cfg.Seed, 10), "-rounds", strconv.Itoa(rounds), "-repeat", "-concurrency", strconv.Itoa(cfg.Concurrency),
 		"-resign", "movecount=3", "score="+strconv.Itoa(defaultResignScore), "twosided=true",
 		"-draw", "movenumber="+strconv.Itoa(cfg.DrawMoveNumber), "movecount=8", "score=10", "-maxmoves", "200",
 		"-recover", "-autosaveinterval", "10", "-strict",
-		"-pgnout", "file="+filepath.Join(cfg.RunDir, "games.pgn"), "append=false", "notation=uci", "nodes=true", "nps=true",
+		"-pgnout", "file="+filepath.Join(cfg.RunDir, "games.pgn"), "append=false", "notation=uci", "nodes=true", "nps=true", "seldepth=true",
 	)
 	fcArgs = append(fcArgs, logOptions...)
 	fcArgs = append(fcArgs,
@@ -917,6 +924,7 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.Int64Var(&cfg.Seed, "seed", 0, "opening randomization seed; random and persisted when zero")
 	fs.IntVar(&cfg.Games, "games", 400, "even number of games")
 	fs.StringVar(&cfg.TC, "tc", "", "Fastchess time control; defaults to 10+0.1 for screening and 20+0.2 for SPRT")
+	fs.Int64Var(&cfg.Nodes, "nodes", 0, "Fastchess per-move node budget")
 	fs.StringVar(&cfg.SPRTTC, "sprt-tc", "", "time control for an automatically approved SPRT; defaults to 20+0.2")
 	fs.IntVar(&cfg.Concurrency, "concurrency", 8, "concurrent games")
 	fs.IntVar(&cfg.ProgressEvery, "progress-games", 0, "games between progress snapshots; defaults to 10 for screening and 50 for SPRT")
@@ -942,6 +950,14 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	if err := fs.Parse(args); err != nil {
 		return cfg, err
 	}
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "nodes" {
+			cfg.NodesSet = true
+		}
+		if f.Name == "tc" {
+			cfg.TCSet = true
+		}
+	})
 	if cfg.Baseline == "" || cfg.Candidate == "" {
 		return cfg, errors.New("--baseline and --candidate are required")
 	}
@@ -959,6 +975,12 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	}
 	if cfg.DrawMoveNumber < 1 {
 		return cfg, errors.New("--draw-movenumber must be positive")
+	}
+	if cfg.NodesSet && cfg.Nodes <= 0 {
+		return cfg, errors.New("--nodes must be positive")
+	}
+	if cfg.NodesSet && (cfg.TCSet || cfg.TC != "") {
+		return cfg, errors.New("--tc and --nodes are mutually exclusive")
 	}
 	if cfg.DepthProfile {
 		if cfg.SPRT || cfg.AutoEvaluate {
@@ -1027,7 +1049,11 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 	if cfg.DrawMoveNumber == 0 {
 		cfg.DrawMoveNumber = defaultDrawMoveNumber
 	}
-	if cfg.TC == "" {
+	if cfg.Nodes > 0 {
+		if cfg.TCSet || cfg.TC != "" {
+			return cfg, errors.New("--tc and --nodes are mutually exclusive")
+		}
+	} else if cfg.TC == "" {
 		cfg.TC = defaultScreeningTC
 		if cfg.SPRT {
 			cfg.TC = defaultSPRTTC
@@ -1195,7 +1221,7 @@ func initialStatus(cfg matchConfig) matchStatus {
 	now := time.Now()
 	return matchStatus{
 		RunID: filepath.Base(cfg.RunDir), State: "starting", Stage: "setup", StartedAt: now, UpdatedAt: now,
-		Baseline: cfg.Baseline, Candidate: cfg.Candidate, OptimizerMode: cfg.OptimizerMode, ChangeClass: cfg.ChangeClass, ValidationPolicy: cfg.ValidationPolicy, TimeControl: cfg.TC, TargetGames: cfg.Games,
+		Baseline: cfg.Baseline, Candidate: cfg.Candidate, OptimizerMode: cfg.OptimizerMode, ChangeClass: cfg.ChangeClass, ValidationPolicy: cfg.ValidationPolicy, TimeControl: cfg.TC, NodeBudget: cfg.Nodes, TargetGames: cfg.Games,
 		ProgressEvery: cfg.ProgressEvery, ProgressTime: cfg.ProgressTime, OpeningFile: cfg.Openings, OpeningCount: cfg.BookCount, RandomSeed: cfg.Seed, RunDir: cfg.RunDir,
 		OpeningBook: cfg.OpeningBook, OpeningBlockIndex: cfg.OpeningBlockIndex, OpeningBlockSize: cfg.OpeningBlockSize,
 		OpeningBookSHA256: cfg.OpeningBookSHA256, OpeningBlockSHA256: cfg.OpeningBlockSHA256, OpeningBlockColorSwap: cfg.OpeningBlockColorSwap,
@@ -1246,7 +1272,22 @@ func openingBlockReportFor(cfg matchConfig, status matchStatus) openingBlockRepo
 		PGNAudit:           status.PGNAudit,
 		StartedAt:          status.StartedAt,
 		FinishedAt:         status.FinishedAt,
+		NodeBudget:         status.NodeBudget,
 	}
+}
+
+func matchLimitArgs(cfg matchConfig) []string {
+	if cfg.Nodes > 0 {
+		return []string{"--nodes", strconv.FormatInt(cfg.Nodes, 10)}
+	}
+	return []string{"--tc", cfg.TC}
+}
+
+func mustMatchLimit(cfg matchConfig) string {
+	if cfg.Nodes > 0 {
+		return "nodes=" + strconv.FormatInt(cfg.Nodes, 10)
+	}
+	return "tc=" + cfg.TC
 }
 
 func openingBlockComplete(status matchStatus, cfg matchConfig) bool {

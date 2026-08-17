@@ -214,6 +214,8 @@ class AdaptiveCampaign:
             profile_name=self.profile.get("name") if self.profile else None,
             profile_hash=self.profile.get("hash") if self.profile else None,
             profile_tc=self.profile.get("tc") if self.profile else None,
+            profile_mode=self.profile.get("mode") if self.profile else None,
+            profile_nodes=self.profile.get("nodes") if self.profile else None,
         )
         if self.profile is not None:
             self.database.bind_trial_profile(
@@ -221,7 +223,9 @@ class AdaptiveCampaign:
                 self.trial_id,
                 self.profile["name"],
                 self.profile["hash"],
-                self.profile["tc"],
+                self.profile.get("tc"),
+                self.profile.get("mode", "time"),
+                self.profile.get("nodes"),
             )
         for index in range(self.policy.max_blocks):
             book_hash, block_hash = self.block_hash_factory(index)

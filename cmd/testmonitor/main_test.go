@@ -110,6 +110,60 @@ func TestProgressIntervalDefaults(t *testing.T) {
 	}
 }
 
+func TestNodeBudgetIsMutuallyExclusiveWithTimeControl(t *testing.T) {
+	dir := t.TempDir()
+	args := []string{"--baseline", filepath.Join(dir, "baseline"), "--candidate", filepath.Join(dir, "candidate"), "--nodes", "100000"}
+	for _, path := range []string{filepath.Join(dir, "baseline"), filepath.Join(dir, "candidate")} {
+		if err := os.WriteFile(path, []byte("engine"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg, err := parseMatchConfig("test", args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Nodes != 100000 || !cfg.NodesSet || cfg.TC != "" {
+		t.Fatalf("unexpected node config: %+v", cfg)
+	}
+	if _, err := parseMatchConfig("test", append(args, "--tc", "1+0.02")); err == nil {
+		t.Fatal("accepted --tc together with --nodes")
+	}
+	if _, err := parseMatchConfig("test", append(args, "--tc", "")); err == nil {
+		t.Fatal("accepted an explicitly empty --tc together with --nodes")
+	}
+	if _, err := parseMatchConfig("test", append(args[:len(args)-1], "--nodes", "0")); err == nil {
+		t.Fatal("accepted a zero node budget")
+	}
+}
+
+func TestFastchessLimitUsesNodesWithoutTC(t *testing.T) {
+	got := mustMatchLimit(matchConfig{Nodes: 100000})
+	if got != "nodes=100000" {
+		t.Fatalf("node limit = %q, want nodes=100000", got)
+	}
+	if strings.Contains(got, "tc=") {
+		t.Fatalf("node limit unexpectedly contains tc: %q", got)
+	}
+	if got := mustMatchLimit(matchConfig{TC: "1+0.02"}); got != "tc=1+0.02" {
+		t.Fatalf("time limit = %q, want tc=1+0.02", got)
+	}
+}
+
+func TestNodeBudgetAppearsInStatusAndBlockReport(t *testing.T) {
+	status := initialStatus(matchConfig{RunDir: t.TempDir(), Nodes: 250000})
+	data, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"node_budget":250000`) || strings.Contains(string(data), `"time_control"`) {
+		t.Fatalf("unexpected node status JSON: %s", data)
+	}
+	report := openingBlockReportFor(matchConfig{}, status)
+	if report.NodeBudget != 250000 {
+		t.Fatalf("block report node budget = %d, want 250000", report.NodeBudget)
+	}
+}
+
 func TestMatchBinaryIdentitiesRejectsIdenticalCandidate(t *testing.T) {
 	dir := t.TempDir()
 	baseline := filepath.Join(dir, "baseline")

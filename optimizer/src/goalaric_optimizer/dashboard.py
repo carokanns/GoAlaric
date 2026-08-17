@@ -47,6 +47,30 @@ def _parameter_values(document: dict[str, Any]) -> dict[str, int]:
     return values
 
 
+def _profile_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    if not row.get("profile_name"):
+        return None
+    mode = row.get("profile_mode") or ("nodes" if row.get("profile_nodes") is not None else "time")
+    profile: dict[str, Any] = {
+        "name": row.get("profile_name"),
+        "hash": row.get("profile_hash"),
+        "mode": mode,
+    }
+    if mode == "nodes":
+        profile["nodes"] = row.get("profile_nodes")
+    else:
+        profile["tc"] = row.get("profile_tc")
+    return profile
+
+
+def _profile_label(profile: dict[str, Any] | None) -> str:
+    if not isinstance(profile, dict):
+        return "—"
+    if profile.get("mode") == "nodes":
+        return f"{profile.get('name', '—')} · {profile.get('nodes', '—')} nodes/move"
+    return f"{profile.get('name', '—')} · {profile.get('tc', '—')}"
+
+
 def _fallback_metrics(result: dict[str, Any] | None) -> dict[str, Any] | None:
     """Read coordinate-search evidence when no match blocks exist."""
     if not isinstance(result, dict):
@@ -116,11 +140,7 @@ def _trial_record(row: dict[str, Any], parameter: dict[str, Any] | None, blocks:
         result = None
     profile = result.get("profile") if isinstance(result, dict) else None
     if not isinstance(profile, dict) and row.get("profile_name"):
-        profile = {
-            "name": row.get("profile_name"),
-            "hash": row.get("profile_hash"),
-            "tc": row.get("profile_tc"),
-        }
+        profile = _profile_from_row(row)
     metrics = _metrics(blocks, result)
     current_block = next((block for block in blocks if block["status"] == "running"), None)
     if current_block is None:
@@ -436,9 +456,7 @@ class DashboardReader:
                     if isinstance(confirmation_result.get("profile"), dict)
                     else (
                         {
-                            "name": confirmation_row_dict.get("profile_name"),
-                            "hash": confirmation_row_dict.get("profile_hash"),
-                            "tc": confirmation_row_dict.get("profile_tc"),
+                            **(_profile_from_row(confirmation_row_dict) or {}),
                         }
                         if confirmation_row_dict.get("profile_name")
                         else None
@@ -640,7 +658,7 @@ def render_report_html(snapshot: dict[str, Any]) -> str:
         f"{_html_text(item.get('metrics', {}).get('losses'))}</td>"
         f"<td>{_html_text(item.get('metrics', {}).get('score_percent'))}%</td>"
         f"<td>{_html_text(item.get('parameter', {}).get('parameter_hash') if item.get('parameter') else None)}</td>"
-        f"<td>{_html_text((item.get('profile') or {}).get('name'))} · {_html_text((item.get('profile') or {}).get('tc'))}</td>"
+        f"<td>{_html_text(_profile_label(item.get('profile')))}</td>"
         "</tr>"
         for item in snapshot.get("candidates", [])
     )
@@ -668,13 +686,13 @@ def render_report_html(snapshot: dict[str, Any]) -> str:
 <div class="card"><div class="label">Search games</div><div class="value">{_html_text(snapshot.get('search_games'))}</div></div>
 <div class="card"><div class="label">Confirmation games</div><div class="value">{_html_text(snapshot.get('confirmation_games'))}</div></div>
 <div class="card"><div class="label">Total games</div><div class="value">{_html_text(snapshot.get('total_games'))}</div></div>
-<div class="card"><div class="label">Search profile</div><div class="value">{_html_text(search_profile.get('name'))} · {_html_text(search_profile.get('tc'))}</div></div>
-<div class="card"><div class="label">Confirmation profile</div><div class="value">{_html_text(confirmation_profile.get('name'))} · {_html_text(confirmation_profile.get('tc'))}</div></div>
+<div class="card"><div class="label">Search profile</div><div class="value">{_html_text(_profile_label(search_profile))}</div></div>
+<div class="card"><div class="label">Confirmation profile</div><div class="value">{_html_text(_profile_label(confirmation_profile))}</div></div>
 </div></section>
 <section><h2>Candidates</h2><p>Completed: {_html_text(counts.get('completed', 0))} · rejected: {_html_text(counts.get('rejected', 0))} · waiting: {_html_text(counts.get('waiting', 0))}</p>
 <table><thead><tr><th>Trial</th><th>Status</th><th>W–D–L</th><th>Score</th><th>Parameter hash</th><th>Profile</th></tr></thead><tbody>{rows}</tbody></table></section>
 <section><h2>Final anchor from optimizer checkpoint</h2><pre>{html.escape(json.dumps(final_anchor, ensure_ascii=False, indent=2))}</pre><h3>Highest local trial (search history)</h3><pre>{html.escape(json.dumps(highest_local, ensure_ascii=False, indent=2))}</pre></section>
-<section><h2>Confirmed candidate vs baseline</h2><p>Profile: {_html_text(confirmation_profile.get('name'))} · tc: {_html_text(confirmation_profile.get('tc'))} · hash: {_html_text(confirmation_profile.get('hash'))}</p><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Candidate</th><th>Delta</th></tr></thead><tbody>{parameter_rows}</tbody></table><pre>{html.escape(json.dumps(confirmation, ensure_ascii=False, indent=2))}</pre></section>
+<section><h2>Confirmed candidate vs baseline</h2><p>Profile: {_html_text(_profile_label(confirmation_profile))} · hash: {_html_text(confirmation_profile.get('hash'))}</p><table><thead><tr><th>Parameter</th><th>Baseline</th><th>Candidate</th><th>Delta</th></tr></thead><tbody>{parameter_rows}</tbody></table><pre>{html.escape(json.dumps(confirmation, ensure_ascii=False, indent=2))}</pre></section>
 <section><h2>Times</h2><pre>{html.escape(json.dumps(snapshot.get('times'), ensure_ascii=False, indent=2))}</pre></section>
 <section><h2>Latest checkpoint</h2><pre>{html.escape(checkpoint)}</pre><h2>Latest error</h2><pre>{html.escape(json.dumps(latest_error, ensure_ascii=False, indent=2))}</pre></section>
 <footer>Generated {_html_text(snapshot.get('generated_at'))}; SQLite source opened read-only.</footer></body></html>"""
@@ -700,6 +718,7 @@ table{border-collapse:collapse;width:100%}th,td{padding:.46rem;border-bottom:1px
 const refreshMs=__REFRESH_MS__;
 const h=value=>String(value===null||value===undefined||value===''?'—':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const metric=(m,k)=>m&&m[k]!==undefined?m[k]:'—';
+const profileText=p=>p&&p.mode==='nodes'?(p.name||'—')+' · '+(p.nodes||'—')+' nodes/move':(p&&p.name||'—')+' · '+(p&&p.tc||'—');
 function render(data){
  const c=data.campaign||{}, t=data.current_trial||{}, confirmation=data.confirmation||null, confirming=confirmation&&confirmation.status!=='completed', m=confirming?(confirmation.metrics||{}):(t.metrics||data.campaign_metrics||{}), counts=data.candidate_counts||{};
  document.title='GoAlaric · '+(c.name||c.campaign_id||'dashboard');
@@ -714,12 +733,12 @@ function render(data){
  document.getElementById('games').textContent=h(data.consumed_games);
  document.getElementById('updated').textContent='Last refresh: '+(data.generated_at||'—')+' · database: '+((data.database||{}).path||'—');
  ['completed','rejected','waiting'].forEach(k=>document.getElementById(k+'-count').textContent=h(counts[k]||0));
- document.getElementById('candidates').innerHTML=(data.candidates||[]).map(item=>{const x=item.metrics||{},p=item.profile||{};return '<tr><td>'+h(item.trial_id)+'</td><td>'+h(item.status)+'</td><td>'+h(item.algorithm)+'</td><td>'+h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses)+'</td><td>'+h(x.score_percent)+'%</td><td>'+h(x.elo_estimate)+'</td><td>'+h((item.parameter||{}).parameter_hash)+'</td><td>'+h(p.name)+' · '+h(p.tc)+'</td></tr>';}).join('');
- const block=t.current_block,p=t.profile||{}; document.getElementById('current-details').innerHTML='<strong>Status:</strong> '+h(t.status)+' · <strong>parameter:</strong> '+h((t.parameter||{}).parameter_hash)+' · <strong>profile:</strong> '+h(p.name)+' · <strong>tc:</strong> '+h(p.tc)+' · <strong>next/current block:</strong> '+h(block?block.block_index:'—')+' · <strong>attempt:</strong> '+h(block?block.attempt:'—')+'<br><strong>algorithm:</strong> '+h(t.algorithm)+' · <strong>error:</strong> '+h(t.error);
- const best=data.final_anchor||{},sp=data.search_profile||{};document.getElementById('best-source').textContent='Source: '+(best.source||'—')+' · profile: '+(sp.name||'—')+' · tc: '+(sp.tc||'—')+' · checkpoint: '+(best.checkpoint_revision||'—')+' · hash: '+(best.parameter_hash||'—');
+ document.getElementById('candidates').innerHTML=(data.candidates||[]).map(item=>{const x=item.metrics||{},p=item.profile||{};return '<tr><td>'+h(item.trial_id)+'</td><td>'+h(item.status)+'</td><td>'+h(item.algorithm)+'</td><td>'+h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses)+'</td><td>'+h(x.score_percent)+'%</td><td>'+h(x.elo_estimate)+'</td><td>'+h((item.parameter||{}).parameter_hash)+'</td><td>'+h(profileText(p))+'</td></tr>';}).join('');
+ const block=t.current_block,p=t.profile||{}; document.getElementById('current-details').innerHTML='<strong>Status:</strong> '+h(t.status)+' · <strong>parameter:</strong> '+h((t.parameter||{}).parameter_hash)+' · <strong>profile:</strong> '+h(profileText(p))+' · <strong>next/current block:</strong> '+h(block?block.block_index:'—')+' · <strong>attempt:</strong> '+h(block?block.attempt:'—')+'<br><strong>algorithm:</strong> '+h(t.algorithm)+' · <strong>error:</strong> '+h(t.error);
+ const best=data.final_anchor||{},sp=data.search_profile||{};document.getElementById('best-source').textContent='Source: '+(best.source||'—')+' · profile: '+profileText(sp)+' · checkpoint: '+(best.checkpoint_revision||'—')+' · hash: '+(best.parameter_hash||'—');
  document.getElementById('parameters').innerHTML=(data.final_anchor_parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');
  const confirmationSection=document.getElementById('confirmation-section');confirmationSection.hidden=!confirmation;
- if(confirmation){const x=confirmation.metrics||confirmation,cp=confirmation.profile||{};document.getElementById('confirmation-status').textContent=confirmation.status+(confirmation.outcome?' · '+confirmation.outcome:'');document.getElementById('confirmation-profile').textContent=(cp.name||'—')+' · '+(cp.tc||'—')+' · '+(cp.hash||'—');document.getElementById('confirmation-candidate-hash').textContent=confirmation.candidate_parameter_hash||'—';document.getElementById('confirmation-pairs').textContent=h(x.pairs_completed)+' / '+h(x.pairs_target);document.getElementById('confirmation-games').textContent=h(x.games_completed)+' / '+h(x.games_target);document.getElementById('confirmation-wdl').textContent=h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses);document.getElementById('confirmation-score').textContent=h(x.score_percent)+'%';document.getElementById('confirmation-elo').textContent=h(x.elo_estimate);document.getElementById('confirmation-score-ci').textContent=h(x.score_ci_low)+'% … '+h(x.score_ci_high)+'%';document.getElementById('confirmation-elapsed').textContent=h(confirmation.elapsed_seconds)+' s';document.getElementById('confirmation-eta').textContent=h(confirmation.estimated_remaining_seconds)+' s';document.getElementById('confirmation-times').textContent='Started: '+h(confirmation.started_at)+' · Finished: '+h(confirmation.finished_at)+' · Updated: '+h(confirmation.updated_at);document.getElementById('confirmation-parameters').innerHTML=(confirmation.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');}
+ if(confirmation){const x=confirmation.metrics||confirmation,cp=confirmation.profile||{};document.getElementById('confirmation-status').textContent=confirmation.status+(confirmation.outcome?' · '+confirmation.outcome:'');document.getElementById('confirmation-profile').textContent=profileText(cp)+' · '+(cp.hash||'—');document.getElementById('confirmation-candidate-hash').textContent=confirmation.candidate_parameter_hash||'—';document.getElementById('confirmation-pairs').textContent=h(x.pairs_completed)+' / '+h(x.pairs_target);document.getElementById('confirmation-games').textContent=h(x.games_completed)+' / '+h(x.games_target);document.getElementById('confirmation-wdl').textContent=h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses);document.getElementById('confirmation-score').textContent=h(x.score_percent)+'%';document.getElementById('confirmation-elo').textContent=h(x.elo_estimate);document.getElementById('confirmation-score-ci').textContent=h(x.score_ci_low)+'% … '+h(x.score_ci_high)+'%';document.getElementById('confirmation-elapsed').textContent=h(confirmation.elapsed_seconds)+' s';document.getElementById('confirmation-eta').textContent=h(confirmation.estimated_remaining_seconds)+' s';document.getElementById('confirmation-times').textContent='Started: '+h(confirmation.started_at)+' · Finished: '+h(confirmation.finished_at)+' · Updated: '+h(confirmation.updated_at);document.getElementById('confirmation-parameters').innerHTML=(confirmation.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');}
  document.getElementById('checkpoint').textContent=JSON.stringify(data.checkpoint||null,null,2);
  document.getElementById('error').textContent=JSON.stringify(data.latest_error||null,null,2);
  document.getElementById('readonly').textContent=data.read_only?'read-only':'unknown mode';

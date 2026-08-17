@@ -467,4 +467,6 @@ def initialize_confirmation(
         profile_name=profile.get("name") if profile else None,
         profile_hash=profile.get("hash") if profile else None,
         profile_tc=profile.get("tc") if profile else None,
+        profile_mode=profile.get("mode") if profile else None,
+        profile_nodes=profile.get("nodes") if profile else None,
     )

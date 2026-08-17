@@ -8,10 +8,11 @@ from typing import Any, Iterator
 
 from .canonical import canonical_json, sha256_json, utc_now
 from .config import CampaignDefinition
+from .profiles import profile_identity, profiles_equivalent
 from .statistics import aggregate_wdl
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 CAMPAIGN_STATES = {"pending", "running", "completed", "failed", "interrupted", "paused", "rejected"}
 TRIAL_STATES = CAMPAIGN_STATES
 BLOCK_STATES = {"pending", "running", "completed", "failed", "interrupted", "rejected"}
@@ -106,6 +107,8 @@ CREATE TABLE IF NOT EXISTS trials (
     profile_name TEXT,
     profile_hash TEXT,
     profile_tc TEXT,
+    profile_mode TEXT,
+    profile_nodes INTEGER,
     result_json TEXT,
     error TEXT,
     pid INTEGER,
@@ -206,6 +209,8 @@ CREATE TABLE IF NOT EXISTS confirmations (
     profile_name TEXT,
     profile_hash TEXT,
     profile_tc TEXT,
+    profile_mode TEXT,
+    profile_nodes INTEGER,
     outcome TEXT CHECK (outcome IN ('confirmed','rejected','inconclusive')),
     wins INTEGER NOT NULL DEFAULT 0,
     draws INTEGER NOT NULL DEFAULT 0,
@@ -347,40 +352,56 @@ class Database:
                 "SELECT value FROM schema_meta WHERE key='schema_version'"
             ).fetchone()
             if existing is not None:
+                def add_missing_columns(table: str, definitions: tuple[tuple[str, str], ...]) -> None:
+                    columns = {
+                        row["name"]
+                        for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+                    }
+                    for column, definition in definitions:
+                        if column not in columns:
+                            connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+                profile_columns = (
+                    ("profile_name", "TEXT"),
+                    ("profile_hash", "TEXT"),
+                    ("profile_tc", "TEXT"),
+                    ("profile_mode", "TEXT"),
+                    ("profile_nodes", "INTEGER"),
+                )
                 version = int(existing["value"])
                 if version == 1:
-                    connection.execute("ALTER TABLE match_blocks ADD COLUMN process_group_id INTEGER")
-                    connection.execute("ALTER TABLE match_blocks ADD COLUMN attempt INTEGER NOT NULL DEFAULT 0")
-                    connection.execute("ALTER TABLE match_blocks ADD COLUMN run_dir TEXT")
-                    connection.execute("ALTER TABLE match_blocks ADD COLUMN command_json TEXT")
-                    connection.execute("ALTER TABLE trials ADD COLUMN profile_name TEXT")
-                    connection.execute("ALTER TABLE trials ADD COLUMN profile_hash TEXT")
-                    connection.execute("ALTER TABLE trials ADD COLUMN profile_tc TEXT")
-                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_name TEXT")
-                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_hash TEXT")
-                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_tc TEXT")
+                    add_missing_columns(
+                        "match_blocks",
+                        (
+                            ("process_group_id", "INTEGER"),
+                            ("attempt", "INTEGER NOT NULL DEFAULT 0"),
+                            ("run_dir", "TEXT"),
+                            ("command_json", "TEXT"),
+                        ),
+                    )
+                    add_missing_columns("trials", profile_columns)
+                    add_missing_columns("confirmations", profile_columns)
                     connection.execute(
                         "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
                     )
                 elif version == 2:
-                    connection.execute("ALTER TABLE trials ADD COLUMN profile_name TEXT")
-                    connection.execute("ALTER TABLE trials ADD COLUMN profile_hash TEXT")
-                    connection.execute("ALTER TABLE trials ADD COLUMN profile_tc TEXT")
-                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_name TEXT")
-                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_hash TEXT")
-                    connection.execute("ALTER TABLE confirmations ADD COLUMN profile_tc TEXT")
+                    add_missing_columns("trials", profile_columns)
+                    add_missing_columns("confirmations", profile_columns)
                     connection.execute(
                         "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
                     )
                 elif version == 3:
                     for table in ("trials", "confirmations"):
-                        columns = {
-                            row["name"]
-                            for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
-                        }
-                        for column in ("profile_name", "profile_hash", "profile_tc"):
-                            if column not in columns:
-                                connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+                        add_missing_columns(table, profile_columns)
+                    connection.execute(
+                        "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
+                    )
+                elif version == 4:
+                    for table in ("trials", "confirmations"):
+                        add_missing_columns(
+                            table,
+                            (("profile_mode", "TEXT"), ("profile_nodes", "INTEGER")),
+                        )
                     connection.execute(
                         "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
                     )
@@ -595,6 +616,8 @@ class Database:
         profile_name: str | None = None,
         profile_hash: str | None = None,
         profile_tc: str | None = None,
+        profile_mode: str | None = None,
+        profile_nodes: int | None = None,
     ) -> str:
         now = utc_now()
         with self._transaction() as connection:
@@ -612,16 +635,24 @@ class Database:
                 (campaign_id, parameter_set_id),
             ).fetchone()
             if existing is not None:
-                existing_profile = (
-                    existing["profile_name"],
-                    existing["profile_hash"],
-                    existing["profile_tc"],
-                )
-                requested_profile = (profile_name, profile_hash, profile_tc)
+                existing_profile = {
+                    "name": existing["profile_name"],
+                    "hash": existing["profile_hash"],
+                    "tc": existing["profile_tc"],
+                    "mode": existing["profile_mode"],
+                    "nodes": existing["profile_nodes"],
+                }
+                requested_profile = {
+                    "name": profile_name,
+                    "hash": profile_hash,
+                    "tc": profile_tc,
+                    "mode": profile_mode,
+                    "nodes": profile_nodes,
+                }
                 if (
-                    any(value is not None for value in existing_profile)
-                    and any(value is not None for value in requested_profile)
-                    and existing_profile != requested_profile
+                    any(value is not None for value in existing_profile.values())
+                    and any(value is not None for value in requested_profile.values())
+                    and not profiles_equivalent(existing_profile, requested_profile)
                 ):
                     raise CampaignConflict("trial already exists with a different profile")
                 return str(existing["trial_id"])
@@ -631,7 +662,7 @@ class Database:
             trial_id = f"trial-{number:06d}"
             connection.execute(
                 "INSERT INTO trials(trial_id,campaign_id,parameter_set_id,status,algorithm,seed,profile_name,"
-                "profile_hash,profile_tc,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                "profile_hash,profile_tc,profile_mode,profile_nodes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     trial_id,
                     campaign_id,
@@ -642,6 +673,8 @@ class Database:
                     profile_name,
                     profile_hash,
                     profile_tc,
+                    profile_mode,
+                    profile_nodes,
                     now,
                     now,
                 ),
@@ -658,26 +691,56 @@ class Database:
             return trial_id
 
     def bind_trial_profile(
-        self, campaign_id: str, trial_id: str, profile_name: str, profile_hash: str, profile_tc: str
+        self,
+        campaign_id: str,
+        trial_id: str,
+        profile_name: str,
+        profile_hash: str,
+        profile_tc: str | None,
+        profile_mode: str = "time",
+        profile_nodes: int | None = None,
     ) -> dict[str, Any]:
         """Bind or validate an immutable profile identity for a trial."""
-        values = (profile_name, profile_hash, profile_tc)
-        if any(not isinstance(value, str) or not value for value in values):
-            raise DatabaseError("trial profile identity must contain non-empty strings")
+        if (
+            not isinstance(profile_name, str)
+            or not profile_name
+            or not isinstance(profile_hash, str)
+            or not profile_hash
+            or profile_mode not in {"time", "nodes"}
+            or (profile_mode == "time" and (not isinstance(profile_tc, str) or not profile_tc))
+            or (profile_mode == "nodes" and (not isinstance(profile_nodes, int) or profile_nodes <= 0))
+        ):
+            raise DatabaseError("trial profile identity is invalid")
+        values = (profile_name, profile_hash, profile_tc, profile_mode, profile_nodes)
         with self._transaction() as connection:
             row = connection.execute(
                 "SELECT * FROM trials WHERE campaign_id=? AND trial_id=?", (campaign_id, trial_id)
             ).fetchone()
             if row is None:
                 raise DatabaseError(f"unknown trial: {trial_id}")
-            existing = (row["profile_name"], row["profile_hash"], row["profile_tc"])
-            if any(value is not None for value in existing) and existing != values:
+            existing_profile = {
+                "name": row["profile_name"],
+                "hash": row["profile_hash"],
+                "tc": row["profile_tc"],
+                "mode": row["profile_mode"],
+                "nodes": row["profile_nodes"],
+            }
+            requested_profile = {
+                "name": profile_name,
+                "hash": profile_hash,
+                "tc": profile_tc,
+                "mode": profile_mode,
+                "nodes": profile_nodes,
+            }
+            if any(value is not None for value in existing_profile.values()) and not profiles_equivalent(
+                existing_profile, requested_profile
+            ):
                 raise CampaignConflict(f"trial {trial_id} already uses a different profile")
-            if existing == values:
+            if profiles_equivalent(existing_profile, requested_profile):
                 return dict(row)
             now = utc_now()
             connection.execute(
-                "UPDATE trials SET profile_name=?,profile_hash=?,profile_tc=?,updated_at=? "
+                "UPDATE trials SET profile_name=?,profile_hash=?,profile_tc=?,profile_mode=?,profile_nodes=?,updated_at=? "
                 "WHERE campaign_id=? AND trial_id=?",
                 (*values, now, campaign_id, trial_id),
             )
@@ -687,7 +750,13 @@ class Database:
                 "trial_profile_bound",
                 "trial",
                 trial_id,
-                {"profile_name": profile_name, "profile_hash": profile_hash, "profile_tc": profile_tc},
+                {
+                    "profile_name": profile_name,
+                    "profile_hash": profile_hash,
+                    "profile_tc": profile_tc,
+                    "profile_mode": profile_mode,
+                    "profile_nodes": profile_nodes,
+                },
             )
             return dict(connection.execute("SELECT * FROM trials WHERE trial_id=?", (trial_id,)).fetchone())
 
@@ -761,7 +830,11 @@ class Database:
             state = dict(state)
             stored_profile = stored_state.get("search_profile")
             requested_profile = state.get("search_profile")
-            if stored_profile is not None and requested_profile is not None and stored_profile != requested_profile:
+            if (
+                stored_profile is not None
+                and requested_profile is not None
+                and not profiles_equivalent(stored_profile, requested_profile)
+            ):
                 raise CampaignConflict("checkpoint already uses a different search profile")
             if stored_profile is not None and requested_profile is None:
                 state["search_profile"] = stored_profile
@@ -1347,7 +1420,11 @@ class Database:
             for immutable_key in ("search_profile",):
                 stored_profile = stored_state.get(immutable_key)
                 requested_profile = state.get(immutable_key)
-                if stored_profile is not None and requested_profile is not None and stored_profile != requested_profile:
+                if (
+                    stored_profile is not None
+                    and requested_profile is not None
+                    and not profiles_equivalent(stored_profile, requested_profile)
+                ):
                     raise CampaignConflict(f"checkpoint already uses a different {immutable_key}")
                 if stored_profile is not None and requested_profile is None:
                     state[immutable_key] = stored_profile
@@ -1374,10 +1451,19 @@ class Database:
         """Persist and validate the immutable profile used by a search role."""
         if role not in {"search"}:
             raise DatabaseError(f"unsupported optimizer profile role: {role}")
-        if not isinstance(profile, dict) or not all(
-            isinstance(profile.get(key), str) and profile.get(key) for key in ("name", "hash", "tc")
-        ):
-            raise DatabaseError("optimizer profile must contain name, hash and tc")
+        if not isinstance(profile, dict):
+            raise DatabaseError("optimizer profile must be an object")
+        identity = {
+            "name": profile.get("name"),
+            "hash": profile.get("hash"),
+            "mode": profile.get("mode"),
+            "tc": profile.get("tc"),
+            "nodes": profile.get("nodes"),
+        }
+        if profile.get("mode") is None and isinstance(profile.get("tc"), str):
+            identity["mode"] = "time"
+        if profile_identity(identity) is None:
+            raise DatabaseError("optimizer profile must contain a valid name, hash and tc/nodes")
         with self._transaction() as connection:
             self._campaign(connection, campaign_id)
             row = connection.execute(
@@ -1388,9 +1474,9 @@ class Database:
             state = json.loads(row["state_json"])
             key = f"{role}_profile"
             existing = state.get(key)
-            if existing is not None and existing != profile:
+            if existing is not None and not profiles_equivalent(existing, profile):
                 raise CampaignConflict(f"campaign already uses a different {role} profile")
-            if existing == profile:
+            if existing is not None and profiles_equivalent(existing, profile):
                 return state
             state[key] = dict(profile)
             revision = int(row["revision"]) + 1
@@ -1484,7 +1570,11 @@ class Database:
             checkpoint_state = dict(checkpoint_state)
             stored_profile = stored_state.get("search_profile")
             requested_profile = checkpoint_state.get("search_profile")
-            if stored_profile is not None and requested_profile is not None and stored_profile != requested_profile:
+            if (
+                stored_profile is not None
+                and requested_profile is not None
+                and not profiles_equivalent(stored_profile, requested_profile)
+            ):
                 raise CampaignConflict("checkpoint already uses a different search profile")
             if stored_profile is not None and requested_profile is None:
                 checkpoint_state["search_profile"] = stored_profile
@@ -1516,6 +1606,8 @@ class Database:
         profile_name: str | None = None,
         profile_hash: str | None = None,
         profile_tc: str | None = None,
+        profile_mode: str | None = None,
+        profile_nodes: int | None = None,
     ) -> str:
         """Create the immutable confirmation record, independently of search state."""
         if games_target < 2 or games_target % 2:
@@ -1540,26 +1632,46 @@ class Database:
                     or float(existing["confidence"]) != float(confidence)
                 ):
                     raise CampaignConflict("confirmation already exists with different inputs")
-                existing_profile = (
-                    existing["profile_name"],
-                    existing["profile_hash"],
-                    existing["profile_tc"],
-                )
-                requested_profile = (profile_name, profile_hash, profile_tc)
-                if any(value is not None for value in existing_profile) and existing_profile != requested_profile:
+                existing_profile = {
+                    "name": existing["profile_name"],
+                    "hash": existing["profile_hash"],
+                    "tc": existing["profile_tc"],
+                    "mode": existing["profile_mode"],
+                    "nodes": existing["profile_nodes"],
+                }
+                requested_profile = {
+                    "name": profile_name,
+                    "hash": profile_hash,
+                    "tc": profile_tc,
+                    "mode": profile_mode,
+                    "nodes": profile_nodes,
+                }
+                if any(value is not None for value in existing_profile.values()) and not profiles_equivalent(
+                    existing_profile, requested_profile
+                ):
                     raise CampaignConflict("confirmation already exists with a different profile")
-                if any(value is not None for value in requested_profile) and existing_profile != requested_profile:
+                if any(value is not None for value in requested_profile.values()) and not profiles_equivalent(
+                    existing_profile, requested_profile
+                ):
                     connection.execute(
-                        "UPDATE confirmations SET profile_name=?,profile_hash=?,profile_tc=?,updated_at=? "
+                        "UPDATE confirmations SET profile_name=?,profile_hash=?,profile_tc=?,profile_mode=?,profile_nodes=?,updated_at=? "
                         "WHERE confirmation_id=?",
-                        (*requested_profile, now, existing["confirmation_id"]),
+                        (
+                            profile_name,
+                            profile_hash,
+                            profile_tc,
+                            profile_mode,
+                            profile_nodes,
+                            now,
+                            existing["confirmation_id"],
+                        ),
                     )
                 return str(existing["confirmation_id"])
             connection.execute(
                 "INSERT INTO confirmations(confirmation_id,campaign_id,status,candidate_parameter_hash,"
                 "baseline_parameter_hash,candidate_document_json,baseline_document_json,games_target,seed,"
-                "confidence,profile_name,profile_hash,profile_tc,created_at,updated_at) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "confidence,profile_name,profile_hash,profile_tc,profile_mode,profile_nodes,created_at,updated_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     confirmation_id,
                     campaign_id,
@@ -1574,6 +1686,8 @@ class Database:
                     profile_name,
                     profile_hash,
                     profile_tc,
+                    profile_mode,
+                    profile_nodes,
                     now,
                     now,
                 ),
@@ -1593,6 +1707,8 @@ class Database:
                     "profile_name": profile_name,
                     "profile_hash": profile_hash,
                     "profile_tc": profile_tc,
+                    "profile_mode": profile_mode,
+                    "profile_nodes": profile_nodes,
                 },
                 to_status="pending",
             )
@@ -2189,6 +2305,8 @@ class Database:
                         "profile_name",
                         "profile_hash",
                         "profile_tc",
+                        "profile_mode",
+                        "profile_nodes",
                         "started_at",
                         "finished_at",
                         "updated_at",
@@ -2219,8 +2337,12 @@ class Database:
                 confirmation_profile = {
                     "name": confirmation.get("profile_name"),
                     "hash": confirmation.get("profile_hash"),
-                    "tc": confirmation.get("profile_tc"),
+                    "mode": confirmation.get("profile_mode") or "time",
                 }
+                if confirmation_profile["mode"] == "nodes":
+                    confirmation_profile["nodes"] = confirmation.get("profile_nodes")
+                else:
+                    confirmation_profile["tc"] = confirmation.get("profile_tc")
             return {
                 "campaign_id": campaign["campaign_id"],
                 "name": campaign["name"],

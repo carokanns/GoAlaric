@@ -28,7 +28,7 @@ class RealTestmonitorConfig:
     candidate_parameter_file: Path
     opening_book: Path
     opening_block_file: Path
-    tc: str = "10+0.1"
+    tc: str | None = "10+0.1"
     seed: int = 0
     concurrency: int = 1
     hash_mb: int = 16
@@ -37,6 +37,8 @@ class RealTestmonitorConfig:
     workdir: Path | None = None
     profile_name: str = "default"
     profile_hash: str = ""
+    profile_mode: str = "time"
+    nodes: int | None = None
 
 
 def _read_object(path: Path) -> dict[str, Any]:
@@ -102,6 +104,8 @@ def _ensure_real_schedule(
     profile_name: str | None = None,
     profile_hash: str | None = None,
     profile_tc: str | None = None,
+    profile_mode: str | None = None,
+    profile_nodes: int | None = None,
 ) -> tuple[str, str]:
     campaign = database.campaign(campaign_id)
     config = json.loads(campaign["config_json"])
@@ -118,6 +122,8 @@ def _ensure_real_schedule(
         profile_name=profile_name,
         profile_hash=profile_hash,
         profile_tc=profile_tc,
+        profile_mode=profile_mode,
+        profile_nodes=profile_nodes,
     )
     block_id = database.create_match_block(
         campaign_id,
@@ -189,6 +195,16 @@ class RealTestmonitorScheduler(Scheduler):
             raise SchedulerError("phase 8 requires concurrency=1")
         if config.hash_mb < 16 or config.threads < 1:
             raise SchedulerError("phase 8 requires hash >= 16 and positive threads")
+        if config.profile_mode == "time":
+            if not isinstance(config.tc, str) or not config.tc.strip() or config.nodes is not None:
+                raise SchedulerError("time profile requires tc and no node budget")
+        elif config.profile_mode == "nodes":
+            if not isinstance(config.nodes, int) or isinstance(config.nodes, bool) or config.nodes <= 0:
+                raise SchedulerError("node profile requires a positive node budget")
+            if config.tc not in (None, ""):
+                raise SchedulerError("node profile cannot also define tc")
+        else:
+            raise SchedulerError(f"unknown profile mode: {config.profile_mode}")
         self.config = replace(
             config,
             fastchess=config.fastchess.resolve(),
@@ -203,6 +219,7 @@ class RealTestmonitorScheduler(Scheduler):
 
     def _command(self, block: dict[str, Any], run_dir: Path, result_path: Path) -> list[str]:
         games = int(block["pairs_per_block"]) * 2
+        match_limit = ["--nodes", str(self.config.nodes)] if self.config.profile_mode == "nodes" else ["--tc", self.config.tc]
         return [
             *self.monitor_command,
             "run-match",
@@ -229,8 +246,7 @@ class RealTestmonitorScheduler(Scheduler):
             str(block["master_seed"]),
             "--games",
             str(games),
-            "--tc",
-            self.config.tc,
+            *match_limit,
             "--concurrency",
             str(self.config.concurrency),
             "--progress-games",
@@ -305,6 +321,20 @@ class RealTestmonitorScheduler(Scheduler):
                 raise SchedulerError(f"monitor-config.json has the wrong {field}")
         if monitor_config.get("optimizer_mode") is not True:
             raise SchedulerError("real phase-8 match did not run in optimizer mode")
+        if self.config.profile_mode == "nodes":
+            if monitor_config.get("nodes") != self.config.nodes:
+                raise SchedulerError("monitor-config.json has the wrong node budget")
+            if monitor_config.get("time_control") not in (None, ""):
+                raise SchedulerError("node-profile monitor-config unexpectedly contains time_control")
+            if report.get("node_budget") != self.config.nodes:
+                raise SchedulerError("block-report has the wrong node budget")
+        else:
+            if monitor_config.get("time_control") != self.config.tc:
+                raise SchedulerError("monitor-config.json has the wrong time control")
+            if monitor_config.get("nodes") not in (None, 0):
+                raise SchedulerError("time-profile monitor-config unexpectedly contains nodes")
+            if report.get("node_budget") not in (None, 0):
+                raise SchedulerError("time-profile block-report unexpectedly contains nodes")
         block_hash = sha256_bytes(self.config.opening_block_file.read_bytes())
         if report.get("opening_block_sha256") != block_hash:
             raise SchedulerError("block-report opening identity differs from the supplied block")
@@ -330,7 +360,12 @@ class RealTestmonitorScheduler(Scheduler):
             "profile": {
                 "name": self.config.profile_name,
                 "hash": self.config.profile_hash,
-                "tc": self.config.tc,
+                "mode": self.config.profile_mode,
+                **(
+                    {"nodes": self.config.nodes}
+                    if self.config.profile_mode == "nodes"
+                    else {"tc": self.config.tc}
+                ),
             },
         }
 
@@ -383,7 +418,9 @@ def run_real_testmonitor(
         block_hash,
         effective.profile_name if effective.profile_hash else None,
         effective.profile_hash if effective.profile_hash else None,
-        effective.tc if effective.profile_hash else None,
+        effective.tc if effective.profile_hash and effective.profile_mode == "time" else None,
+        effective.profile_mode if effective.profile_hash else None,
+        effective.nodes if effective.profile_hash and effective.profile_mode == "nodes" else None,
     )
     if database.campaign(campaign_id)["status"] == "completed":
         return database.status_snapshot(campaign_id)

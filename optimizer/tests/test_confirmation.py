@@ -17,6 +17,7 @@ from goalaric_optimizer.cli import main
 from goalaric_optimizer.canonical import sha256_json
 from goalaric_optimizer.database import Database
 from goalaric_optimizer.dashboard import DashboardReader
+from goalaric_optimizer.registry import load_registry
 from goalaric_optimizer.service import init_campaign
 
 
@@ -339,6 +340,9 @@ class ConfirmationMinimalRealTest(unittest.TestCase):
                 {
                     "algorithm": "coordinate-multires-v1",
                     "phase": "completed",
+                    "registry_sha256": load_registry(registry).sha256,
+                    "parameter_names": ["mobility_weight"],
+                    "max_passes": 1,
                     "anchor_parameters": candidate,
                     "anchor_hash": candidate_hash,
                     "coordinate_base_parameters": candidate,

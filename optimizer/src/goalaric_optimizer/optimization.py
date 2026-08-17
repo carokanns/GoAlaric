@@ -228,6 +228,8 @@ def _real_config(
         workdir=workdir,
         profile_name=selected_profile.name,
         profile_hash=selected_profile.hash,
+        profile_mode=selected_profile.mode,
+        nodes=selected_profile.nodes,
     )
 
 

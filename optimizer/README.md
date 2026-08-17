@@ -208,12 +208,13 @@ bekräftelsen har avslutats som `confirmed`, `rejected` eller `inconclusive`.
 Dashboarden är fortsatt helt skrivskyddad och läser bara SQLite, även för den
 arkiverade v1.1.1-kampanjen.
 
-## v1.2 / profiler för matchtid
+## v1.2 / profiler för tid och nodbudget
 
-v1.2 kan ge sökning och bekräftelse var sin namngiven tidsprofil. Profilen
-består av namn och faktisk `tc`; dess hash sparas i checkpoint, trial- och
-confirmation-resultat. Saknas `real.profiles` används fortfarande `real.tc`
-med profilnamnet `default`, så äldre kampanjer behåller samma tidskontroll.
+v1.2 kan ge sökning och bekräftelse var sin namngiven profil. Varje profil
+innehåller exakt en av `tc` (tid) eller `nodes` (fast nodbudget per drag).
+Profilens namn, läge, faktiska gräns och hash sparas i checkpoint, SQLite och
+resultat. Saknas `real.profiles` används fortfarande `real.tc` med
+profilnamnet `default`, så äldre kampanjer behåller samma tidskontroll.
 
 ```json
 {
@@ -225,35 +226,44 @@ med profilnamnet `default`, så äldre kampanjer behåller samma tidskontroll.
       "tc": "0.2+0.01",
       "profiles": {
         "long-search": {"tc": "1+0.02"},
-        "long-confirmation": {"tc": "2+0.02"}
+        "node-search": {"nodes": 100000},
+        "node-confirmation": {"nodes": 250000}
       }
     },
     "optimizer": {
       "parameters": ["mobility_weight"],
-      "profile": "long-search"
+      "profile": "node-search"
     },
     "confirmation": {
       "enabled": true,
       "games": 100,
       "seed": 20260930,
       "confidence": 0.95,
-      "profile": "long-confirmation"
+      "profile": "node-confirmation"
     }
   }
 }
 ```
 
-`optimizer optimize campaign.json` skickar den upplösta profilens `tc` till
-testmonitor och därifrån vidare till Fastchess. Dashboard, `status` och rapport
-visar profilnamn, profilhash och faktisk tidskontroll för sök- och
-bekräftelsefasen. En återstart med en annan profil avvisas av SQLite. Detta
-delmål innehåller ingen nodbudget och ändrar inte sökalgoritmen.
+`optimizer optimize campaign.json` skickar den upplösta profilens `tc` eller
+`nodes` till testmonitor och därifrån vidare till Fastchess som `-each tc=...`
+eller `-each nodes=...`. Dashboard, `status` och rapport visar profilnamn,
+profilhash och faktisk gräns, exempelvis `node-search · 100000 nodes/move`.
+En återstart med annan profil eller ändrad nodbudget avvisas av SQLite.
+GoAlaric tolkar `go nodes N` per sökning och Fastchess PGN sparar nod- och
+seldepth-data när dessa är tillgängliga. Optimeringsalgoritmen och den
+adaptiva gallringen ändras inte av profilvalet.
 
 Det reproducerbara underlaget finns i
 [`tests/test_phase18.py`](tests/test_phase18.py). Det täcker fake-runnerns
 profil- och återstartsflöde samt två små riktiga körningar av samma kandidat,
 först med `0.2+0.01` och sedan med `1+0.02`, där `monitor-config.json` och
 blockresultatet verifieras.
+
+Nodeprofilernas fake- och SQLite-flöde samt ett tvåpartiers Fastchess-test finns
+i [`tests/test_phase22.py`](tests/test_phase22.py). Testet verifierar att
+`monitor-config.json` innehåller `nodes` utan `time_control`, att blockrapporten
+har samma nodbudget och att PGN innehåller nod- och seldepth-fält.
 
 Slutrapporten skiljer nu mellan `final_anchor` och `highest_local_trial`:
 `final_anchor` kommer alltid från optimizer-checkpointen och är kandidaten som
@@ -282,8 +292,8 @@ inte ändras. Den praktiska release- och driftbeskrivningen finns i
 v1.2.0 är den färdiga releasen av matchprofilerna och den första körbara
 search-parametern. Sökning och fast bekräftelse kan använda separata namngivna
 profiler, medan kampanjer utan `real.profiles` fortsätter att använda
-`real.tc`. Profilnamn, faktisk tidskontroll och profilhash valideras vid
-återstart och sparas i SQLite-resultaten.
+`real.tc`. Profilnamn, faktisk tidskontroll eller nodbudget och profilhash
+valideras vid återstart och sparas i SQLite-resultaten.
 
 Registret `search-lmr-v1` exponerar den körbara parametern
 `lmr_divisor_x100`. Motorns standardvärde är 225 och sökintervallet i den
