@@ -1,4 +1,4 @@
-# GoAlaric optimizer – version 1.1.2
+# GoAlaric optimizer – version 1.2.0
 
 ## Version 1 / fas 11
 
@@ -276,6 +276,31 @@ Den arkiverade v1.1.1-databasen täcks av
 slutankare, bekräftelseutfall, partier, rapportkompakthet och att databasen
 inte ändras. Den praktiska release- och driftbeskrivningen finns i
 [`docs/phase17-v1.1.2-runbook.md`](docs/phase17-v1.1.2-runbook.md).
+
+## v1.2.0 / profiler, LMR och slutverifiering
+
+v1.2.0 är den färdiga releasen av matchprofilerna och den första körbara
+search-parametern. Sökning och fast bekräftelse kan använda separata namngivna
+profiler, medan kampanjer utan `real.profiles` fortsätter att använda
+`real.tc`. Profilnamn, faktisk tidskontroll och profilhash valideras vid
+återstart och sparas i SQLite-resultaten.
+
+Registret `search-lmr-v1` exponerar den körbara parametern
+`lmr_divisor_x100`. Motorns standardvärde är 225 och sökintervallet i den
+verifierade pilotkampanjen var 175–275 med steg 25. Det äldre
+`eval-pilot-v1`-registret förblir byte- och hashkompatibelt.
+
+Den kompletta LMR-piloten körde 392 partier. Sökningen slutade med ankaret
+`lmr_divisor_x100=175`; den fasta bekräftelsen mot baseline 225 gav
+60–81–59, 50,25 % och ett 95-procentsintervall på 44,9049–55,5951 %.
+Utfallet var `inconclusive`, så ingen kandidat rekommenderas och ingen
+automatisk promotion sker.
+
+Slutverifieringen omfattade också återstartbar bekräftelse, unikhetskontroll
+för block och partier, kompakt JSON/HTML-rapportering och en exakt
+`--max-results 1`-regression för att säkerställa att en bounded invocation
+inte startar confirmation utanför sin kvot. Underlaget finns i
+[`docs/phase21-v1.2-lmr-long-pilot-completion.md`](docs/phase21-v1.2-lmr-long-pilot-completion.md).
 
 Fas 6 lägger en säker, sekventiell scheduler ovanpå den lokala
 Python-/SQLite-kärnan. Den använder endast Python-standardbiblioteket och
