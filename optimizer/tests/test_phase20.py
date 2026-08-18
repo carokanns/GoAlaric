@@ -139,6 +139,137 @@ class Phase20CoordinateQuotaTest(unittest.TestCase):
         report, _ = final_report(self.data_dir, "phase20-coordinate-quota", "json")
         self.assertEqual(report["final_anchor"]["values"]["p"], 1)
 
+    def test_budget_after_first_direction_commits_acceptance_idempotently(self) -> None:
+        campaign_id = "phase20-partial-coordinate-budget"
+        registry_path = self.root / f"{campaign_id}-registry.json"
+        registry_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "registry": f"{campaign_id}-v1",
+                    "parameters": [
+                        {"name": "p", "value": 0, "min": -1, "max": 1, "step": 1, "min_step": 1}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        campaign = self.root / f"{campaign_id}.json"
+        campaign.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "campaign_id": campaign_id,
+                    "name": campaign_id,
+                    "mode": "fake",
+                    "registry": str(registry_path),
+                    "baseline": {"engine_id": "fake-engine"},
+                    "master_seed": 20260820,
+                    "partitions": {"optimization": {"name": "optimization"}},
+                    "goals": {
+                        "max_evaluations": 2,
+                        "max_passes": 1,
+                        "optimizer": {
+                            "parameters": ["p"],
+                            "exploratory": {"enabled": True, "min_score": 51.0},
+                        },
+                        "fake_match": {"optimum": {"p": 1}},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        init_campaign(campaign, self.data_dir)
+        registry = load_registry(registry_path)
+        database = Database(self.data_dir / campaign_id / "campaign.db")
+        settings = _settings(database, campaign_id, registry)
+        calls: list[int] = []
+
+        def fake_runner(parameters: dict[str, object], seed: int) -> dict[str, object]:
+            del seed
+            value = int(parameters["parameters"][0]["value"])  # type: ignore[index]
+            calls.append(value)
+            if value == 0:
+                return {
+                    "wins": 1,
+                    "draws": 0,
+                    "losses": 1,
+                    "score": 50.0,
+                    "uncertainty": 0.0,
+                    "decision": "uncertain",
+                }
+            return {
+                "wins": 2,
+                "draws": 0,
+                "losses": 0,
+                "score": 100.0,
+                "uncertainty": 0.0,
+                "decision": "accept_exploratory",
+            }
+
+        first = AutonomousOptimizer(
+            database,
+            self.data_dir,
+            campaign_id,
+            registry,
+            settings,
+            fake_runner,
+            invocation_limit=1,
+        ).run()
+        self.assertEqual(first["result_count"], 1)
+        self.assertEqual(first["phase"], "coordinate")
+
+        second = AutonomousOptimizer(
+            database,
+            self.data_dir,
+            campaign_id,
+            registry,
+            settings,
+            fake_runner,
+            invocation_limit=1,
+        ).run()
+        self.assertEqual(second["result_count"], 2)
+        self.assertEqual(second["phase"], "coordinate")
+        self.assertEqual(second["last_result"]["decision"], "accept_exploratory")
+        self.assertEqual(second["best"]["parameters"]["parameters"][0]["value"], 0)
+
+        third = AutonomousOptimizer(
+            database,
+            self.data_dir,
+            campaign_id,
+            registry,
+            settings,
+            fake_runner,
+        ).run()
+        self.assertEqual(third["phase"], "completed")
+        self.assertEqual(third["result_count"], 2)
+        self.assertEqual(third["best"]["parameters"]["parameters"][0]["value"], 1)
+        self.assertEqual(third["best"]["result"]["decision"], "accept_exploratory")
+        self.assertEqual(calls, [0, 1])
+        self.assertEqual(database.campaign(campaign_id)["status"], "completed")
+        with database._read() as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM trials").fetchone()[0], 2)
+
+        state_row = database.optimizer_state(campaign_id)
+        state = state_row["state"]
+        self.assertEqual(state["anchor_parameters"]["parameters"][0]["value"], 1)
+        self.assertEqual(state["coordinate_results"], {})
+        self.assertEqual(state["stop_reason"], "evaluation_budget_exhausted")
+
+        repeated = AutonomousOptimizer(
+            database,
+            self.data_dir,
+            campaign_id,
+            registry,
+            settings,
+            fake_runner,
+        ).run()
+        repeated_row = database.optimizer_state(campaign_id)
+        self.assertEqual(repeated["best"], third["best"])
+        self.assertEqual(repeated_row["revision"], state_row["revision"])
+        self.assertEqual(repeated_row["checkpoint_hash"], state_row["checkpoint_hash"])
+        self.assertEqual(calls, [0, 1])
+
     def test_reconcile_pending_selection_is_idempotent_without_evaluation(self) -> None:
         calls: list[int] = []
 

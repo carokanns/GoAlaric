@@ -542,10 +542,18 @@ class MultiResolutionCoordinateSearch:
         self._enter_running_state()
         state = self._load_or_initialize_state()
         if state["phase"] != "completed":
-            updated = dict(state)
+            # Apply every deterministic transition already present in the
+            # checkpoint before terminalising the search.  In particular, a
+            # result may have consumed the final evaluation budget while its
+            # opposite coordinate direction is still unevaluated.  That
+            # direction must not be started here, but an accepted result must
+            # still become the final anchor.
+            state = self._settle_without_evaluation(state)
+            updated = self._settle_partial_coordinate_at_stop(state)
             updated["phase"] = "completed"
             updated["stop_reason"] = reason
             updated["parameter_index"] = len(self.specs)
+            updated["direction_index"] = 0
             updated["coordinate_results"] = {}
             self.database.checkpoint(self.campaign_id, updated, event_type="coordinate_multires_stopped")
         self._complete_campaign_if_finished(reason)
@@ -756,6 +764,40 @@ class MultiResolutionCoordinateSearch:
                     )
             return state
         return state
+
+    def _settle_partial_coordinate_at_stop(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Apply one pending direction without evaluating its opposite.
+
+        This is used only when the caller explicitly makes the search
+        terminal, such as after an exhausted evaluation budget.  A normal
+        coordinate pass still waits for both directions so that the decision
+        is compared from the same base.  At a terminal boundary there is no
+        later comparison to preserve, so a clear accepted result is retained
+        as the final anchor while losses and uncertain results leave it alone.
+        """
+        if state.get("phase") != "coordinate":
+            return state
+        if int(state.get("parameter_index", 0)) >= len(self.specs):
+            return state
+        if int(state.get("direction_index", 0)) != 1:
+            return state
+        coordinate_results = state.get("coordinate_results", {})
+        if not isinstance(coordinate_results, dict) or len(coordinate_results) != 1:
+            return state
+        selected = next(iter(coordinate_results.values()))
+        if not isinstance(selected, dict):
+            return state
+
+        updated = dict(state)
+        if selected.get("classification") == "win":
+            updated["anchor_parameters"] = selected["parameter"]
+            updated["anchor_hash"] = selected["parameter_hash"]
+            updated["anchor_result"] = selected
+            updated["coordinate_base_parameters"] = selected["parameter"]
+            updated["coordinate_base_hash"] = selected["parameter_hash"]
+            updated["coordinate_base_result"] = selected
+            updated["improved_in_pass"] = True
+        return updated
 
     def _evaluate_baseline(self, state: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         baseline = state["anchor_parameters"]
