@@ -1,4 +1,4 @@
-# GoAlaric optimizer – version 1.2.0
+# GoAlaric optimizer – version 1.2.1
 
 ## Version 1 / fas 11
 
@@ -286,6 +286,47 @@ Den arkiverade v1.1.1-databasen täcks av
 slutankare, bekräftelseutfall, partier, rapportkompakthet och att databasen
 inte ändras. Den praktiska release- och driftbeskrivningen finns i
 [`docs/phase17-v1.1.2-runbook.md`](docs/phase17-v1.1.2-runbook.md).
+
+## v1.2.1 / fasta nodprofiler och säker koordinatbudgetgräns
+
+v1.2.1 bygger vidare på v1.2.0 utan att ändra optimeringsalgoritmen eller den
+adaptiva gallringen.
+
+Matchprofiler har ett uttryckligt läge och innehåller exakt ett av `tc` eller
+`nodes`. En nodeprofil är en fast nodbudget per drag. Den skickas som
+`--nodes N` till testmonitor och vidare till Fastchess som `-each nodes=N`;
+tidsprofiler använder motsvarande `-each tc=...`. Profilnamn, läge, faktisk
+gräns och hash sparas i optimizer-checkpoint, SQLite-resultat, status,
+dashboard och rapport. Äldre tidsprofiler och databaser migreras med
+`real.tc` som kompatibelt standardbeteende, och återstart avvisar ändrad
+profilidentitet eller nodbudget. PGN-körningen begär noder och `seldepth` när
+Fastchess tillhandahåller dessa fält.
+
+v1.2.1 korrigerar också den terminala koordinatbudgetgränsen. Om sökbudgeten
+tar slut efter baseline och endast den första koordinatriktningen har
+utvärderats appliceras ett accepterat resultat på ankaret innan sökningen
+avslutas. Den motsatta riktningen startas inte. `reject`,
+`reject_exploratory` och strikt `uncertain` flyttar inte ankaret. Den terminala
+checkpointen är återstartssäker och idempotent; en upprepad återstart skapar
+inga nya evalueringar eller dubbletter.
+
+Verifierade pilotunderlag:
+
+- LMR-piloten med tidsprofiler körde 392 partier. Slutankaret blev
+  `lmr_divisor_x100=175` mot baseline 225. Bekräftelsen gav 60–81–59,
+  50,25 % och `inconclusive`; ingen rekommendation eller promotion gjordes.
+- Den lilla riktiga nodeprofilpiloten körde sökningen med
+  `node-search · 100000 nodes/move` och bekräftelsen med
+  `node-confirmation · 250000 nodes/move`. Slutankaret blev
+  `lmr_divisor_x100=200` mot baseline 225. Bekräftelsen gav 1–2–1, 50 % och
+  `inconclusive`; ingen rekommendation eller promotion gjordes.
+
+Detaljer finns i [`docs/phase23-v1.2.1-release.md`](docs/phase23-v1.2.1-release.md),
+[`docs/phase21-v1.2-lmr-long-pilot-completion.md`](docs/phase21-v1.2-lmr-long-pilot-completion.md),
+nodepilotens read-only-rapport under
+`artifacts/v1.2/node-budget-pilot/node-budget-confirmation-final-report.json`,
+[`tests/test_phase22.py`](tests/test_phase22.py) och
+[`tests/test_phase20.py`](tests/test_phase20.py).
 
 ## v1.2.0 / profiler, LMR och slutverifiering
 
