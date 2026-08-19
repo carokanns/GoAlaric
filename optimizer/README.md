@@ -1,5 +1,7 @@
 # GoAlaric optimizer – version 1.2.1
 
+Praktisk användning finns i den [svenska användarhandboken för v1.2.1](docs/user-guide-v1.2.1.md).
+
 ## Version 1 / fas 11
 
 Fas 11 är slutverifierad med en full pilotkampanj genom Python → testmonitor →
