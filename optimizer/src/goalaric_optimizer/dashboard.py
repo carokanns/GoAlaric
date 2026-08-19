@@ -635,6 +635,15 @@ def _html_text(value: Any) -> str:
     return html.escape("—" if value is None or value == "" else str(value))
 
 
+def _html_number(value: Any, digits: int) -> str:
+    if value is None or value == "":
+        return "—"
+    try:
+        return f"{float(value):.{digits}f}"
+    except (TypeError, ValueError):
+        return _html_text(value)
+
+
 def render_report_html(snapshot: dict[str, Any]) -> str:
     campaign = snapshot["campaign"]
     current = snapshot.get("current_trial") or {}
@@ -656,7 +665,7 @@ def render_report_html(snapshot: dict[str, Any]) -> str:
         f"<td>{_html_text(item.get('metrics', {}).get('wins'))}-"
         f"{_html_text(item.get('metrics', {}).get('draws'))}-"
         f"{_html_text(item.get('metrics', {}).get('losses'))}</td>"
-        f"<td>{_html_text(item.get('metrics', {}).get('score_percent'))}%</td>"
+        f"<td>{_html_number(item.get('metrics', {}).get('score_percent'), 1)}%</td>"
         f"<td>{_html_text(item.get('parameter', {}).get('parameter_hash') if item.get('parameter') else None)}</td>"
         f"<td>{_html_text(_profile_label(item.get('profile')))}</td>"
         "</tr>"
@@ -679,10 +688,10 @@ def render_report_html(snapshot: dict[str, Any]) -> str:
 <body><h1>GoAlaric optimizer report</h1><p><strong>{_html_text(campaign.get('name'))}</strong> · {_html_text(campaign.get('campaign_id'))} · status: {_html_text(campaign.get('status'))}</p>
 <section><h2>Result</h2><div class="grid">
 <div class="card"><div class="label">W–D–L</div><div class="value">{_html_text(metrics.get('wins'))}–{_html_text(metrics.get('draws'))}–{_html_text(metrics.get('losses'))}</div></div>
-<div class="card"><div class="label">Score</div><div class="value">{_html_text(metrics.get('score_percent'))}%</div></div>
-<div class="card"><div class="label">Elo</div><div class="value">{_html_text(metrics.get('elo_estimate'))}</div></div>
-<div class="card"><div class="label">95% Elo CI</div><div class="value">{_html_text(metrics.get('elo_ci_low'))} … {_html_text(metrics.get('elo_ci_high'))}</div></div>
-<div class="card"><div class="label">95% score CI</div><div class="value">{_html_text(metrics.get('score_ci_low'))}% … {_html_text(metrics.get('score_ci_high'))}%</div></div>
+<div class="card"><div class="label">Score</div><div class="value">{_html_number(metrics.get('score_percent'), 1)}%</div></div>
+<div class="card"><div class="label">Elo</div><div class="value">{_html_number(metrics.get('elo_estimate'), 0)}</div></div>
+<div class="card"><div class="label">95% Elo CI</div><div class="value">{_html_number(metrics.get('elo_ci_low'), 0)} … {_html_number(metrics.get('elo_ci_high'), 0)}</div></div>
+<div class="card"><div class="label">95% score CI</div><div class="value">{_html_number(metrics.get('score_ci_low'), 1)}% … {_html_number(metrics.get('score_ci_high'), 1)}%</div></div>
 <div class="card"><div class="label">Search games</div><div class="value">{_html_text(snapshot.get('search_games'))}</div></div>
 <div class="card"><div class="label">Confirmation games</div><div class="value">{_html_text(snapshot.get('confirmation_games'))}</div></div>
 <div class="card"><div class="label">Total games</div><div class="value">{_html_text(snapshot.get('total_games'))}</div></div>
@@ -718,6 +727,7 @@ table{border-collapse:collapse;width:100%}th,td{padding:.46rem;border-bottom:1px
 const refreshMs=__REFRESH_MS__;
 const h=value=>String(value===null||value===undefined||value===''?'—':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const metric=(m,k)=>m&&m[k]!==undefined?m[k]:'—';
+const numberText=(value,digits)=>{if(value===null||value===undefined||value==='')return '—';const n=Number(value);return Number.isFinite(n)?n.toFixed(digits):h(value);};
 const profileText=p=>p&&p.mode==='nodes'?(p.name||'—')+' · '+(p.nodes||'—')+' nodes/move':(p&&p.name||'—')+' · '+(p&&p.tc||'—');
 function render(data){
  const c=data.campaign||{}, t=data.current_trial||{}, confirmation=data.confirmation||null, confirming=confirmation&&confirmation.status!=='completed', m=confirming?(confirmation.metrics||{}):(t.metrics||data.campaign_metrics||{}), counts=data.candidate_counts||{};
@@ -725,20 +735,20 @@ function render(data){
  document.getElementById('campaign-name').textContent=(c.name||'—')+' · '+(c.campaign_id||'—');
  document.getElementById('status').textContent=c.status||'—';
  document.getElementById('current-trial').textContent=t.trial_id||'—';
- document.getElementById('score').textContent=h(metric(m,'score_percent'))+'%';
- document.getElementById('elo').textContent=h(metric(m,'elo_estimate'));
- document.getElementById('score-ci').textContent=h(metric(m,'score_ci_low'))+'% … '+h(metric(m,'score_ci_high'))+'%';
- document.getElementById('elo-ci').textContent=h(metric(m,'elo_ci_low'))+' … '+h(metric(m,'elo_ci_high'));
+ document.getElementById('score').textContent=numberText(metric(m,'score_percent'),1)+'%';
+ document.getElementById('elo').textContent=numberText(metric(m,'elo_estimate'),0);
+ document.getElementById('score-ci').textContent=numberText(metric(m,'score_ci_low'),1)+'% … '+numberText(metric(m,'score_ci_high'),1)+'%';
+ document.getElementById('elo-ci').textContent=numberText(metric(m,'elo_ci_low'),0)+' … '+numberText(metric(m,'elo_ci_high'),0);
  document.getElementById('wdl').textContent=h(metric(m,'wins'))+'–'+h(metric(m,'draws'))+'–'+h(metric(m,'losses'));
  document.getElementById('games').textContent=h(data.consumed_games);
  document.getElementById('updated').textContent='Last refresh: '+(data.generated_at||'—')+' · database: '+((data.database||{}).path||'—');
  ['completed','rejected','waiting'].forEach(k=>document.getElementById(k+'-count').textContent=h(counts[k]||0));
- document.getElementById('candidates').innerHTML=(data.candidates||[]).map(item=>{const x=item.metrics||{},p=item.profile||{};return '<tr><td>'+h(item.trial_id)+'</td><td>'+h(item.status)+'</td><td>'+h(item.algorithm)+'</td><td>'+h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses)+'</td><td>'+h(x.score_percent)+'%</td><td>'+h(x.elo_estimate)+'</td><td>'+h((item.parameter||{}).parameter_hash)+'</td><td>'+h(profileText(p))+'</td></tr>';}).join('');
+ document.getElementById('candidates').innerHTML=(data.candidates||[]).map(item=>{const x=item.metrics||{},p=item.profile||{};return '<tr><td>'+h(item.trial_id)+'</td><td>'+h(item.status)+'</td><td>'+h(item.algorithm)+'</td><td>'+h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses)+'</td><td>'+numberText(x.score_percent,1)+'%</td><td>'+numberText(x.elo_estimate,0)+'</td><td>'+h((item.parameter||{}).parameter_hash)+'</td><td>'+h(profileText(p))+'</td></tr>';}).join('');
  const block=t.current_block,p=t.profile||{}; document.getElementById('current-details').innerHTML='<strong>Status:</strong> '+h(t.status)+' · <strong>parameter:</strong> '+h((t.parameter||{}).parameter_hash)+' · <strong>profile:</strong> '+h(profileText(p))+' · <strong>next/current block:</strong> '+h(block?block.block_index:'—')+' · <strong>attempt:</strong> '+h(block?block.attempt:'—')+'<br><strong>algorithm:</strong> '+h(t.algorithm)+' · <strong>error:</strong> '+h(t.error);
  const best=data.final_anchor||{},sp=data.search_profile||{};document.getElementById('best-source').textContent='Source: '+(best.source||'—')+' · profile: '+profileText(sp)+' · checkpoint: '+(best.checkpoint_revision||'—')+' · hash: '+(best.parameter_hash||'—');
  document.getElementById('parameters').innerHTML=(data.final_anchor_parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');
  const confirmationSection=document.getElementById('confirmation-section');confirmationSection.hidden=!confirmation;
- if(confirmation){const x=confirmation.metrics||confirmation,cp=confirmation.profile||{};document.getElementById('confirmation-status').textContent=confirmation.status+(confirmation.outcome?' · '+confirmation.outcome:'');document.getElementById('confirmation-profile').textContent=profileText(cp)+' · '+(cp.hash||'—');document.getElementById('confirmation-candidate-hash').textContent=confirmation.candidate_parameter_hash||'—';document.getElementById('confirmation-pairs').textContent=h(x.pairs_completed)+' / '+h(x.pairs_target);document.getElementById('confirmation-games').textContent=h(x.games_completed)+' / '+h(x.games_target);document.getElementById('confirmation-wdl').textContent=h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses);document.getElementById('confirmation-score').textContent=h(x.score_percent)+'%';document.getElementById('confirmation-elo').textContent=h(x.elo_estimate);document.getElementById('confirmation-score-ci').textContent=h(x.score_ci_low)+'% … '+h(x.score_ci_high)+'%';document.getElementById('confirmation-elapsed').textContent=h(confirmation.elapsed_seconds)+' s';document.getElementById('confirmation-eta').textContent=h(confirmation.estimated_remaining_seconds)+' s';document.getElementById('confirmation-times').textContent='Started: '+h(confirmation.started_at)+' · Finished: '+h(confirmation.finished_at)+' · Updated: '+h(confirmation.updated_at);document.getElementById('confirmation-parameters').innerHTML=(confirmation.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');}
+ if(confirmation){const x=confirmation.metrics||confirmation,cp=confirmation.profile||{};document.getElementById('confirmation-status').textContent=confirmation.status+(confirmation.outcome?' · '+confirmation.outcome:'');document.getElementById('confirmation-profile').textContent=profileText(cp)+' · '+(cp.hash||'—');document.getElementById('confirmation-candidate-hash').textContent=confirmation.candidate_parameter_hash||'—';document.getElementById('confirmation-pairs').textContent=h(x.pairs_completed)+' / '+h(x.pairs_target);document.getElementById('confirmation-games').textContent=h(x.games_completed)+' / '+h(x.games_target);document.getElementById('confirmation-wdl').textContent=h(x.wins)+'–'+h(x.draws)+'–'+h(x.losses);document.getElementById('confirmation-score').textContent=numberText(x.score_percent,1)+'%';document.getElementById('confirmation-elo').textContent=numberText(x.elo_estimate,0);document.getElementById('confirmation-score-ci').textContent=numberText(x.score_ci_low,1)+'% … '+numberText(x.score_ci_high,1)+'%';document.getElementById('confirmation-elapsed').textContent=h(confirmation.elapsed_seconds)+' s';document.getElementById('confirmation-eta').textContent=h(confirmation.estimated_remaining_seconds)+' s';document.getElementById('confirmation-times').textContent='Started: '+h(confirmation.started_at)+' · Finished: '+h(confirmation.finished_at)+' · Updated: '+h(confirmation.updated_at);document.getElementById('confirmation-parameters').innerHTML=(confirmation.parameter_differences||[]).map(item=>'<tr><td>'+h(item.name)+'</td><td>'+h(item.baseline)+'</td><td>'+h(item.best)+'</td><td>'+h(item.delta)+'</td></tr>').join('');}
  document.getElementById('checkpoint').textContent=JSON.stringify(data.checkpoint||null,null,2);
  document.getElementById('error').textContent=JSON.stringify(data.latest_error||null,null,2);
  document.getElementById('readonly').textContent=data.read_only?'read-only':'unknown mode';
