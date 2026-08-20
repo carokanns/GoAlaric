@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"goalaric/bit"
@@ -245,7 +246,7 @@ var Best bestStruct
 //var pv pvStruct
 
 var bPonderHit bool
-var bStop bool
+var bStop atomic.Bool
 
 //var bQuit bool
 
@@ -572,7 +573,7 @@ func searchGo(bd *board.Board) {
 	slInitLate(&slEntries[0])
 
 	searchID(bd)
-	if bStop {
+	if bStop.Load() {
 		sgAbort() // vänta in trådarna
 	}
 
@@ -640,7 +641,7 @@ func searchID(bd *board.Board) {
 	for depth := 1; depth <= limit.depth; depth++ {
 		depthStart(depth)
 		searchAsp(&ml, depth)
-		if bStop {
+		if bStop.Load() {
 			return
 		}
 		//p_time.drop = (best.score <= p_time.last_score-50) // moved to update_best()
@@ -670,12 +671,12 @@ func searchID(bd *board.Board) {
 				if limit.ponder {
 					limit.flag = true
 				} else {
-					bStop = true
+					bStop.Store(true)
 					break
 				}
 			}
 		}
-		if bStop {
+		if bStop.Load() {
 			break
 		}
 	}
@@ -703,7 +704,7 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 			//util.ASSERT(EVAL_MIN <= a && a < b && b <= EVAL_MAX)
 
 			searchRoot(sl, ml, depth, a, b)
-			if bStop {
+			if bStop.Load() {
 				return
 			}
 
@@ -765,7 +766,7 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 
 		slMove(sl, mv)
 		//write_info()
-		if !bStop {
+		if !bStop.Load() {
 			if (searchedSize == 0) && red != 0 {
 				sc = -search(sl, depth-1+ext, -beta, -alpha, &npv)
 			} else {
@@ -779,7 +780,7 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 		undo(sl)
 		failHighFalse()
 		searchedSize++
-		if bStop {
+		if bStop.Load() {
 			return
 		}
 
@@ -898,7 +899,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	}
 
 	// ply limit
-	if bd.Ply() >= maxPly || bStop {
+	if bd.Ply() >= maxPly || bStop.Load() {
 		return evalByColor(stm, sl)
 	}
 
@@ -945,7 +946,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 				}
 				return sc
 			}
-			if bStop {
+			if bStop.Load() {
 				return sc
 			}
 		}
@@ -1043,7 +1044,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 
 		if (pvNode && searched.Size() != 0) || red != 0 {
 			sc = -search(sl, depth+ext-red-1, -alpha-1, -alpha, &npv)
-			if !bStop {
+			if !bStop.Load() {
 				if sc > alpha { // PVS/LMR re-search
 					sc = -search(sl, depth+ext-1, -beta, -alpha, &npv)
 				}
@@ -1080,7 +1081,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 				}
 			}
 		}
-		if bStop {
+		if bStop.Load() {
 			return alpha
 		}
 
@@ -1278,7 +1279,7 @@ func updateCurrent() {
 
 // SetStop (true) in order to stop search as quick as possible
 func SetStop(s bool) {
-	bStop = s
+	bStop.Store(s)
 }
 func searchEnd() {
 	limit.timer.stop()
@@ -1335,7 +1336,7 @@ func incNode(sl *Local, cnt int) {
 		if abort {
 			// Search_Global här
 			sgAbort() // vänta in trådarna
-			bStop = true
+			bStop.Store(true)
 		}
 	}
 
@@ -1351,7 +1352,7 @@ func poll() bool {
 	//fmt.Println("\nsg.lock() ")
 	//defer fmt.Println("sg.unlock() ")
 
-	if bStop {
+	if bStop.Load() {
 		//Infinite = false
 		return true
 	} else if bPonderHit {
