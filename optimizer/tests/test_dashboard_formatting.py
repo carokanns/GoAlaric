@@ -64,6 +64,8 @@ class DashboardFormattingTest(unittest.TestCase):
         self.assertIn('id="campaign-confirmation-eta"', _DASHBOARD_HTML)
         self.assertIn("data.total_games", _DASHBOARD_HTML)
         self.assertIn("confirmationHasResults", _DASHBOARD_HTML)
+        self.assertIn('id="confirmation-elo-ci"', _DASHBOARD_HTML)
+        self.assertIn("numberText(x.elo_ci_low,0)+' … '+numberText(x.elo_ci_high,0)", _DASHBOARD_HTML)
         self.assertIn("campaign-metric-card", _DASHBOARD_HTML)
         self.assertIn('id="queue-algorithm"', _DASHBOARD_HTML)
         self.assertIn('id="queue-profile"', _DASHBOARD_HTML)
