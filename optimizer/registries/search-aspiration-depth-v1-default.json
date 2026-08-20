@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "registry": "search-aspiration-depth-v1",
+  "parameters": [
+    {
+      "name": "aspiration_min_depth",
+      "value": 6
+    }
+  ]
+}

@@ -741,6 +741,13 @@ func aspirationInitialMargin() int {
 	return parms.Search.AspirationInitialMarginCP
 }
 
+func aspirationMinDepth() int {
+	if parms.Search.AspirationMinDepth <= 0 {
+		return 6
+	}
+	return parms.Search.AspirationMinDepth
+}
+
 func searchAsp(ml *gen.ScMvList, depth int) {
 	//	fmt.Println("search_asp depth", depth)
 	//	defer fmt.Println("exit search_asp depth", depth)
@@ -748,7 +755,7 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 
 	//util.ASSERT(depth <= 1 || p_time.last_score == best.score)
 
-	if depth >= 6 && !IsMateScore(limit.lastScore) {
+	if depth >= aspirationMinDepth() && !IsMateScore(limit.lastScore) {
 
 		for margin := aspirationInitialMargin(); margin < 500; margin *= 2 {
 

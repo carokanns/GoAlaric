@@ -176,6 +176,41 @@ func TestSetoptionAspirationParameterFileChangesInitialMargin(t *testing.T) {
 	}
 }
 
+func TestSetoptionAspirationDepthParameterFileChangesMinimumDepth(t *testing.T) {
+	originalSearch := parms.Search
+	originalPath := parameterFilePath
+	originalSHA := parameterFileSHA
+	t.Cleanup(func() {
+		parms.Search = originalSearch
+		parameterFilePath = originalPath
+		parameterFileSHA = originalSHA
+	})
+
+	file := parms.DefaultAspirationDepthParameterFile()
+	file.Parameters[0].Value = 7
+	data, err := parms.MarshalParameterFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir() + "/search-aspiration-depth.json"
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var output []string
+	originalTellGUI := tellGUI
+	t.Cleanup(func() { tellGUI = originalTellGUI })
+	tellGUI = func(line string) { output = append(output, line) }
+	HandleInput("setoption name ParameterFile value "+path, &chSearch)
+
+	if parms.Search.AspirationMinDepth != 7 {
+		t.Fatalf("aspiration minimum depth=%d, want 7", parms.Search.AspirationMinDepth)
+	}
+	if !strings.Contains(strings.Join(output, "\n"), "registry_name=search-aspiration-depth-v1") {
+		t.Fatalf("aspiration-depth registry was not reported: %q", output)
+	}
+}
+
 func TestSetoptionParameterFileRejectsInvalidFile(t *testing.T) {
 	original := parms.Parms
 	originalTellGUI := tellGUI

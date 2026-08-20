@@ -342,3 +342,82 @@ func TestCheckedInDefaultAspirationParameterFileMatchesExporter(t *testing.T) {
 		t.Fatalf("checked-in standard aspiration file differs from exporter:\n%s\nwant:\n%s", checkedIn, exported)
 	}
 }
+
+func TestAspirationDepthRegistryIsStableAndComplete(t *testing.T) {
+	registry := AspirationDepthRegistry()
+	if len(registry) != 1 {
+		t.Fatalf("aspiration-depth registry has %d parameters, want 1", len(registry))
+	}
+	got := registry[0]
+	if got.Name != "aspiration_min_depth" || got.Default != 6 || got.Min != 5 || got.Max != 7 || got.Step != 1 {
+		t.Fatalf("aspiration-depth registry descriptor = %+v", got)
+	}
+	if Search.AspirationMinDepth != got.Default {
+		t.Fatalf("aspiration minimum depth=%d, want %d", Search.AspirationMinDepth, got.Default)
+	}
+}
+
+func TestAspirationDepthParameterFileRoundTripsAndApplies(t *testing.T) {
+	original := Search
+	t.Cleanup(func() { Search = original })
+
+	want, err := DefaultAspirationDepthParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseParameterFile(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := MarshalParameterFile(parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("aspiration-depth parameter JSON changed after round trip:\n%s\nwant:\n%s", got, want)
+	}
+
+	parsed.Parameters[0].Value = 7
+	if err := ApplyParameterFile(parsed); err != nil {
+		t.Fatal(err)
+	}
+	if Search.AspirationMinDepth != 7 {
+		t.Fatalf("aspiration minimum depth=%d, want 7", Search.AspirationMinDepth)
+	}
+	if Search.AspirationInitialMarginCP != original.AspirationInitialMarginCP {
+		t.Fatal("search-aspiration-depth-v1 changed the aspiration margin")
+	}
+}
+
+func TestAspirationDepthParameterFileRejectsInvalidRangeAndStep(t *testing.T) {
+	file := DefaultAspirationDepthParameterFile()
+
+	file.Parameters[0].Value = 4
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("aspiration depth below the allowed range was accepted")
+	}
+
+	file.Parameters[0].Value = 8
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("aspiration depth above the allowed range was accepted")
+	}
+}
+
+func TestCheckedInDefaultAspirationDepthParameterFileMatchesExporter(t *testing.T) {
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	path := filepath.Join(filepath.Dir(source), "..", "optimizer", "registries", "search-aspiration-depth-v1-default.json")
+	checkedIn, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported, err := DefaultAspirationDepthParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(checkedIn, exported) {
+		t.Fatalf("checked-in standard aspiration-depth file differs from exporter:\n%s\nwant:\n%s", checkedIn, exported)
+	}
+}

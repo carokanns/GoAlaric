@@ -30,3 +30,28 @@ func TestAspirationInitialMarginFallsBackSafely(t *testing.T) {
 		t.Fatalf("invalid initial aspiration margin=%d, want fallback 10", got)
 	}
 }
+
+func TestAspirationMinimumDepthIsRuntimeTunable(t *testing.T) {
+	original := parms.Search.AspirationMinDepth
+	t.Cleanup(func() { parms.Search.AspirationMinDepth = original })
+
+	parms.Search.AspirationMinDepth = 5
+	if got := aspirationMinDepth(); got != 5 {
+		t.Fatalf("minimum aspiration depth=%d, want 5", got)
+	}
+
+	parms.Search.AspirationMinDepth = 7
+	if got := aspirationMinDepth(); got != 7 {
+		t.Fatalf("minimum aspiration depth=%d, want 7", got)
+	}
+}
+
+func TestAspirationMinimumDepthFallsBackSafely(t *testing.T) {
+	original := parms.Search.AspirationMinDepth
+	t.Cleanup(func() { parms.Search.AspirationMinDepth = original })
+
+	parms.Search.AspirationMinDepth = 0
+	if got := aspirationMinDepth(); got != 6 {
+		t.Fatalf("invalid minimum aspiration depth=%d, want fallback 6", got)
+	}
+}

@@ -8,6 +8,7 @@ type SearchParameters struct {
 	LMRDivisorX100            int
 	LMPMoveMultiplier         int
 	AspirationInitialMarginCP int
+	AspirationMinDepth        int
 }
 
 // Search contains the default search parameters.
@@ -16,6 +17,7 @@ var Search = SearchParameters{
 	LMRDivisorX100:            225,
 	LMPMoveMultiplier:         4,
 	AspirationInitialMarginCP: 10,
+	AspirationMinDepth:        6,
 }
 
 // SearchRegistryVersion identifies the named search-parameter interface.
@@ -24,6 +26,7 @@ const SearchRegistryVersion = 1
 const searchRegistryName = "search-lmr-v1"
 const searchLMPRegistryName = "search-lmp-v1"
 const searchAspirationRegistryName = "search-aspiration-v1"
+const searchAspirationDepthRegistryName = "search-aspiration-depth-v1"
 
 var searchRegistry = [...]ParameterDescriptor{
 	{
@@ -58,6 +61,18 @@ var searchAspirationRegistry = [...]ParameterDescriptor{
 		Step:        5,
 		UsedIn:      "search/search.go:searchAsp",
 		Description: "Initial aspiration-window margin in centipawns.",
+	},
+}
+
+var searchAspirationDepthRegistry = [...]ParameterDescriptor{
+	{
+		Name:        "aspiration_min_depth",
+		Default:     6,
+		Min:         5,
+		Max:         7,
+		Step:        1,
+		UsedIn:      "search/search.go:searchAsp",
+		Description: "Minimum iterative-deepening depth that enables aspiration windows.",
 	},
 }
 
@@ -182,6 +197,52 @@ func LoadAspirationParameterFile(path string) (ParameterFile, string, error) {
 	}
 	if file.Registry != searchAspirationRegistryName {
 		return ParameterFile{}, "", fmt.Errorf("unsupported aspiration parameter registry %q", file.Registry)
+	}
+	return file, digest, nil
+}
+
+// AspirationDepthRegistry returns a copy of the stable aspiration-depth
+// descriptors.
+func AspirationDepthRegistry() []ParameterDescriptor {
+	result := make([]ParameterDescriptor, len(searchAspirationDepthRegistry))
+	copy(result, searchAspirationDepthRegistry[:])
+	return result
+}
+
+// DefaultAspirationDepthParameterFile returns the engine-default aspiration
+// depth set.
+func DefaultAspirationDepthParameterFile() ParameterFile {
+	return ParameterFile{
+		SchemaVersion: SearchRegistryVersion,
+		Registry:      searchAspirationDepthRegistryName,
+		Parameters: []ParameterValue{{
+			Name:  searchAspirationDepthRegistry[0].Name,
+			Value: searchAspirationDepthRegistry[0].Default,
+		}},
+	}
+}
+
+// DefaultAspirationDepthParameterJSON exports the canonical aspiration-depth
+// defaults.
+func DefaultAspirationDepthParameterJSON() ([]byte, error) {
+	return MarshalParameterFile(DefaultAspirationDepthParameterFile())
+}
+
+// DefaultAspirationDepthParameterSHA256 returns the identity of the built-in
+// aspiration-depth parameter set.
+func DefaultAspirationDepthParameterSHA256() (string, error) {
+	return ParameterFileSHA256(DefaultAspirationDepthParameterFile())
+}
+
+// LoadAspirationDepthParameterFile reads and validates
+// search-aspiration-depth-v1.
+func LoadAspirationDepthParameterFile(path string) (ParameterFile, string, error) {
+	file, digest, err := LoadParameterFile(path)
+	if err != nil {
+		return ParameterFile{}, "", err
+	}
+	if file.Registry != searchAspirationDepthRegistryName {
+		return ParameterFile{}, "", fmt.Errorf("unsupported aspiration-depth parameter registry %q", file.Registry)
 	}
 	return file, digest, nil
 }
