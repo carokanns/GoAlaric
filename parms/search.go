@@ -4,16 +4,18 @@ import "fmt"
 
 // SearchParameters contains search values that may be overridden at runtime.
 type SearchParameters struct {
-	Contempt          int
-	LMRDivisorX100    int
-	LMPMoveMultiplier int
+	Contempt                  int
+	LMRDivisorX100            int
+	LMPMoveMultiplier         int
+	AspirationInitialMarginCP int
 }
 
 // Search contains the default search parameters.
 var Search = SearchParameters{
-	Contempt:          5,
-	LMRDivisorX100:    225,
-	LMPMoveMultiplier: 4,
+	Contempt:                  5,
+	LMRDivisorX100:            225,
+	LMPMoveMultiplier:         4,
+	AspirationInitialMarginCP: 10,
 }
 
 // SearchRegistryVersion identifies the named search-parameter interface.
@@ -21,6 +23,7 @@ const SearchRegistryVersion = 1
 
 const searchRegistryName = "search-lmr-v1"
 const searchLMPRegistryName = "search-lmp-v1"
+const searchAspirationRegistryName = "search-aspiration-v1"
 
 var searchRegistry = [...]ParameterDescriptor{
 	{
@@ -43,6 +46,18 @@ var searchLMPRegistry = [...]ParameterDescriptor{
 		Step:        1,
 		UsedIn:      "search/search.go:lateMovePrune",
 		Description: "Move-count multiplier that starts late-move pruning.",
+	},
+}
+
+var searchAspirationRegistry = [...]ParameterDescriptor{
+	{
+		Name:        "aspiration_initial_margin_cp",
+		Default:     10,
+		Min:         5,
+		Max:         15,
+		Step:        5,
+		UsedIn:      "search/search.go:searchAsp",
+		Description: "Initial aspiration-window margin in centipawns.",
 	},
 }
 
@@ -125,6 +140,48 @@ func LoadLMPParameterFile(path string) (ParameterFile, string, error) {
 	}
 	if file.Registry != searchLMPRegistryName {
 		return ParameterFile{}, "", fmt.Errorf("unsupported LMP parameter registry %q", file.Registry)
+	}
+	return file, digest, nil
+}
+
+// AspirationRegistry returns a copy of the stable aspiration-window descriptors.
+func AspirationRegistry() []ParameterDescriptor {
+	result := make([]ParameterDescriptor, len(searchAspirationRegistry))
+	copy(result, searchAspirationRegistry[:])
+	return result
+}
+
+// DefaultAspirationParameterFile returns the engine-default aspiration set.
+func DefaultAspirationParameterFile() ParameterFile {
+	return ParameterFile{
+		SchemaVersion: SearchRegistryVersion,
+		Registry:      searchAspirationRegistryName,
+		Parameters: []ParameterValue{{
+			Name:  searchAspirationRegistry[0].Name,
+			Value: searchAspirationRegistry[0].Default,
+		}},
+	}
+}
+
+// DefaultAspirationParameterJSON exports the canonical aspiration defaults.
+func DefaultAspirationParameterJSON() ([]byte, error) {
+	return MarshalParameterFile(DefaultAspirationParameterFile())
+}
+
+// DefaultAspirationParameterSHA256 returns the identity of the built-in
+// aspiration parameter set.
+func DefaultAspirationParameterSHA256() (string, error) {
+	return ParameterFileSHA256(DefaultAspirationParameterFile())
+}
+
+// LoadAspirationParameterFile reads and validates search-aspiration-v1.
+func LoadAspirationParameterFile(path string) (ParameterFile, string, error) {
+	file, digest, err := LoadParameterFile(path)
+	if err != nil {
+		return ParameterFile{}, "", err
+	}
+	if file.Registry != searchAspirationRegistryName {
+		return ParameterFile{}, "", fmt.Errorf("unsupported aspiration parameter registry %q", file.Registry)
 	}
 	return file, digest, nil
 }

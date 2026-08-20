@@ -258,3 +258,87 @@ func TestLMPParameterFileLeavesOtherSearchParametersUntouched(t *testing.T) {
 		t.Fatal("search-lmp-v1 changed unrelated search parameters")
 	}
 }
+
+func TestAspirationRegistryIsStableAndComplete(t *testing.T) {
+	registry := AspirationRegistry()
+	if len(registry) != 1 {
+		t.Fatalf("aspiration registry has %d parameters, want 1", len(registry))
+	}
+	got := registry[0]
+	if got.Name != "aspiration_initial_margin_cp" || got.Default != 10 || got.Min != 5 || got.Max != 15 || got.Step != 5 {
+		t.Fatalf("aspiration registry descriptor = %+v", got)
+	}
+	if Search.AspirationInitialMarginCP != got.Default {
+		t.Fatalf("aspiration default=%d, want %d", Search.AspirationInitialMarginCP, got.Default)
+	}
+}
+
+func TestAspirationParameterFileRoundTripsAndApplies(t *testing.T) {
+	original := Search
+	t.Cleanup(func() { Search = original })
+
+	want, err := DefaultAspirationParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseParameterFile(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := MarshalParameterFile(parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("aspiration parameter JSON changed after round trip:\n%s\nwant:\n%s", got, want)
+	}
+
+	parsed.Parameters[0].Value = 15
+	if err := ApplyParameterFile(parsed); err != nil {
+		t.Fatal(err)
+	}
+	if Search.AspirationInitialMarginCP != 15 {
+		t.Fatalf("aspiration initial margin=%d, want 15", Search.AspirationInitialMarginCP)
+	}
+	if Search.LMRDivisorX100 != original.LMRDivisorX100 || Search.LMPMoveMultiplier != original.LMPMoveMultiplier {
+		t.Fatal("search-aspiration-v1 changed unrelated search parameters")
+	}
+}
+
+func TestAspirationParameterFileRejectsInvalidRangeAndStep(t *testing.T) {
+	file := DefaultAspirationParameterFile()
+
+	file.Parameters[0].Value = 4
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("aspiration parameter below the allowed range was accepted")
+	}
+
+	file.Parameters[0].Value = 6
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("aspiration parameter with an invalid step was accepted")
+	}
+
+	file.Parameters[0].Value = 16
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("aspiration parameter above the allowed range was accepted")
+	}
+}
+
+func TestCheckedInDefaultAspirationParameterFileMatchesExporter(t *testing.T) {
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	path := filepath.Join(filepath.Dir(source), "..", "optimizer", "registries", "search-aspiration-v1-default.json")
+	checkedIn, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported, err := DefaultAspirationParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(checkedIn, exported) {
+		t.Fatalf("checked-in standard aspiration file differs from exporter:\n%s\nwant:\n%s", checkedIn, exported)
+	}
+}

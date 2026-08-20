@@ -734,6 +734,13 @@ func searchID(bd *board.Board) {
 // a very narrow alpha-beta window and if the search returns a value outside the window
 // it search again with a wider window. This goes on until the search
 // returns a value that is inside the window
+func aspirationInitialMargin() int {
+	if parms.Search.AspirationInitialMarginCP <= 0 {
+		return 10
+	}
+	return parms.Search.AspirationInitialMarginCP
+}
+
 func searchAsp(ml *gen.ScMvList, depth int) {
 	//	fmt.Println("search_asp depth", depth)
 	//	defer fmt.Println("exit search_asp depth", depth)
@@ -743,7 +750,7 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 
 	if depth >= 6 && !IsMateScore(limit.lastScore) {
 
-		for margin := 10; margin < 500; margin *= 2 {
+		for margin := aspirationInitialMargin(); margin < 500; margin *= 2 {
 
 			a := limit.lastScore - margin
 			b := limit.lastScore + margin

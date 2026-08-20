@@ -36,5 +36,35 @@ class SearchLMPRegistryTest(unittest.TestCase):
         )
 
 
+class SearchAspirationRegistryTest(unittest.TestCase):
+    def test_aspiration_campaign_registry_has_baseline_and_candidate_range(self) -> None:
+        path = Path(__file__).resolve().parents[1] / "registries" / "search-aspiration-v1.json"
+        registry = load_registry(path)
+
+        self.assertEqual(registry.schema_version, 1)
+        self.assertEqual(registry.name, "search-aspiration-v1")
+        self.assertEqual(
+            registry.parameters,
+            (
+                {
+                    "name": "aspiration_initial_margin_cp",
+                    "value": 10,
+                    "min": 5,
+                    "max": 15,
+                    "step": 5,
+                    "min_step": 5,
+                },
+            ),
+        )
+        self.assertEqual(
+            default_parameter_document(registry),
+            {
+                "schema_version": 1,
+                "registry": "search-aspiration-v1",
+                "parameters": [{"name": "aspiration_initial_margin_cp", "value": 10}],
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -141,6 +141,41 @@ func TestSetoptionLMPParameterFileChangesMultiplier(t *testing.T) {
 	}
 }
 
+func TestSetoptionAspirationParameterFileChangesInitialMargin(t *testing.T) {
+	originalSearch := parms.Search
+	originalPath := parameterFilePath
+	originalSHA := parameterFileSHA
+	t.Cleanup(func() {
+		parms.Search = originalSearch
+		parameterFilePath = originalPath
+		parameterFileSHA = originalSHA
+	})
+
+	file := parms.DefaultAspirationParameterFile()
+	file.Parameters[0].Value = 15
+	data, err := parms.MarshalParameterFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir() + "/search-aspiration.json"
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var output []string
+	originalTellGUI := tellGUI
+	t.Cleanup(func() { tellGUI = originalTellGUI })
+	tellGUI = func(line string) { output = append(output, line) }
+	HandleInput("setoption name ParameterFile value "+path, &chSearch)
+
+	if parms.Search.AspirationInitialMarginCP != 15 {
+		t.Fatalf("aspiration initial margin=%d, want 15", parms.Search.AspirationInitialMarginCP)
+	}
+	if !strings.Contains(strings.Join(output, "\n"), "registry_name=search-aspiration-v1") {
+		t.Fatalf("aspiration registry was not reported: %q", output)
+	}
+}
+
 func TestSetoptionParameterFileRejectsInvalidFile(t *testing.T) {
 	original := parms.Parms
 	originalTellGUI := tellGUI
