@@ -252,6 +252,31 @@ func TestRepetitionUsesThreefoldAtRootAndTwofoldInSearch(t *testing.T) {
 	}
 }
 
+func TestFenPreservesHalfmoveClock(t *testing.T) {
+	var bd Board
+	SetFen("8/8/8/8/8/8/4K3/6k1 w - - 73 120", &bd)
+	if got := bd.HalfmoveClock(); got != 73 {
+		t.Fatalf("halfmove clock = %d, want 73", got)
+	}
+	if got := bd.CreateFen(); got != "8/8/8/8/8/8/4K3/6k1 w - - 73" {
+		t.Fatalf("CreateFen() = %q", got)
+	}
+}
+
+func TestNullMoveSubtreeIsTracked(t *testing.T) {
+	var bd Board
+	SetFen("8/8/8/8/8/8/4K3/6k1 w - - 0 1", &bd)
+	bd.SetRoot()
+	bd.MoveNull()
+	if !bd.InNullMoveSubtree() {
+		t.Fatal("null-move subtree was not detected")
+	}
+	bd.UndoNull()
+	if bd.InNullMoveSubtree() {
+		t.Fatal("null-move subtree remained after undo")
+	}
+}
+
 func TestRepetitionKeyIncludesCastlingAndEnPassant(t *testing.T) {
 	var bd Board
 	SetFen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", &bd)

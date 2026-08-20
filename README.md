@@ -25,5 +25,23 @@ Long match status is persisted under `artifacts/matches/` and can be read with
 `go run ./cmd/testmonitor status`. See `optimeringar/testmonitor.md` for the
 complete workflow.
 
+## Syzygy tablebases
+
+GoAlaric probes Syzygy WDL tables during search and DTZ tables at the root.
+The default path is `.tools/syzygy/3-4`, intended for the complete three- and
+four-piece table set. Table files remain external and are not embedded in the
+engine binary.
+
+Configure or disable probing through UCI:
+
+```text
+setoption name SyzygyPath value /absolute/path/to/syzygy/3-4
+setoption name SyzygyPath value off
+```
+
+Successful probes are reported as `tbhits` in UCI search information. Native
+probing requires a normal cgo-enabled build; `CGO_ENABLED=0` builds remain
+supported but run without tablebases.
+
 ## Logging
 - UCI option `LogFile=true` writes a summary row per search to `search.log`.

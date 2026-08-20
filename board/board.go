@@ -187,6 +187,18 @@ func SetFen(fen string, bd *Board) {
 		}
 	}
 
+	// half-move clock (FEN field 5)
+	bd.copyStr.moves = 0
+	if pos < len(fen) {
+		start := pos
+		for pos < len(fen) && fen[pos] != ' ' {
+			pos++
+		}
+		if moves, err := strconv.Atoi(fen[start:pos]); err == nil && moves >= 0 {
+			bd.copyStr.moves = moves
+		}
+	}
+
 	bd.update()
 
 }
@@ -631,6 +643,23 @@ func (bd *Board) clearSquare(pc int, sd int, sq int, updateCopy bool) {
 func (bd *Board) Ply() int {
 	// util.ASSERT(p_sp >= p_root);
 	return bd.stackIx - bd.rootIx
+}
+
+// HalfmoveClock returns the number of half-moves since the last capture or
+// pawn move, as used by the 50-move rule and Syzygy DTZ probing.
+func (bd *Board) HalfmoveClock() int {
+	return bd.copyStr.moves
+}
+
+// InNullMoveSubtree reports whether the current search path contains the
+// engine's synthetic null move. Such positions must never be tablebase-probed.
+func (bd *Board) InNullMoveSubtree() bool {
+	for i := bd.rootIx; i < bd.stackIx; i++ {
+		if bd.stack[i].move == move.Null {
+			return true
+		}
+	}
+	return false
 }
 func (bd *Board) flipStm() {
 	bd.stm = Opposite(bd.stm)
@@ -1086,7 +1115,7 @@ func (bd *Board) CreateFen() string {
 		epStr = strings.ToLower(square.ToString(bd.EpSq()))
 	}
 
-	epd += fmt.Sprintf(" %v %v %v 0", strturn, castlStr, epStr)
+	epd += fmt.Sprintf(" %v %v %v %v", strturn, castlStr, epStr, bd.copyStr.moves)
 
 	return epd
 }

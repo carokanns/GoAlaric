@@ -5,6 +5,7 @@ package uci
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -18,6 +19,11 @@ import (
 
 var tellGUI = func(line string) { fmt.Println(line) }
 var trim = strings.TrimSpace
+
+var (
+	tablebaseStatsFile  string
+	tablebaseGameActive bool
+)
 
 // Bd is the board on top of the whole session
 var Bd board.Board
@@ -36,6 +42,8 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI(fmt.Sprintf("option name Ponder type check default %v", search.Engine.Ponder))
 			tellGUI(fmt.Sprintf("option name Threads type spin default %v min 1 max 16", search.Engine.Threads))
 			tellGUI(fmt.Sprintf("option name LogFile type check default %v", search.Engine.Log))
+			tellGUI(fmt.Sprintf("option name SyzygyPath type string default %s", search.Engine.SyzygyPath))
+			tellGUI("option name TablebaseStatsFile type string default <empty>")
 
 			tellGUI("uciok")
 		case "isready":
@@ -45,6 +53,7 @@ func HandleInput(line string, chSearch *chan int) string {
 		case "position":
 			SetPosition(line)
 		case "go":
+			beginTablebaseGame()
 			HandleGo(line, chSearch)
 		case "ponderhit":
 			//tellGUI("ponderhit!")
@@ -53,8 +62,11 @@ func HandleInput(line string, chSearch *chan int) string {
 			return "stop"
 		case "quit", "q":
 			search.SetStop(true)
+			flushTablebaseGame()
 			return "quit"
 		case "ucinewgame":
+			flushTablebaseGame()
+			beginTablebaseGame()
 			initGame()
 		case "debug":
 			//tellGUI("debug!")
@@ -370,7 +382,8 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 	}
 
 	word = strings.ToLower(strings.TrimSpace(words[1]))
-	value := strings.ToLower(strings.TrimSpace(words[3]))
+	rawValue := strings.TrimSpace(strings.Join(words[3:], " "))
+	value := strings.ToLower(rawValue)
 	switch word {
 	case "hash":
 		fmt.Println("info string Hash before:", search.Engine.Hash)
@@ -407,6 +420,59 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 			return
 		}
 		search.Engine.Ponder = ponder
+	case "syzygypath":
+		path := rawValue
+		if value == "off" {
+			path = ""
+		}
+		largest, err := search.SetSyzygyPath(path)
+		if err != nil {
+			tellGUI(fmt.Sprintf("info string SyzygyPath rejected: %v", err))
+			return
+		}
+		if largest == 0 {
+			tellGUI("info string Syzygy disabled: no tablebase files found")
+		} else {
+			tellGUI(fmt.Sprintf("info string Syzygy loaded up to %v pieces", largest))
+		}
+	case "tablebasestatsfile":
+		flushTablebaseGame()
+		tablebaseStatsFile = rawValue
+		if value == "off" || value == "<empty>" {
+			tablebaseStatsFile = ""
+		}
+		search.ResetTablebaseGameStats()
+	}
+}
+
+func beginTablebaseGame() {
+	if tablebaseStatsFile == "" || tablebaseGameActive {
+		return
+	}
+	search.ResetTablebaseGameStats()
+	tablebaseGameActive = true
+}
+
+func flushTablebaseGame() {
+	if !tablebaseGameActive {
+		return
+	}
+	tablebaseGameActive = false
+	hits, rootWins := search.ConsumeTablebaseGameStats()
+	if tablebaseStatsFile == "" {
+		return
+	}
+	file, err := os.OpenFile(tablebaseStatsFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		tellGUI(fmt.Sprintf("info string TablebaseStatsFile: %v", err))
+		return
+	}
+	_, writeErr := fmt.Fprintf(file, "hits=%v root_wins=%v\n", hits, rootWins)
+	closeErr := file.Close()
+	if writeErr != nil {
+		tellGUI(fmt.Sprintf("info string TablebaseStatsFile: %v", writeErr))
+	} else if closeErr != nil {
+		tellGUI(fmt.Sprintf("info string TablebaseStatsFile: %v", closeErr))
 	}
 }
 

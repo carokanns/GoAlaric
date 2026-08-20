@@ -12,6 +12,7 @@ import (
 	"goalaric/gen"
 	"goalaric/hash"
 	"goalaric/move"
+	"goalaric/syzygy"
 )
 
 var tellGUI = func(line string) { fmt.Println(line) }
@@ -26,10 +27,12 @@ const (
 const defaultHash = 128
 
 type engineStruct struct {
-	Hash    int
-	Ponder  bool
-	Threads int
-	Log     bool
+	Hash         int
+	Ponder       bool
+	Threads      int
+	Log          bool
+	SyzygyPath   string
+	SyzygyPieces int
 }
 
 // Engine is the var holding engineStruct values
@@ -42,6 +45,8 @@ func init() {
 	Engine.Ponder = false
 	Engine.Threads = 1
 	Engine.Log = false
+	Engine.SyzygyPath = DefaultSyzygyPath
+	Engine.SyzygyPieces, _ = SetSyzygyPath(Engine.SyzygyPath)
 	initLMRReductions()
 }
 
@@ -168,6 +173,7 @@ type currStruct struct {
 	failHigh bool
 
 	lastTime int
+	tbHits   int64
 }
 
 type bestStruct struct {
@@ -377,6 +383,7 @@ func clear() {
 	current.failHigh = false
 
 	current.lastTime = 0
+	current.tbHits = 0
 
 	Best.depth = 0
 	Best.move = move.None
@@ -595,6 +602,30 @@ func searchID(bd *board.Board) {
 	///// move generation /////
 
 	var ml gen.ScMvList
+	gen.LegalMoves(&ml, &sl.Board)
+	if ml.Size() == 0 {
+		Best.move = move.None
+		if eval.IsInCheck(&sl.Board) {
+			Best.Score = -mateScore
+		} else {
+			Best.Score = 0
+		}
+		slPop(sl)
+		return
+	}
+	if result, mv, ok := probeRootTablebase(&sl.Board, &ml); ok {
+		current.tbHits++
+		recordTablebaseHit(result.WDL == syzygy.Win)
+		Best.depth = 0
+		Best.move = mv
+		Best.Score = tablebaseScore(result.WDL, 0)
+		Best.scoreType = scoreTypeBetween
+		Best.pv.clear()
+		Best.pv.mvAdd(mv)
+		tellGUI(fmt.Sprintf("info string Syzygy root wdl %v dtz %v", result.WDL, result.DTZ))
+		slPop(sl)
+		return
+	}
 	genAndSortLegals(sl, &ml) // generate legal and sort
 	//util.ASSERT(ml.Size() != 0)
 	Best.move = ml.Move(0)
@@ -823,6 +854,11 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 		return 0
 	case board.SearchRepetition:
 		return repetitionScore(bd.Ply())
+	}
+
+	if sc, ok := probeTablebaseScore(bd); ok {
+		current.tbHits++
+		return sc
 	}
 
 	stm := bd.Stm() // NOTE!! be aware of before and after move
@@ -1390,6 +1426,7 @@ func infoToGUI() {
 		line += fmt.Sprintf("nps %v ", current.speed)
 	}
 	line += fmt.Sprintf("hashfull %v ", SG.Trans.Used())
+	line += fmt.Sprintf("tbhits %v ", current.tbHits)
 
 	tellGUI(line)
 }
@@ -1451,6 +1488,7 @@ func writePV(best *bestStruct) {
 
 	line := fmt.Sprintf("info depth %v seldepth %v ", best.depth, current.maxPly)
 	line += fmt.Sprintf("nodes %v time %v ", current.node, current.time)
+	line += fmt.Sprintf("tbhits %v ", current.tbHits)
 	if IsMateScore(best.Score) {
 		line += fmt.Sprintf(" score mate %v ", mateWithSign(best.Score))
 	} else {
