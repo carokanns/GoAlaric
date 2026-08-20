@@ -395,11 +395,19 @@ class SchedulerBlockRunner:
 class RealAdaptiveBlockRunner:
     """Materialize each block and execute it with the real Go testmonitor."""
 
-    def __init__(self, data_dir: Path, campaign_id: str, config: RealTestmonitorConfig, block_dir: Path) -> None:
+    def __init__(
+        self,
+        data_dir: Path,
+        campaign_id: str,
+        config: RealTestmonitorConfig,
+        block_dir: Path,
+        embedded_campaign: bool = False,
+    ) -> None:
         self.data_dir = data_dir
         self.campaign_id = campaign_id
         self.config = config
         self.block_dir = block_dir
+        self.embedded_campaign = embedded_campaign
         self.block_dir.mkdir(parents=True, exist_ok=True)
 
     def block_hashes(self, index: int) -> tuple[str, str]:
@@ -427,8 +435,13 @@ class RealAdaptiveBlockRunner:
             poll_interval=0.05,
             stop_grace_seconds=1.0,
             preserve_optimizer_state=True,
+            embedded_campaign=self.embedded_campaign,
         )
-        scheduler.run(max_completed_blocks=1, finish_work=False)
+        scheduler.run(
+            max_completed_blocks=1,
+            finish_work=False,
+            expected_block_id=str(block["block_id"]),
+        )
         return block
 
 

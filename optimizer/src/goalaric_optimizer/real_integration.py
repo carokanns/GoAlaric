@@ -179,6 +179,7 @@ class RealTestmonitorScheduler(Scheduler):
         poll_interval: float = 0.05,
         stop_grace_seconds: float = 1.0,
         preserve_optimizer_state: bool = False,
+        embedded_campaign: bool = False,
     ) -> None:
         super().__init__(
             data_dir,
@@ -188,6 +189,7 @@ class RealTestmonitorScheduler(Scheduler):
             stop_grace_seconds=stop_grace_seconds,
             workdir=config.workdir,
             preserve_optimizer_state=preserve_optimizer_state,
+            embedded_campaign=embedded_campaign,
         )
         if not config.testmonitor_command:
             raise SchedulerError("testmonitor command cannot be empty")

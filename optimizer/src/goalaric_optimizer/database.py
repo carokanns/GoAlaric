@@ -1039,8 +1039,8 @@ class Database:
                 block_ids.append(block_id)
             return trial_id, block_ids
 
-    def claim_next_block(self, campaign_id: str) -> dict[str, Any] | None:
-        """Reserve the first missing block, enforcing one running block."""
+    def claim_next_block(self, campaign_id: str, expected_block_id: str | None = None) -> dict[str, Any] | None:
+        """Reserve one missing block, optionally requiring an exact identity."""
         with self._transaction() as connection:
             campaign = self._campaign(connection, campaign_id)
             if campaign["status"] != "running":
@@ -1050,11 +1050,18 @@ class Database:
             ).fetchone()[0]
             if running:
                 raise CampaignBusy(f"campaign {campaign_id} already has a running match block")
-            row = connection.execute(
-                "SELECT * FROM match_blocks WHERE campaign_id=? AND status IN ('pending','interrupted') "
-                "ORDER BY block_index,created_at,block_id LIMIT 1",
-                (campaign_id,),
-            ).fetchone()
+            if expected_block_id is None:
+                row = connection.execute(
+                    "SELECT * FROM match_blocks WHERE campaign_id=? AND status IN ('pending','interrupted') "
+                    "ORDER BY block_index,created_at,block_id LIMIT 1",
+                    (campaign_id,),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT * FROM match_blocks WHERE campaign_id=? AND block_id=? "
+                    "AND status IN ('pending','interrupted')",
+                    (campaign_id, expected_block_id),
+                ).fetchone()
             if row is None:
                 return None
             now = utc_now()
@@ -1399,6 +1406,46 @@ class Database:
                     row["block_id"],
                     {"reason": reason, "attempt": row["attempt"]},
                     from_status="pending",
+                    to_status="rejected",
+                )
+            return len(rows)
+
+    def reconcile_terminal_trial_blocks(self, campaign_id: str, reason: str) -> int:
+        """Close unused blocks left behind by an already-terminal trial."""
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            running = connection.execute(
+                "SELECT COUNT(*) FROM match_blocks b JOIN trials t "
+                "ON t.trial_id=b.trial_id AND t.campaign_id=b.campaign_id "
+                "WHERE b.campaign_id=? AND t.status IN ('completed','rejected','failed') "
+                "AND b.status='running'",
+                (campaign_id,),
+            ).fetchone()[0]
+            if running:
+                raise CampaignBusy("terminal trial still has a running match block")
+            rows = connection.execute(
+                "SELECT b.block_id,b.status FROM match_blocks b JOIN trials t "
+                "ON t.trial_id=b.trial_id AND t.campaign_id=b.campaign_id "
+                "WHERE b.campaign_id=? AND t.status IN ('completed','rejected','failed') "
+                "AND b.status IN ('pending','interrupted') ORDER BY b.created_at,b.block_id",
+                (campaign_id,),
+            ).fetchall()
+            now = utc_now()
+            for row in rows:
+                connection.execute(
+                    "UPDATE match_blocks SET status='rejected',error=?,pid=NULL,process_group_id=NULL,"
+                    "run_dir=NULL,command_json=NULL,finished_at=?,updated_at=? "
+                    "WHERE block_id=? AND campaign_id=?",
+                    (reason, now, now, row["block_id"], campaign_id),
+                )
+                self._event(
+                    connection,
+                    campaign_id,
+                    "terminal_trial_block_reconciled",
+                    "match_block",
+                    row["block_id"],
+                    {"reason": reason},
+                    from_status=row["status"],
                     to_status="rejected",
                 )
             return len(rows)

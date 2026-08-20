@@ -59,6 +59,7 @@ class Scheduler:
         stop_grace_seconds: float = 0.5,
         workdir: Path | None = None,
         preserve_optimizer_state: bool = False,
+        embedded_campaign: bool = False,
     ) -> None:
         if not monitor_command:
             raise SchedulerError("monitor command cannot be empty")
@@ -71,20 +72,35 @@ class Scheduler:
         self.stop_grace_seconds = stop_grace_seconds
         self.workdir = workdir.resolve() if workdir is not None else None
         self.preserve_optimizer_state = preserve_optimizer_state
+        self.embedded_campaign = embedded_campaign
         self._process: subprocess.Popen[str] | None = None
         self._process_group_id: int | None = None
 
-    def run(self, max_completed_blocks: int = 0, finish_work: bool = True) -> dict[str, Any]:
+    def run(
+        self,
+        max_completed_blocks: int = 0,
+        finish_work: bool = True,
+        expected_block_id: str | None = None,
+    ) -> dict[str, Any]:
         if max_completed_blocks < 0:
             raise SchedulerError("max_completed_blocks cannot be negative")
+        if expected_block_id is not None and max_completed_blocks != 1:
+            raise SchedulerError("an expected block requires max_completed_blocks=1")
         with scheduler_lock(self.data_dir, self.campaign_id):
             database = load_database(self.data_dir, self.campaign_id)
-            owner = _owner_token()
+            owner: str | None = None
             completed_blocks = 0
-            database.recover_abandoned_jobs(self.campaign_id, "scheduler startup recovered abandoned job")
-            database.claim_campaign(self.campaign_id, owner, takeover=True)
+            if self.embedded_campaign:
+                campaign = database.campaign(self.campaign_id)
+                if campaign["status"] != "running" or not campaign["owner_token"]:
+                    raise SchedulerError("embedded scheduler requires a running, optimizer-owned campaign")
+            else:
+                owner = _owner_token()
+                database.recover_abandoned_jobs(self.campaign_id, "scheduler startup recovered abandoned job")
+                database.claim_campaign(self.campaign_id, owner, takeover=True)
             try:
-                self._enter_running_state(database)
+                if not self.embedded_campaign:
+                    self._enter_running_state(database)
                 while True:
                     campaign = database.campaign(self.campaign_id)
                     status = str(campaign["status"])
@@ -96,8 +112,10 @@ class Scheduler:
                     if status != "running":
                         raise SchedulerError(f"scheduler cannot run campaign from state {status}")
 
-                    block = database.claim_next_block(self.campaign_id)
+                    block = database.claim_next_block(self.campaign_id, expected_block_id)
                     if block is None:
+                        if expected_block_id is not None:
+                            raise SchedulerError(f"expected block is not runnable: {expected_block_id}")
                         if finish_work:
                             finished = database.finish_completed_work(self.campaign_id)
                             if finished["campaign_completed"]:
@@ -121,10 +139,11 @@ class Scheduler:
                     return database.status_snapshot(self.campaign_id)
             finally:
                 self._terminate_current_process()
-                try:
-                    database.release_campaign(self.campaign_id, owner)
-                except (DatabaseError, CampaignBusy):
-                    pass
+                if owner is not None:
+                    try:
+                        database.release_campaign(self.campaign_id, owner)
+                    except (DatabaseError, CampaignBusy):
+                        pass
 
     def _enter_running_state(self, database: Database) -> None:
         campaign = database.campaign(self.campaign_id)

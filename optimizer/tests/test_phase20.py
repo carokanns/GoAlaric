@@ -8,7 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
-from goalaric_optimizer.coordinate import MultiResolutionCoordinateSearch
+from goalaric_optimizer.canonical import sha256_json
+from goalaric_optimizer.coordinate import CoordinateSearchError, MultiResolutionCoordinateSearch
 from goalaric_optimizer.dashboard import DashboardReader, final_report
 from goalaric_optimizer.database import Database
 from goalaric_optimizer.optimization import AutonomousOptimizer, _settings, run_optimization
@@ -553,6 +554,106 @@ class Phase20CoordinateQuotaTest(unittest.TestCase):
             exploratory=False,
         )
         self.assertEqual(result["classification"], "uncertain")
+
+    def test_interrupted_evaluation_is_not_counted_and_resumes_same_trial(self) -> None:
+        database = Database(self.data_dir / "phase20-coordinate-quota" / "campaign.db")
+        interrupted_once = False
+
+        def evaluate(parameters: dict[str, object], seed: int) -> dict[str, object]:
+            nonlocal interrupted_once
+            del seed
+            value = int(parameters["parameters"][0]["value"])  # type: ignore[index]
+            if value == 0:
+                return {
+                    "wins": 1,
+                    "draws": 0,
+                    "losses": 1,
+                    "score": 50.0,
+                    "uncertainty": 0.0,
+                    "decision": "uncertain",
+                }
+            parameter_hash = sha256_json(parameters)
+            trial = database.trial_for_parameter_hash(
+                "phase20-coordinate-quota", parameter_hash
+            )
+            self.assertIsNotNone(trial)
+            assert trial is not None
+            if not interrupted_once:
+                interrupted_once = True
+                database.transition_trial(
+                    "phase20-coordinate-quota", trial["trial_id"], "running"
+                )
+                database.transition_trial(
+                    "phase20-coordinate-quota",
+                    trial["trial_id"],
+                    "interrupted",
+                    result={"phase": "interrupted", "decision": "interrupted"},
+                )
+                return {
+                    "wins": 1,
+                    "draws": 0,
+                    "losses": 1,
+                    "score": 50.0,
+                    "uncertainty": 0.0,
+                    "phase": "interrupted",
+                    "decision": "interrupted",
+                }
+            self.assertEqual(trial["status"], "interrupted")
+            database.transition_trial(
+                "phase20-coordinate-quota", trial["trial_id"], "running"
+            )
+            return {
+                "wins": 2,
+                "draws": 0,
+                "losses": 0,
+                "score": 100.0,
+                "uncertainty": 0.0,
+                "phase": "terminal",
+                "decision": "accept",
+            }
+
+        search = MultiResolutionCoordinateSearch(
+            database,
+            "phase20-coordinate-quota",
+            self.registry,
+            evaluate,
+            max_passes=1,
+            parameter_names=["p"],
+        )
+        baseline = search.run(max_results=1)
+        self.assertEqual(baseline["result_count"], 1)
+        with self.assertRaisesRegex(
+            CoordinateSearchError, "did not reach a terminal decision"
+        ):
+            search.run(max_results=1)
+
+        state = database.optimizer_state("phase20-coordinate-quota")["state"]
+        self.assertEqual(state["result_count"], 1)
+        self.assertEqual(state["anchor_parameters"]["parameters"][0]["value"], 0)
+        candidate_hash = sha256_json(
+            {
+                "schema_version": 1,
+                "registry": "phase20-coordinate-quota-v1",
+                "parameters": [{"name": "p", "value": 1}],
+            }
+        )
+        trial_before = database.trial_for_parameter_hash(
+            "phase20-coordinate-quota", candidate_hash
+        )
+        self.assertIsNotNone(trial_before)
+        assert trial_before is not None
+        self.assertEqual(trial_before["status"], "interrupted")
+
+        resumed = search.run(max_results=1)
+        trial_after = database.trial_for_parameter_hash(
+            "phase20-coordinate-quota", candidate_hash
+        )
+        self.assertIsNotNone(trial_after)
+        assert trial_after is not None
+        self.assertEqual(trial_after["trial_id"], trial_before["trial_id"])
+        self.assertEqual(trial_after["status"], "completed")
+        self.assertEqual(resumed["result_count"], 2)
+        self.assertEqual(resumed["best"]["parameters"]["parameters"][0]["value"], 1)
 
 
 if __name__ == "__main__":

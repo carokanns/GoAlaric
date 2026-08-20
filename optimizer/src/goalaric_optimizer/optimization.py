@@ -459,7 +459,13 @@ class RealAdaptiveEvaluator:
             / f"{candidate_hash}.json",
             opening_block_file=block_dir / "placeholder.epd",
         )
-        runner = RealAdaptiveBlockRunner(self.data_dir, self.campaign_id, effective, block_dir)
+        runner = RealAdaptiveBlockRunner(
+            self.data_dir,
+            self.campaign_id,
+            effective,
+            block_dir,
+            embedded_campaign=True,
+        )
         controller = AdaptiveCampaign(
             self.database,
             self.campaign_id,
@@ -701,6 +707,10 @@ def run_optimization(
             # scheduler. Terminate that recorded process group before replay.
             terminate_active_blocks(data_dir, definition.campaign_id, "optimizer startup recovered abandoned job")
             database.recover_abandoned_jobs(definition.campaign_id)
+            database.reconcile_terminal_trial_blocks(
+                definition.campaign_id,
+                "optimizer startup closed unused blocks from terminal trial",
+            )
             controller = AutonomousOptimizer(
                 database,
                 data_dir,

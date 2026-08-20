@@ -120,6 +120,17 @@ def _normalize_result(value: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _normalize_terminal_result(value: dict[str, Any]) -> dict[str, Any]:
+    """Accept only evaluator evidence that can be committed as a search result."""
+    normalized = _normalize_result(value)
+    if normalized.get("phase") in {"running", "interrupted"} or normalized.get("decision") in {
+        "continue",
+        "interrupted",
+    }:
+        raise CoordinateSearchError("coordinate evaluation did not reach a terminal decision")
+    return normalized
+
+
 class CoordinateSearch:
     """Deterministic one-step-at-a-time coordinate search.
 
@@ -249,7 +260,7 @@ class CoordinateSearch:
         seed = _stable_trial_seed(self.campaign_id, candidate_hash, int(self.database.campaign(self.campaign_id)["master_seed"]))
         trial_id = self.database.create_trial(self.campaign_id, parameter_set_id, self.ALGORITHM, seed)
         raw_result = self.evaluator(candidate, seed)
-        result = _normalize_result(raw_result)
+        result = _normalize_terminal_result(raw_result)
         result["parameter_hash"] = candidate_hash
         result["trial_id"] = trial_id
         result["parameter"] = candidate
@@ -288,7 +299,7 @@ class CoordinateSearch:
             raise CoordinateSearchError("baseline parameter set is missing")
         seed = _stable_trial_seed(self.campaign_id, parameter_hash, int(self.database.campaign(self.campaign_id)["master_seed"]))
         trial_id = self.database.create_trial(self.campaign_id, parameter_set["parameter_set_id"], self.ALGORITHM, seed)
-        result = _normalize_result(self.evaluator(baseline, seed))
+        result = _normalize_terminal_result(self.evaluator(baseline, seed))
         result.update({"parameter_hash": parameter_hash, "trial_id": trial_id, "parameter": baseline, "classification": "baseline"})
         updated = dict(state)
         updated.update(
@@ -832,7 +843,7 @@ class MultiResolutionCoordinateSearch:
         trial_id = self.database.create_trial(
             self.campaign_id, parameter_set["parameter_set_id"], self.ALGORITHM, seed
         )
-        result = _normalize_result(self.evaluator(baseline, seed))
+        result = _normalize_terminal_result(self.evaluator(baseline, seed))
         result.update({"parameter_hash": parameter_hash, "trial_id": trial_id, "parameter": baseline, "classification": "baseline"})
         updated = dict(state)
         updated.update(
@@ -879,7 +890,7 @@ class MultiResolutionCoordinateSearch:
             self.campaign_id, candidate_hash, int(self.database.campaign(self.campaign_id)["master_seed"])
         )
         trial_id = self.database.create_trial(self.campaign_id, parameter_set_id, self.ALGORITHM, seed)
-        result = _normalize_result(self.evaluator(candidate, seed))
+        result = _normalize_terminal_result(self.evaluator(candidate, seed))
         result.update(
             {
                 "parameter_hash": candidate_hash,
