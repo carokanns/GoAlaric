@@ -165,3 +165,96 @@ func TestSearchParameterFileLeavesEvaluationParametersUntouched(t *testing.T) {
 		t.Fatal("search-lmr-v1 changed the legacy evaluation parameter vector")
 	}
 }
+
+func TestLMPRegistryIsStableAndComplete(t *testing.T) {
+	registry := LMPRegistry()
+	if len(registry) != 1 {
+		t.Fatalf("LMP registry has %d parameters, want 1", len(registry))
+	}
+	got := registry[0]
+	if got.Name != "lmp_move_multiplier" || got.Default != 4 || got.Min != 3 || got.Max != 5 || got.Step != 1 {
+		t.Fatalf("LMP registry descriptor = %+v", got)
+	}
+	if Search.LMPMoveMultiplier != got.Default {
+		t.Fatalf("LMP default=%d, want %d", Search.LMPMoveMultiplier, got.Default)
+	}
+}
+
+func TestLMPParameterFileRoundTripsAndApplies(t *testing.T) {
+	original := Search
+	t.Cleanup(func() { Search = original })
+
+	want, err := DefaultLMPParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseParameterFile(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := MarshalParameterFile(parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("LMP parameter JSON changed after round trip:\n%s\nwant:\n%s", got, want)
+	}
+
+	parsed.Parameters[0].Value = 3
+	if err := ApplyParameterFile(parsed); err != nil {
+		t.Fatal(err)
+	}
+	if Search.LMPMoveMultiplier != 3 {
+		t.Fatalf("LMP multiplier=%d, want 3", Search.LMPMoveMultiplier)
+	}
+}
+
+func TestCheckedInDefaultLMPParameterFileMatchesExporter(t *testing.T) {
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	path := filepath.Join(filepath.Dir(source), "..", "optimizer", "registries", "search-lmp-v1-default.json")
+	checkedIn, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported, err := DefaultLMPParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(checkedIn, exported) {
+		t.Fatalf("checked-in standard LMP file differs from exporter:\n%s\nwant:\n%s", checkedIn, exported)
+	}
+}
+
+func TestLMPParameterFileRejectsInvalidRangeAndStep(t *testing.T) {
+	file := DefaultLMPParameterFile()
+
+	file.Parameters[0].Value = 2
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("LMP parameter below the allowed range was accepted")
+	}
+
+	file.Parameters[0].Value = 6
+	if _, err := MarshalParameterFile(file); err == nil {
+		t.Fatal("LMP parameter above the allowed range was accepted")
+	}
+}
+
+func TestLMPParameterFileLeavesOtherSearchParametersUntouched(t *testing.T) {
+	original := Search
+	t.Cleanup(func() { Search = original })
+
+	file := DefaultLMPParameterFile()
+	file.Parameters[0].Value = 5
+	if err := ApplyParameterFile(file); err != nil {
+		t.Fatal(err)
+	}
+	if Search.LMPMoveMultiplier != 5 {
+		t.Fatalf("LMP multiplier=%d, want 5", Search.LMPMoveMultiplier)
+	}
+	if Search.LMRDivisorX100 != original.LMRDivisorX100 || Search.Contempt != original.Contempt {
+		t.Fatal("search-lmp-v1 changed unrelated search parameters")
+	}
+}

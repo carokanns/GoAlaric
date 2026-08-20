@@ -4,20 +4,23 @@ import "fmt"
 
 // SearchParameters contains search values that may be overridden at runtime.
 type SearchParameters struct {
-	Contempt       int
-	LMRDivisorX100 int
+	Contempt          int
+	LMRDivisorX100    int
+	LMPMoveMultiplier int
 }
 
 // Search contains the default search parameters.
 var Search = SearchParameters{
-	Contempt:       5,
-	LMRDivisorX100: 225,
+	Contempt:          5,
+	LMRDivisorX100:    225,
+	LMPMoveMultiplier: 4,
 }
 
 // SearchRegistryVersion identifies the named search-parameter interface.
 const SearchRegistryVersion = 1
 
 const searchRegistryName = "search-lmr-v1"
+const searchLMPRegistryName = "search-lmp-v1"
 
 var searchRegistry = [...]ParameterDescriptor{
 	{
@@ -28,6 +31,18 @@ var searchRegistry = [...]ParameterDescriptor{
 		Step:        5,
 		UsedIn:      "search/search.go:initLMRReductions",
 		Description: "LMR divisor multiplied by 100; lower values reduce more aggressively.",
+	},
+}
+
+var searchLMPRegistry = [...]ParameterDescriptor{
+	{
+		Name:        "lmp_move_multiplier",
+		Default:     4,
+		Min:         3,
+		Max:         5,
+		Step:        1,
+		UsedIn:      "search/search.go:lateMovePrune",
+		Description: "Move-count multiplier that starts late-move pruning.",
 	},
 }
 
@@ -69,6 +84,47 @@ func LoadSearchParameterFile(path string) (ParameterFile, string, error) {
 	}
 	if file.Registry != searchRegistryName {
 		return ParameterFile{}, "", fmt.Errorf("unsupported search parameter registry %q", file.Registry)
+	}
+	return file, digest, nil
+}
+
+// LMPRegistry returns a copy of the stable late-move-pruning descriptors.
+func LMPRegistry() []ParameterDescriptor {
+	result := make([]ParameterDescriptor, len(searchLMPRegistry))
+	copy(result, searchLMPRegistry[:])
+	return result
+}
+
+// DefaultLMPParameterFile returns the engine-default LMP parameter set.
+func DefaultLMPParameterFile() ParameterFile {
+	return ParameterFile{
+		SchemaVersion: SearchRegistryVersion,
+		Registry:      searchLMPRegistryName,
+		Parameters: []ParameterValue{{
+			Name:  searchLMPRegistry[0].Name,
+			Value: searchLMPRegistry[0].Default,
+		}},
+	}
+}
+
+// DefaultLMPParameterJSON exports the canonical search-lmp-v1 defaults.
+func DefaultLMPParameterJSON() ([]byte, error) {
+	return MarshalParameterFile(DefaultLMPParameterFile())
+}
+
+// DefaultLMPParameterSHA256 returns the identity of the built-in LMP set.
+func DefaultLMPParameterSHA256() (string, error) {
+	return ParameterFileSHA256(DefaultLMPParameterFile())
+}
+
+// LoadLMPParameterFile reads and validates a search-lmp-v1 parameter file.
+func LoadLMPParameterFile(path string) (ParameterFile, string, error) {
+	file, digest, err := LoadParameterFile(path)
+	if err != nil {
+		return ParameterFile{}, "", err
+	}
+	if file.Registry != searchLMPRegistryName {
+		return ParameterFile{}, "", fmt.Errorf("unsupported LMP parameter registry %q", file.Registry)
 	}
 	return file, digest, nil
 }

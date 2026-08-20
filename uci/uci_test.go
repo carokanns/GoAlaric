@@ -105,6 +105,42 @@ func TestSetoptionSearchParameterFileRefreshesLMR(t *testing.T) {
 	}
 }
 
+func TestSetoptionLMPParameterFileChangesMultiplier(t *testing.T) {
+	originalSearch := parms.Search
+	originalTellGUI := tellGUI
+	originalPath := parameterFilePath
+	originalSHA := parameterFileSHA
+	t.Cleanup(func() {
+		parms.Search = originalSearch
+		search.RefreshRuntimeParameters()
+		parameterFilePath = originalPath
+		parameterFileSHA = originalSHA
+		tellGUI = originalTellGUI
+	})
+
+	file := parms.DefaultLMPParameterFile()
+	file.Parameters[0].Value = 3
+	data, err := parms.MarshalParameterFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir() + "/search-lmp.json"
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var output []string
+	tellGUI = func(line string) { output = append(output, line) }
+	HandleInput("setoption name ParameterFile value "+path, &chSearch)
+
+	if parms.Search.LMPMoveMultiplier != 3 {
+		t.Fatalf("LMP multiplier=%d, want 3", parms.Search.LMPMoveMultiplier)
+	}
+	if !strings.Contains(strings.Join(output, "\n"), "registry_name=search-lmp-v1") {
+		t.Fatalf("LMP registry was not reported: %q", output)
+	}
+}
+
 func TestSetoptionParameterFileRejectsInvalidFile(t *testing.T) {
 	original := parms.Parms
 	originalTellGUI := tellGUI

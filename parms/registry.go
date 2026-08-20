@@ -251,6 +251,8 @@ func ApplyParameterFile(file ParameterFile) error {
 		}
 	case searchRegistryName:
 		Search.LMRDivisorX100 = normalized.Parameters[0].Value
+	case searchLMPRegistryName:
+		Search.LMPMoveMultiplier = normalized.Parameters[0].Value
 	}
 	return nil
 }
@@ -265,6 +267,8 @@ func normalize(file ParameterFile) (ParameterFile, error) {
 		descriptors = pilotRegistry[:]
 	case searchRegistryName:
 		descriptors = searchRegistry[:]
+	case searchLMPRegistryName:
+		descriptors = searchLMPRegistry[:]
 	default:
 		return ParameterFile{}, fmt.Errorf("unsupported parameter registry %q", file.Registry)
 	}

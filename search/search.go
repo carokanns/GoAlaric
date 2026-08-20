@@ -80,6 +80,7 @@ const nodeInterval = 1024
 const maxThreads = 16
 const maxQS = 2 // Max number of qs recursions
 const lmrMoveLimit = 64
+const lmpMaxDepth = 3
 const tablebaseWinScore = EvalMAX - maxPly
 
 var lmrReductions [maxDepth + 1][lmrMoveLimit]int
@@ -1081,7 +1082,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			dangerous = eval.IsCheck(mv, bd)
 		}
 
-		if !pvNode && depth > 0 && depth <= 3 && !IsMateScore(bs) && searched.Size() >= depth*4 && !dangerous { // late-move pruning
+		if lateMovePrune(pvNode, depth, bs, searched.Size(), dangerous) {
 			continue
 		}
 
@@ -1294,6 +1295,13 @@ func Qs(sl *Local, beta, gain int) int { // for static NMP
 
 	//util.ASSERT(bs < beta, "bs=", bs, "beta=", beta)
 	return bs
+}
+
+func lateMovePrune(pvNode bool, depth, bestScore, searchedSize int, dangerous bool) bool {
+	return !pvNode && depth > 0 && depth <= lmpMaxDepth &&
+		!IsMateScore(bestScore) &&
+		searchedSize >= depth*parms.Search.LMPMoveMultiplier &&
+		!dangerous
 }
 
 func extension(sl *Local, mv int, depth int, pvNode bool) int {
