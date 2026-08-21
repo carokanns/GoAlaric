@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"goalaric/gen"
 	"goalaric/search"
 	"goalaric/uci"
 	//"io"
@@ -44,6 +45,8 @@ func main() {
 		line := ""
 		select {
 		case bm = <-chBestmove:
+			stats := gen.SnapshotSeeStats()
+			fmt.Printf("info string see_stats no_sacrifice=%d generator_no_sacrifice=%d search_no_sacrifice=%d duplicate_no_sacrifice=%d cross_source_duplicates=%d see_calls=%d see_nodes=%d\n", stats.NoSacrificeCalls, stats.GeneratorNoSacrificeCalls, stats.SearchNoSacrificeCalls, stats.DuplicateNoSacrificeCalls, stats.CrossSourceDuplicates, stats.SeeCalls, stats.SeeNodes)
 			if search.IsInfinite() {
 				savedBm = bm // Save Bestmove until GUI sends "stop"
 				// nothing more should come from the engine now

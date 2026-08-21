@@ -1032,6 +1032,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			if move.IsTactical(mv) && !eval.IsCheck(mv, bd) && val+move.CaptMax(mv) <= alpha { // delta pruning
 				continue
 			}
+			gen.CountSearchNoSacrifice(bd.Key(), mv)
 			if !gen.NoSacrifice(mv, bd) { // Material pruning
 				continue
 			}

@@ -200,6 +200,7 @@ func (l *List) post(mv int) bool {
 			return false
 		}
 
+		CountGeneratorNoSacrifice(l.board.Key(), mv)
 		if !NoSacrifice(mv, l.board) {
 			l.badList.Add(mv)
 			return false
@@ -229,6 +230,7 @@ func (l *List) post(mv int) bool {
 
 		l.doneList.Add(mv)
 
+		CountGeneratorNoSacrifice(l.board.Key(), mv)
 		if !NoSacrifice(mv, l.board) {
 			l.badList.Add(mv)
 			return false
@@ -381,6 +383,7 @@ func (se *SEE) pickLva() int {
 
 // See (Static Exchange Evaluation) returns static material value of a move
 func (se *SEE) See(mv int, alpha int, beta int, bd *board.Board) (val, cnt int) {
+	seeStats.seeCalls.Add(1)
 
 	// assert(alpha < beta)
 
@@ -401,11 +404,13 @@ func (se *SEE) See(mv int, alpha int, beta int, bd *board.Board) (val, cnt int) 
 		se.value -= delta
 	}
 	v, ct := se.seeRec(capVal-beta, capVal-alpha)
+	seeStats.seeNodes.Add(uint64(ct + 1))
 	return capVal - v, ct + 1 //cnt+1 for the move above
 }
 
 // NoSacrifice is true if the move doesn't directly sacrifice itself
 func NoSacrifice(mv int, bd *board.Board) bool {
+	seeStats.noSacrificeCalls.Add(1)
 
 	pc := move.Piece(mv)
 	cp := move.Capt(mv)
