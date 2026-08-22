@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 from goalaric_optimizer.dashboard import DashboardReader
 from goalaric_optimizer.database import Database, DatabaseError
-from goalaric_optimizer.real_integration import RealTestmonitorConfig, RealTestmonitorScheduler
+from goalaric_optimizer.real_integration import RealTestmonitorConfig, RealTestmonitorScheduler, SchedulerError
 from goalaric_optimizer.service import init_campaign
 
 
@@ -117,6 +117,76 @@ class LiveBlockProgressTest(unittest.TestCase):
         row = self.database.running_block_processes("live-progress")[0]
         self.assertEqual((row["wins"], row["draws"], row["losses"]), (2, 1, 1))
         self.assertEqual(DashboardReader(self.data_dir, "live-progress").snapshot()["search_games"], 4)
+
+    def test_real_report_accepts_one_decimal_score_rounding(self) -> None:
+        run_dir = self.root / "rounded-report"
+        run_dir.mkdir()
+        opening_block = run_dir / "openings.epd"
+        opening_block.write_text("startpos\n", encoding="utf-8")
+        baseline_file = run_dir / "baseline.json"
+        candidate_file = run_dir / "candidate.json"
+        baseline_file.write_text(json.dumps({"parameters": [{"name": "p", "value": 1}]}), encoding="utf-8")
+        candidate_file.write_text(json.dumps({"parameters": [{"name": "p", "value": 2}]}), encoding="utf-8")
+        config = RealTestmonitorConfig(
+            testmonitor_command=("testmonitor",),
+            fastchess=Path("fastchess"),
+            baseline=Path("engine"),
+            candidate=Path("engine"),
+            baseline_parameter_file=baseline_file,
+            candidate_parameter_file=candidate_file,
+            opening_book=run_dir / "book.pgn",
+            opening_block_file=opening_block,
+            profile_mode="nodes",
+            tc=None,
+            nodes=100000,
+            profile_name="node-search",
+            profile_hash="profile-hash",
+        )
+        # 507-977-516 = 49.775%, reported by testmonitor as 49.8%.
+        report = {
+            "schema_version": 1,
+            "state": "completed",
+            "valid": True,
+            "counted": True,
+            "run_dir": str(run_dir),
+            "opening_block_size": 1000,
+            "target_games": 2000,
+            "games": 2000,
+            "wins": 507,
+            "draws": 977,
+            "losses": 516,
+            "score_percent": 49.8,
+            "node_budget": 100000,
+            "opening_block_sha256": __import__("hashlib").sha256(opening_block.read_bytes()).hexdigest(),
+            "color_swap": True,
+        }
+        status = {
+            "state": "completed",
+            "games": 2000,
+            "wins": 507,
+            "draws": 977,
+            "losses": 516,
+            "baseline_identity": {"sha256": "engine", "parameter_sha256": "baseline", "parameter_register_version": 1},
+            "candidate_identity": {"sha256": "engine", "parameter_sha256": "candidate", "parameter_register_version": 1},
+        }
+        monitor_config = {
+            "baseline_parameter_file": str(baseline_file),
+            "candidate_parameter_file": str(candidate_file),
+            "optimizer_mode": True,
+            "nodes": 100000,
+            "time_control": None,
+        }
+        (run_dir / "block-report.json").write_text(json.dumps(report), encoding="utf-8")
+        (run_dir / "status.json").write_text(json.dumps(status), encoding="utf-8")
+        (run_dir / "monitor-config.json").write_text(json.dumps(monitor_config), encoding="utf-8")
+        scheduler = RealTestmonitorScheduler(self.data_dir, "live-progress", config)
+        result = scheduler._read_result(run_dir / "result.json", 1000)
+        self.assertEqual((result["wins"], result["draws"], result["losses"]), (507, 977, 516))
+
+        report["score_percent"] = 49.7
+        (run_dir / "block-report.json").write_text(json.dumps(report), encoding="utf-8")
+        with self.assertRaises(SchedulerError):
+            scheduler._read_result(run_dir / "result.json", 1000)
 
 
 if __name__ == "__main__":

@@ -318,7 +318,10 @@ class RealTestmonitorScheduler(Scheduler):
         if not isinstance(score, (int, float)) or isinstance(score, bool) or not 0 <= float(score) <= 100:
             raise SchedulerError("block-report score must be a percentage from 0 to 100")
         expected_score = (counts[0] + counts[1] / 2) * 100 / expected_games
-        if not math.isclose(float(score), expected_score, abs_tol=0.01):
+        # testmonitor reports score_percent rounded to one decimal place.
+        # Accept that representation while still rejecting a score that is
+        # inconsistent with the authoritative W-D-L counts.
+        if not math.isclose(float(score), expected_score, abs_tol=0.051):
             raise SchedulerError("block-report score does not match W-D-L")
 
         if status.get("state") != "completed" or _require_int(status.get("games"), "status games") != expected_games:
