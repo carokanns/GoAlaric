@@ -47,6 +47,9 @@ class DashboardFormattingTest(unittest.TestCase):
         # The live dashboard uses the same presentation policy in its browser code.
         self.assertIn("numberText(metric(m,'score_percent'),1)", _DASHBOARD_HTML)
         self.assertIn("numberText(metric(m,'elo_estimate'),0)", _DASHBOARD_HTML)
+        self.assertIn("const durationText=(value,fractional=false)", _DASHBOARD_HTML)
+        self.assertIn("durationText(timing.elapsed_seconds)", _DASHBOARD_HTML)
+        self.assertIn("durationText(timing.estimated_remaining_seconds,true)", _DASHBOARD_HTML)
         self.assertIn("activeLabel=confirming?'confirming candidate':(campaignCompleted?'final anchor':'testing now')", _DASHBOARD_HTML)
         self.assertIn("confirming candidate", _DASHBOARD_HTML)
         self.assertIn("confirmation.candidate_values", _DASHBOARD_HTML)

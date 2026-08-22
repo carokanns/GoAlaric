@@ -745,6 +745,7 @@ const refreshMs=__REFRESH_MS__;
 const h=value=>String(value===null||value===undefined||value===''?'—':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const metric=(m,k)=>m&&m[k]!==undefined?m[k]:'—';
 const numberText=(value,digits)=>{if(value===null||value===undefined||value==='')return '—';const n=Number(value);return Number.isFinite(n)?n.toFixed(digits):h(value);};
+const durationText=(value,fractional=false)=>{if(value===null||value===undefined||value==='')return '—';const n=Number(value);if(!Number.isFinite(n))return h(value);const scale=fractional?10:1;const total=Math.max(0,Math.round(n*scale)/scale);const hours=Math.floor(total/3600);const minutes=Math.floor((total-hours*3600)/60);const seconds=total-hours*3600-minutes*60;let secondText=fractional?seconds.toFixed(1).replace(/\.0$/,''):String(Math.round(seconds));secondText=secondText.padStart(secondText.includes('.')?4:2,'0');return hours+'h '+String(minutes).padStart(2,'0')+'m '+secondText+'s';};
 const profileText=p=>p&&p.mode==='nodes'?(p.name||'—')+' · '+(p.nodes||'—')+' nodes/move':(p&&p.name||'—')+' · '+(p&&p.tc||'—');
 function render(data){
  const c=data.campaign||{}, t=data.current_trial||{}, confirmation=data.confirmation||null, confirming=confirmation&&confirmation.status!=='completed', m=confirming?(confirmation.metrics||{}):(t.metrics||data.campaign_metrics||{}), counts=data.candidate_counts||{};
@@ -767,8 +768,8 @@ function render(data){
  const searchTrialGames=Number((t.metrics||{}).games||0),searchTrialTarget=(t.blocks||[]).reduce((total,block)=>total+Number(block.pairs_per_block||0)*2,0);
  document.getElementById('campaign-games').textContent=confirmation?confirmationGames+' / '+h(confirmationMetrics.games_target):(searchTrialTarget?searchTrialGames+' / '+h(searchTrialTarget):h(data.search_games));
  const timing=confirmation||t;
- document.getElementById('campaign-confirmation-elapsed').textContent=timing&&timing.elapsed_seconds!==null&&timing.elapsed_seconds!==undefined?h(timing.elapsed_seconds)+' s':'—';
- document.getElementById('campaign-confirmation-eta').textContent=timing&&timing.estimated_remaining_seconds!==null&&timing.estimated_remaining_seconds!==undefined?h(timing.estimated_remaining_seconds)+' s':'—';
+ document.getElementById('campaign-confirmation-elapsed').textContent=timing&&timing.elapsed_seconds!==null&&timing.elapsed_seconds!==undefined?durationText(timing.elapsed_seconds):'—';
+ document.getElementById('campaign-confirmation-eta').textContent=timing&&timing.estimated_remaining_seconds!==null&&timing.estimated_remaining_seconds!==undefined?durationText(timing.estimated_remaining_seconds,true):'—';
  document.getElementById('score').textContent=numberText(metric(m,'score_percent'),1)+'%';
  document.getElementById('elo').textContent=numberText(metric(m,'elo_estimate'),0);
  document.getElementById('score-ci').textContent=numberText(metric(m,'score_ci_low'),1)+'% … '+numberText(metric(m,'score_ci_high'),1)+'%';
