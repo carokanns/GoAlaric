@@ -265,6 +265,32 @@ class RealTestmonitorScheduler(Scheduler):
             str(run_dir),
         ]
 
+    def _poll_progress(self, database: Database, block: dict[str, Any], run_dir: Path) -> None:
+        status_path = run_dir / "status.json"
+        if not status_path.exists():
+            return
+        try:
+            status = _read_object(status_path)
+        except SchedulerError:
+            # testmonitor replaces this frequently; tolerate a transient read
+            # while the next complete JSON snapshot is being published.
+            return
+        if status.get("state") not in {"running", "completed"}:
+            return
+        expected_games = int(block["pairs_per_block"]) * 2
+        if _require_int(status.get("target_games"), "status target_games", 1) != expected_games:
+            raise SchedulerError("status target games do not match SQLite")
+        counts = [_require_int(status.get(name), f"status {name}") for name in ("wins", "draws", "losses")]
+        if sum(counts) != _require_int(status.get("games"), "status games"):
+            raise SchedulerError("status W-D-L does not add up to status games")
+        database.update_running_block_progress(
+            self.campaign_id,
+            str(block["block_id"]),
+            counts[0],
+            counts[1],
+            counts[2],
+        )
+
     def _read_result(self, path: Path, pairs_per_block: int) -> dict[str, Any]:
         run_dir = path.parent
         report = _read_object(run_dir / "block-report.json")

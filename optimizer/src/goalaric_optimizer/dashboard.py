@@ -104,7 +104,15 @@ def _fallback_metrics(result: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def _metrics(blocks: list[dict[str, Any]], result: dict[str, Any] | None) -> dict[str, Any]:
-    match_metrics = aggregate_wdl(blocks)
+    # Adaptive decisions only count completed blocks. The dashboard may also
+    # display validated progress from the current SQLite running block.
+    display_blocks = []
+    for block in blocks:
+        if block.get("status") == "completed":
+            display_blocks.append(block)
+        elif block.get("status") == "running" and sum(int(block.get(name, 0)) for name in ("wins", "draws", "losses")):
+            display_blocks.append({**block, "status": "completed"})
+    match_metrics = aggregate_wdl(display_blocks)
     if match_metrics["games"]:
         return match_metrics
     return _fallback_metrics(result) or match_metrics
@@ -145,6 +153,13 @@ def _trial_record(row: dict[str, Any], parameter: dict[str, Any] | None, blocks:
     current_block = next((block for block in blocks if block["status"] == "running"), None)
     if current_block is None:
         current_block = next((block for block in blocks if block["status"] == "pending"), None)
+    games_target = sum(int(block["pairs_per_block"]) * 2 for block in blocks)
+    timing = _confirmation_timing(
+        row.get("started_at"),
+        row.get("finished_at"),
+        int(metrics["games"]),
+        games_target,
+    )
     return {
         "trial_id": row["trial_id"],
         "status": row["status"],
@@ -158,6 +173,7 @@ def _trial_record(row: dict[str, Any], parameter: dict[str, Any] | None, blocks:
         "error": row["error"],
         "parameter": parameter,
         "metrics": metrics,
+        **timing,
         "result": result,
         "profile": profile,
         "blocks": [
@@ -750,8 +766,9 @@ function render(data){
  document.getElementById('campaign-total-games').textContent=h(data.total_games);
  const searchTrialGames=Number((t.metrics||{}).games||0),searchTrialTarget=(t.blocks||[]).reduce((total,block)=>total+Number(block.pairs_per_block||0)*2,0);
  document.getElementById('campaign-games').textContent=confirmation?confirmationGames+' / '+h(confirmationMetrics.games_target):(searchTrialTarget?searchTrialGames+' / '+h(searchTrialTarget):h(data.search_games));
- document.getElementById('campaign-confirmation-elapsed').textContent=confirmation&&confirmation.elapsed_seconds!==null&&confirmation.elapsed_seconds!==undefined?h(confirmation.elapsed_seconds)+' s':'—';
- document.getElementById('campaign-confirmation-eta').textContent=confirmation&&confirmation.estimated_remaining_seconds!==null&&confirmation.estimated_remaining_seconds!==undefined?h(confirmation.estimated_remaining_seconds)+' s':'—';
+ const timing=confirmation||t;
+ document.getElementById('campaign-confirmation-elapsed').textContent=timing&&timing.elapsed_seconds!==null&&timing.elapsed_seconds!==undefined?h(timing.elapsed_seconds)+' s':'—';
+ document.getElementById('campaign-confirmation-eta').textContent=timing&&timing.estimated_remaining_seconds!==null&&timing.estimated_remaining_seconds!==undefined?h(timing.estimated_remaining_seconds)+' s':'—';
  document.getElementById('score').textContent=numberText(metric(m,'score_percent'),1)+'%';
  document.getElementById('elo').textContent=numberText(metric(m,'elo_estimate'),0);
  document.getElementById('score-ci').textContent=numberText(metric(m,'score_ci_low'),1)+'% … '+numberText(metric(m,'score_ci_high'),1)+'%';

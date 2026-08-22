@@ -1067,7 +1067,8 @@ class Database:
             now = utc_now()
             connection.execute(
                 "UPDATE match_blocks SET status='running',attempt=attempt+1,pid=NULL,process_group_id=NULL,"
-                "run_dir=NULL,command_json=NULL,error=NULL,started_at=?,finished_at=NULL,updated_at=? WHERE block_id=?",
+                "run_dir=NULL,command_json=NULL,wins=0,draws=0,losses=0,score=NULL,result_json=NULL,"
+                "error=NULL,started_at=?,finished_at=NULL,updated_at=? WHERE block_id=?",
                 (now, now, row["block_id"]),
             )
             self._event(
@@ -1118,6 +1119,43 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def update_running_block_progress(
+        self,
+        campaign_id: str,
+        block_id: str,
+        wins: int,
+        draws: int,
+        losses: int,
+    ) -> dict[str, Any]:
+        """Persist validated, non-final monitor progress for read-only observers."""
+        if any(not isinstance(value, int) or isinstance(value, bool) or value < 0 for value in (wins, draws, losses)):
+            raise DatabaseError("running block progress W-D-L must be non-negative integers")
+        games = wins + draws + losses
+        with self._transaction() as connection:
+            block = connection.execute(
+                "SELECT * FROM match_blocks WHERE block_id=? AND campaign_id=?",
+                (block_id, campaign_id),
+            ).fetchone()
+            if block is None:
+                raise DatabaseError(f"unknown match block: {block_id}")
+            if block["status"] != "running":
+                return dict(block)
+            target_games = int(block["pairs_per_block"]) * 2
+            if games > target_games:
+                raise DatabaseError(f"running block progress contains {games} games; expected at most {target_games}")
+            previous = int(block["wins"]) + int(block["draws"]) + int(block["losses"])
+            if games < previous:
+                raise DatabaseError("running block progress cannot move backwards within one attempt")
+            if (wins, draws, losses) == (int(block["wins"]), int(block["draws"]), int(block["losses"])):
+                return dict(block)
+            score = (wins + draws / 2) * 100 / games if games else None
+            connection.execute(
+                "UPDATE match_blocks SET wins=?,draws=?,losses=?,score=?,updated_at=? "
+                "WHERE block_id=? AND campaign_id=? AND status='running'",
+                (wins, draws, losses, score, utc_now(), block_id, campaign_id),
+            )
+            return dict(connection.execute("SELECT * FROM match_blocks WHERE block_id=?", (block_id,)).fetchone())
+
     def interrupt_block(self, campaign_id: str, block_id: str, reason: str) -> dict[str, Any]:
         with self._transaction() as connection:
             block = connection.execute(
@@ -1130,7 +1168,8 @@ class Database:
             now = utc_now()
             connection.execute(
                 "UPDATE match_blocks SET status='interrupted',pid=NULL,process_group_id=NULL,run_dir=NULL,"
-                "command_json=NULL,error=?,finished_at=?,updated_at=? WHERE block_id=? AND campaign_id=?",
+                "command_json=NULL,wins=0,draws=0,losses=0,score=NULL,result_json=NULL,"
+                "error=?,finished_at=?,updated_at=? WHERE block_id=? AND campaign_id=?",
                 (reason, now, now, block_id, campaign_id),
             )
             self._event(
@@ -2227,7 +2266,8 @@ class Database:
             for row in blocks:
                 connection.execute(
                     "UPDATE match_blocks SET status='interrupted',pid=NULL,process_group_id=NULL,run_dir=NULL,"
-                    "command_json=NULL,error=?,finished_at=?,updated_at=? WHERE block_id=?",
+                    "command_json=NULL,wins=0,draws=0,losses=0,score=NULL,result_json=NULL,"
+                    "error=?,finished_at=?,updated_at=? WHERE block_id=?",
                     (reason, now, now, row["block_id"]),
                 )
                 self._event(

@@ -219,6 +219,7 @@ class Scheduler:
             )
 
             while process.poll() is None:
+                self._poll_progress(database, block, run_dir)
                 if database.campaign(self.campaign_id)["status"] != "running":
                     terminate_process(process, self.stop_grace_seconds)
                     database.interrupt_block(
@@ -294,6 +295,9 @@ class Scheduler:
                     process.wait(timeout=0.1)
                 except subprocess.TimeoutExpired:
                     terminate_process(process, self.stop_grace_seconds)
+
+    def _poll_progress(self, database: Database, block: dict[str, Any], run_dir: Path) -> None:
+        """Allow monitor-specific schedulers to checkpoint non-final progress."""
 
     @staticmethod
     def _read_result(path: Path, pairs_per_block: int) -> dict[str, Any]:
