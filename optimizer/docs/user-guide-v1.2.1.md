@@ -1,4 +1,4 @@
-k# GoAlaric optimizer v1.2.1 – svensk användarhandbok
+# GoAlaric optimizer v1.2.1 – svensk användarhandbok
 
 Den här handboken beskriver den praktiska vägen från en kampanjfil till en
 återstartbar riktig optimeringskampanj. Exemplen använder
