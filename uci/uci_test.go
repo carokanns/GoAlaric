@@ -4,6 +4,7 @@ package uci
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -304,18 +305,51 @@ func TestSetoptionSyzygyWithTables(t *testing.T) {
 	}
 }
 
-func TestSetoptionContempt(t *testing.T) {
-	original := search.Engine.Contempt
-	t.Cleanup(func() { search.Engine.Contempt = original })
+func TestUCIAdvertisesDefaultSyzygyPath(t *testing.T) {
+	originalTellGUI := tellGUI
+	t.Cleanup(func() { tellGUI = originalTellGUI })
 
-	HandleInput("setoption name Contempt value 9", &chSearch)
-	if search.Engine.Contempt != 9 {
-		t.Errorf("Contempt borde vara %v men är %v", 9, search.Engine.Contempt)
+	var lines []string
+	tellGUI = func(line string) { lines = append(lines, line) }
+	HandleInput("uci", &chSearch)
+	want := "option name SyzygyPath type string default " + search.DefaultSyzygyPath
+	if !slices.Contains(lines, want) {
+		t.Fatalf("uci output did not advertise default SyzygyPath: %v", lines)
+	}
+}
+
+func TestUCIAdvertisesAndSetsContempt(t *testing.T) {
+	originalTellGUI := tellGUI
+	originalContempt := search.Engine.Contempt
+	originalRepetitionContempt := search.Engine.SearchRepetitionContempt
+	t.Cleanup(func() {
+		tellGUI = originalTellGUI
+		search.Engine.Contempt = originalContempt
+		search.Engine.SearchRepetitionContempt = originalRepetitionContempt
+		search.SG.Trans.Clear()
+	})
+
+	var lines []string
+	tellGUI = func(line string) { lines = append(lines, line) }
+	HandleInput("uci", &chSearch)
+	if !slices.Contains(lines, "option name Contempt type spin default 0 min -100 max 100") {
+		t.Fatalf("uci output did not advertise Contempt: %v", lines)
+	}
+	if !slices.Contains(lines, "option name SearchRepetitionContempt type spin default 5 min -100 max 100") {
+		t.Fatalf("uci output did not advertise SearchRepetitionContempt: %v", lines)
 	}
 
+	HandleInput("setoption name SearchRepetitionContempt value 7", &chSearch)
+	if search.Engine.SearchRepetitionContempt != 7 {
+		t.Fatalf("SearchRepetitionContempt = %d, want 7", search.Engine.SearchRepetitionContempt)
+	}
+	HandleInput("setoption name Contempt value -9", &chSearch)
+	if search.Engine.Contempt != -9 {
+		t.Fatalf("Contempt = %d, want -9", search.Engine.Contempt)
+	}
 	HandleInput("setoption name Contempt value 101", &chSearch)
-	if search.Engine.Contempt != 9 {
-		t.Errorf("Ogiltigt Contempt-värde borde ignoreras, fick %v", search.Engine.Contempt)
+	if search.Engine.Contempt != -9 {
+		t.Fatalf("invalid Contempt changed value to %d", search.Engine.Contempt)
 	}
 }
 
@@ -335,6 +369,10 @@ func TestSetoptionSyzygy(t *testing.T) {
 	HandleInput("setoption name SyzygyPath value", &chSearch)
 	if search.Engine.SyzygyPath != "" || syzygy.Enabled() {
 		t.Fatal("empty SyzygyPath should disable probing")
+	}
+	HandleInput("setoption name SyzygyPath value off", &chSearch)
+	if search.Engine.SyzygyPath != "" || syzygy.Enabled() {
+		t.Fatal("SyzygyPath=off should disable probing")
 	}
 }
 

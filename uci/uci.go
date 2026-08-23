@@ -45,8 +45,9 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI(fmt.Sprintf("option name Hash type spin default %v  min 16 max 16384", search.Engine.Hash))
 			tellGUI(fmt.Sprintf("option name Ponder type check default %v", search.Engine.Ponder))
 			tellGUI(fmt.Sprintf("option name Threads type spin default %v min 1 max 16", search.Engine.Threads))
-			tellGUI(fmt.Sprintf("option name Contempt type spin default %v min 0 max 100", search.Engine.Contempt))
-			tellGUI("option name SyzygyPath type string default <empty>")
+			tellGUI(fmt.Sprintf("option name Contempt type spin default %d min %d max %d", search.DefaultContempt, search.MinContempt, search.MaxContempt))
+			tellGUI(fmt.Sprintf("option name SearchRepetitionContempt type spin default %d min %d max %d", search.DefaultSearchRepetitionContempt, search.MinContempt, search.MaxContempt))
+			tellGUI(fmt.Sprintf("option name SyzygyPath type string default %s", search.DefaultSyzygyPath))
 			tellGUI(fmt.Sprintf("option name SyzygyProbeDepth type spin default %v min 1 max 100", search.Engine.SyzygyProbeDepth))
 			tellGUI("option name TablebaseStatsFile type string default <empty>")
 			tellGUI(fmt.Sprintf("option name LogFile type check default %v", search.Engine.Log))
@@ -416,24 +417,36 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 		search.Engine.Threads = int(threads)
 	case "contempt":
 		contempt, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || contempt < 0 || contempt > 100 {
+		if err != nil {
+			tellGUI(fmt.Sprintf("info string Contempt rejected: %v", err))
 			return
 		}
-		search.Engine.Contempt = int(contempt)
+		if err := search.SetContempt(int(contempt)); err != nil {
+			tellGUI(fmt.Sprintf("info string Contempt rejected: %v", err))
+		}
+	case "searchrepetitioncontempt":
+		contempt, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			tellGUI(fmt.Sprintf("info string SearchRepetitionContempt rejected: %v", err))
+			return
+		}
+		if err := search.SetSearchRepetitionContempt(int(contempt)); err != nil {
+			tellGUI(fmt.Sprintf("info string SearchRepetitionContempt rejected: %v", err))
+		}
 	case "syzygypath":
 		path := syzygy.NormalizePath(value)
-		err := syzygy.SetPath(path)
-		search.SG.Trans.Clear()
+		if strings.EqualFold(path, "off") {
+			path = ""
+		}
+		largest, err := search.SetSyzygyPath(path)
 		if err != nil {
-			search.Engine.SyzygyPath = ""
 			tellGUI("info string Syzygy disabled: " + err.Error())
 			return
 		}
-		search.Engine.SyzygyPath = path
 		if path == "" {
 			tellGUI("info string Syzygy disabled")
 		} else {
-			tellGUI(fmt.Sprintf("info string Syzygy loaded: path=%s pieces=%d", path, syzygy.Largest()))
+			tellGUI(fmt.Sprintf("info string Syzygy loaded: path=%s pieces=%d", path, largest))
 		}
 	case "syzygyprobedepth":
 		depth, err := strconv.ParseInt(value, 10, 32)

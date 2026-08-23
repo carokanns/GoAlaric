@@ -12,7 +12,8 @@ setoption name SyzygyPath value /sökväg/till/tabeller
 setoption name SyzygyProbeDepth value 1
 ```
 
-En tom `SyzygyPath` stänger av probering. En felaktig sökväg ger ett
+Standardvägen är `.tools/syzygy/3-4` relativt motorns arbetskatalog. En tom
+`SyzygyPath` stänger av probering. En felaktig sökväg ger ett
 `info string`-fel och lämnar motorn i avstängt, spelbart läge.
 
 GoAlaric räknar antalet pjäser före varje probe. Om ställningen har fler

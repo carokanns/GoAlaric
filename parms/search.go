@@ -5,6 +5,7 @@ import "fmt"
 // SearchParameters contains search values that may be overridden at runtime.
 type SearchParameters struct {
 	Contempt                  int
+	SearchRepetitionContempt  int
 	LMRDivisorX100            int
 	LMPMoveMultiplier         int
 	AspirationInitialMarginCP int
@@ -13,7 +14,8 @@ type SearchParameters struct {
 
 // Search contains the default search parameters.
 var Search = SearchParameters{
-	Contempt:                  5,
+	Contempt:                  0,
+	SearchRepetitionContempt:  5,
 	LMRDivisorX100:            225,
 	LMPMoveMultiplier:         4,
 	AspirationInitialMarginCP: 10,

@@ -131,6 +131,11 @@ func (t *transTable) Store(key hash.Key, depth, ply, mv, sc, scoreType int) {
 			if entry.date != t.generation {
 				entry.date = t.generation
 				t.cntUsed++
+				entry.move = uint32(mv)
+				entry.depth = int8(depth)
+				entry.score = int16(sc)
+				entry.scoreType = uint8(scoreType)
+				return
 			}
 
 			if depth >= int(entry.depth) {

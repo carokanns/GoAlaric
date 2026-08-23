@@ -254,7 +254,7 @@ func TestLMPParameterFileLeavesOtherSearchParametersUntouched(t *testing.T) {
 	if Search.LMPMoveMultiplier != 5 {
 		t.Fatalf("LMP multiplier=%d, want 5", Search.LMPMoveMultiplier)
 	}
-	if Search.LMRDivisorX100 != original.LMRDivisorX100 || Search.Contempt != original.Contempt {
+	if Search.LMRDivisorX100 != original.LMRDivisorX100 || Search.Contempt != original.Contempt || Search.SearchRepetitionContempt != original.SearchRepetitionContempt {
 		t.Fatal("search-lmp-v1 changed unrelated search parameters")
 	}
 }

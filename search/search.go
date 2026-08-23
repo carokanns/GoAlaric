@@ -29,14 +29,15 @@ const (
 const defaultHash = 128
 
 type engineStruct struct {
-	Hash               int
-	Ponder             bool
-	Threads            int
-	Log                bool
-	Contempt           int
-	SyzygyPath         string
-	SyzygyProbeDepth   int
-	TablebaseStatsFile string
+	Hash                     int
+	Ponder                   bool
+	Threads                  int
+	Log                      bool
+	Contempt                 int
+	SearchRepetitionContempt int
+	SyzygyPath               string
+	SyzygyProbeDepth         int
+	TablebaseStatsFile       string
 }
 
 // Engine is the var holding engineStruct values
@@ -60,6 +61,9 @@ func init() {
 	Engine.Threads = 1
 	Engine.Log = false
 	Engine.Contempt = parms.Search.Contempt
+	Engine.SearchRepetitionContempt = parms.Search.SearchRepetitionContempt
+	Engine.SyzygyPath = DefaultSyzygyPath
+	_ = syzygy.SetPath(Engine.SyzygyPath)
 	Engine.SyzygyProbeDepth = 1
 	initLMRReductions()
 }
@@ -922,7 +926,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	case board.DeadMaterialDraw, board.FiftyMoveDraw, board.ThreefoldRepetition:
 		return drawScore(bd.Ply())
 	case board.SearchRepetition:
-		return drawScore(bd.Ply())
+		return repetitionScore(bd.Ply())
 	}
 
 	stm := bd.Stm() // NOTE!! be aware of before and after move
@@ -1173,24 +1177,14 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	return bs
 }
 
-func drawScore(ply int) int {
-	if ply == 0 {
-		return 0
-	}
-	if ply%2 == 0 {
-		return -Engine.Contempt
-	}
-	return Engine.Contempt
-}
-
 func tablebaseScore(wdl syzygy.WDL, ply int) int {
 	switch wdl {
 	case syzygy.Win:
 		return tablebaseWinScore
 	case syzygy.CursedWin:
-		return 1
+		return drawScore(ply) + 1
 	case syzygy.BlessedLoss:
-		return -1
+		return drawScore(ply) - 1
 	case syzygy.Loss:
 		return -tablebaseWinScore
 	default:

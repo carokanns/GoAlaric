@@ -189,28 +189,37 @@ func TestQS(t *testing.T) {
 func TestRootSearch(t *testing.T) {
 	chSearch := make(chan int)
 	chBestmove := make(chan string)
+	done := make(chan struct{})
 	SetInfinite(false)
 	board.SetFen("8/7p/5pk1/3n2pq/3N1nR1/1P3P2/P6P/4QK2 w - - 0 1" /*board.Start_fen*/, &bd)
 	//	var moves = []string{"e2e4", "f7f5", "d2d4", "g7g5", "d1e2"}
 	//	board.FenMoves(moves, &bd)
-	go StartSearch(chSearch, chBestmove, &bd)
+	go func() {
+		defer close(done)
+		StartSearch(chSearch, chBestmove, &bd)
+	}()
 
 	// search condition
 	SetInfinite(true)
 	chSearch <- Simple
-	var bm = "     "
-	for ix := 0; ix < 5; ix++ {
+	var bm string
+	select {
+	case bm = <-chBestmove:
+	case <-time.After(100 * time.Millisecond):
+		SetStop(true)
 		select {
 		case bm = <-chBestmove:
-			fmt.Println(bm)
-			return
-		default:
-			SetStop(true)
-			time.Sleep(time.Millisecond * 100)
-
+		case <-time.After(5 * time.Second):
+			t.Fatal("search did not return bestmove after stop")
 		}
 	}
 	fmt.Println(bm)
+	close(chSearch)
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("search goroutine did not exit")
+	}
 }
 
 func TestSearchKeepsLastCompletedIterationAfterStop(t *testing.T) {
