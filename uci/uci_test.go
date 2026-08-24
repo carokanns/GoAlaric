@@ -383,3 +383,60 @@ func Test_GoCommand(t *testing.T) {
 		t.Errorf("Infinite borde vara satt till true men är false")
 	}
 }
+
+func TestGoReportsRootDrawClaimsAndStillStartsSearch(t *testing.T) {
+	originalBoard := Bd
+	originalTellGUI := tellGUI
+	t.Cleanup(func() {
+		Bd = originalBoard
+		tellGUI = originalTellGUI
+	})
+
+	cycle := "g1f3 g8f6 f3g1 f6g8"
+	tests := []struct {
+		name     string
+		position string
+		want     string
+	}{
+		{
+			name:     "second occurrence is not claimable",
+			position: "position startpos moves " + cycle,
+			want:     "",
+		},
+		{
+			name:     "third occurrence",
+			position: "position startpos moves " + cycle + " " + cycle,
+			want:     "info string draw claim available: threefold repetition",
+		},
+		{
+			name:     "fifty-move rule",
+			position: "position fen 7k/8/8/8/8/8/8/R3K3 w - - 100 51",
+			want:     "info string draw claim available: fifty-move rule",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output []string
+			tellGUI = func(line string) { output = append(output, line) }
+			SetPosition(test.position)
+			commands := make(chan int, 1)
+			HandleGo("go depth 1", &commands)
+			select {
+			case got := <-commands:
+				if got != search.Simple {
+					t.Fatalf("search command = %d, want %d", got, search.Simple)
+				}
+			default:
+				t.Fatal("draw claim prevented the search command")
+			}
+			if test.want == "" {
+				if len(output) != 0 {
+					t.Fatalf("unexpected root draw claim: %v", output)
+				}
+			} else if !slices.Contains(output, test.want) {
+				t.Fatalf("root draw claim = %v, want %q", output, test.want)
+			}
+		})
+	}
+}

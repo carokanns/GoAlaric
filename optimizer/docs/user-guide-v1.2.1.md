@@ -111,7 +111,7 @@ En riktig kampanj behöver:
 - en körbar GoAlaric-binär,
 - en körbar `testmonitor`-binär,
 - Fastchess,
-- en EPD- eller öppningsfil som testmonitor kan läsa,
+- en EPD- eller PGN-öppningsfil som testmonitor kan läsa,
 - ett optimizerregister med parametergränser,
 - en baseline-parameterfil eller registerdefaultvärden.
 
@@ -121,7 +121,7 @@ Kontrollera alla sökvägar innan `init`:
 ENGINE=/home/peter/Projekt/GoAlaric-optimizer/artifacts/v1.2/node-budget-pilot/bin/goalaric
 TESTMONITOR=/home/peter/Projekt/GoAlaric-optimizer/artifacts/v1.2/node-budget-pilot/bin/testmonitor
 FASTCHESS=/home/peter/Projekt/GoAlaric/.tools/fastchess/bin/fastchess
-OPENINGS=/home/peter/Projekt/GoAlaric/fullGP.epd
+OPENINGS=/home/peter/Projekt/GoAlaric/.tools/books/8moves_v3.pgn
 REGISTRY=/home/peter/Projekt/GoAlaric-optimizer/artifacts/v1.2/lmr-long-pilot/registry.json
 DEFAULTS=/home/peter/Projekt/GoAlaric-optimizer/optimizer/registries/search-lmr-v1-default.json
 
@@ -223,7 +223,7 @@ mkdir -p /tmp/goalaric-optimizer-smoke
         "/home/peter/Projekt/GoAlaric-optimizer/artifacts/v1.2/node-budget-pilot/bin/testmonitor"
       ],
       "fastchess": "/home/peter/Projekt/GoAlaric/.tools/fastchess/bin/fastchess",
-      "opening_book": "/home/peter/Projekt/GoAlaric/fullGP.epd",
+      "opening_book": "/home/peter/Projekt/GoAlaric/.tools/books/8moves_v3.pgn",
       "tc": "0.2+0.01",
       "profiles": {
         "smoke-search": {
@@ -354,7 +354,7 @@ tidskontroll.
         "/home/peter/Projekt/GoAlaric-optimizer/artifacts/v1.2/node-budget-pilot/bin/testmonitor"
       ],
       "fastchess": "/home/peter/Projekt/GoAlaric/.tools/fastchess/bin/fastchess",
-      "opening_book": "/home/peter/Projekt/GoAlaric/fullGP.epd",
+      "opening_book": "/home/peter/Projekt/GoAlaric/.tools/books/8moves_v3.pgn",
       "tc": "0.2+0.01",
       "profiles": {
         "long-search": {
@@ -430,7 +430,7 @@ Fastchess. Sökning och bekräftelse kan ha olika budget.
         "/home/peter/Projekt/GoAlaric-optimizer/artifacts/v1.2/node-budget-pilot/bin/testmonitor"
       ],
       "fastchess": "/home/peter/Projekt/GoAlaric/.tools/fastchess/bin/fastchess",
-      "opening_book": "/home/peter/Projekt/GoAlaric/fullGP.epd",
+      "opening_book": "/home/peter/Projekt/GoAlaric/.tools/books/8moves_v3.pgn",
       "tc": "0.2+0.01",
       "profiles": {
         "node-search": {
@@ -924,17 +924,18 @@ watch-läge.
 
 ### Fel sökväg
 
-Kör `test -x` för binärer och `test -f` för register, parameterfil och EPD.
+Kör `test -x` för binärer och `test -f` för register, parameterfil och
+EPD-/PGN-öppningsfil.
 Använd absoluta sökvägar i kampanjfilen. `goals.real.engine` kommer från
 `baseline.engine_id`; det finns inget separat `goals.real.engine`-fält.
 
-### Saknad EPD eller för liten öppningsfil
+### Saknad eller för liten öppningsfil
 
 Kontrollera:
 
 ```bash
-test -f /home/peter/Projekt/GoAlaric/fullGP.epd
-wc -l /home/peter/Projekt/GoAlaric/fullGP.epd
+test -f /home/peter/Projekt/GoAlaric/.tools/books/8moves_v3.pgn
+wc -l /home/peter/Projekt/GoAlaric/.tools/books/8moves_v3.pgn
 ```
 
 Kontrollera också att `opening_book` pekar på samma fil vid återstart och att
@@ -1000,7 +1001,7 @@ optimizer trials <campaign-id> --last 10 --data-dir /sökväg/campaigns
 pgrep -af 'optimizer|testmonitor|fastchess|goalaric' || true
 ```
 
-Vanliga orsaker är fel JSON, saknat register, saknad binär/EPD, en profil som
+Vanliga orsaker är fel JSON, saknat register, saknad binär/öppningsfil, en profil som
 inte kan lösas, en ändrad checkpoint eller att en annan optimizer redan äger
 kampanjen. För verkliga block finns diagnosfiler i `run_dir`; läs dem innan du
 försöker återuppta. Starta ingen ny kampanj på samma data-dir för att kringgå

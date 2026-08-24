@@ -289,6 +289,7 @@ func HandleGo(line string, chSearch *chan int) {
 		tellGUI("info string Inte en go till innan search klar")
 		return
 	}
+	reportRootDrawClaim(&Bd)
 	search.NewSearch()
 	tablebaseStatsGameStarted = true
 
@@ -358,6 +359,17 @@ func HandleGo(line string, chSearch *chan int) {
 		} else {
 			*chSearch <- search.Simple
 		}
+	}
+}
+
+func reportRootDrawClaim(bd *board.Board) {
+	root := *bd
+	root.SetRoot()
+	switch root.DrawState() {
+	case board.ThreefoldRepetition:
+		tellGUI("info string draw claim available: threefold repetition")
+	case board.FiftyMoveDraw:
+		tellGUI("info string draw claim available: fifty-move rule")
 	}
 }
 

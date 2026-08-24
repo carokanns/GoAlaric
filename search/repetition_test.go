@@ -3,6 +3,7 @@ package search
 import (
 	"testing"
 
+	"goalaric/board"
 	"goalaric/hash"
 	"goalaric/parms"
 	"goalaric/syzygy"
@@ -46,6 +47,34 @@ func TestSearchRepetitionContemptIsRootRelative(t *testing.T) {
 		if got := repetitionScore(test.ply); got != test.want {
 			t.Errorf("ply %d repetition score = %d, want %d", test.ply, got, test.want)
 		}
+	}
+}
+
+func TestAllRepetitionDrawStatesUseRepetitionContempt(t *testing.T) {
+	preserveContempt(t)
+	Engine.Contempt = DefaultContempt
+	Engine.SearchRepetitionContempt = 7
+
+	for _, reason := range []board.DrawReason{
+		board.SearchRepetition,
+		board.ThreefoldRepetition,
+	} {
+		score, drawn := drawStateScore(reason, 1)
+		if !drawn || score != 7 {
+			t.Errorf("draw state %v = (%d, %v), want (7, true)", reason, score, drawn)
+		}
+	}
+	for _, reason := range []board.DrawReason{
+		board.DeadMaterialDraw,
+		board.FiftyMoveDraw,
+	} {
+		score, drawn := drawStateScore(reason, 1)
+		if !drawn || score != 0 {
+			t.Errorf("draw state %v = (%d, %v), want (0, true)", reason, score, drawn)
+		}
+	}
+	if score, drawn := drawStateScore(board.NoDraw, 1); drawn || score != 0 {
+		t.Fatalf("no draw = (%d, %v), want (0, false)", score, drawn)
 	}
 }
 

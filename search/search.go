@@ -922,11 +922,8 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 		}
 	}
 
-	switch bd.DrawState() {
-	case board.DeadMaterialDraw, board.FiftyMoveDraw, board.ThreefoldRepetition:
-		return drawScore(bd.Ply())
-	case board.SearchRepetition:
-		return repetitionScore(bd.Ply())
+	if score, drawn := drawStateScore(bd.DrawState(), bd.Ply()); drawn {
+		return score
 	}
 
 	stm := bd.Stm() // NOTE!! be aware of before and after move

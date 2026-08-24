@@ -1,6 +1,10 @@
 package search
 
-import "fmt"
+import (
+	"fmt"
+
+	"goalaric/board"
+)
 
 // Contempt values are expressed in centipawns. General Contempt applies to all
 // draws and overrides SearchRepetitionContempt when non-zero.
@@ -59,6 +63,17 @@ func drawScore(ply int) int {
 
 func repetitionScore(ply int) int {
 	return rootRelativeContempt(repetitionContempt(), ply)
+}
+
+func drawStateScore(reason board.DrawReason, ply int) (int, bool) {
+	switch reason {
+	case board.DeadMaterialDraw, board.FiftyMoveDraw:
+		return drawScore(ply), true
+	case board.ThreefoldRepetition, board.SearchRepetition:
+		return repetitionScore(ply), true
+	default:
+		return 0, false
+	}
 }
 
 func rootRelativeContempt(contempt, ply int) int {
