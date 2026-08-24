@@ -4,7 +4,7 @@
   "parameters": [
     {
       "name": "aspiration_initial_margin_cp",
-      "value": 10
+      "value": 15
     }
   ]
 }

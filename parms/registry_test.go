@@ -265,7 +265,7 @@ func TestAspirationRegistryIsStableAndComplete(t *testing.T) {
 		t.Fatalf("aspiration registry has %d parameters, want 1", len(registry))
 	}
 	got := registry[0]
-	if got.Name != "aspiration_initial_margin_cp" || got.Default != 10 || got.Min != 5 || got.Max != 15 || got.Step != 5 {
+	if got.Name != "aspiration_initial_margin_cp" || got.Default != 15 || got.Min != 5 || got.Max != 15 || got.Step != 5 {
 		t.Fatalf("aspiration registry descriptor = %+v", got)
 	}
 	if Search.AspirationInitialMarginCP != got.Default {
@@ -293,12 +293,12 @@ func TestAspirationParameterFileRoundTripsAndApplies(t *testing.T) {
 		t.Fatalf("aspiration parameter JSON changed after round trip:\n%s\nwant:\n%s", got, want)
 	}
 
-	parsed.Parameters[0].Value = 15
+	parsed.Parameters[0].Value = 10
 	if err := ApplyParameterFile(parsed); err != nil {
 		t.Fatal(err)
 	}
-	if Search.AspirationInitialMarginCP != 15 {
-		t.Fatalf("aspiration initial margin=%d, want 15", Search.AspirationInitialMarginCP)
+	if Search.AspirationInitialMarginCP != 10 {
+		t.Fatalf("aspiration initial margin=%d, want 10", Search.AspirationInitialMarginCP)
 	}
 	if Search.LMRDivisorX100 != original.LMRDivisorX100 || Search.LMPMoveMultiplier != original.LMPMoveMultiplier {
 		t.Fatal("search-aspiration-v1 changed unrelated search parameters")

@@ -740,7 +740,7 @@ func searchID(bd *board.Board) {
 // returns a value that is inside the window
 func aspirationInitialMargin() int {
 	if parms.Search.AspirationInitialMarginCP <= 0 {
-		return 10
+		return 15
 	}
 	return parms.Search.AspirationInitialMarginCP
 }

@@ -18,7 +18,7 @@ var Search = SearchParameters{
 	SearchRepetitionContempt:  5,
 	LMRDivisorX100:            225,
 	LMPMoveMultiplier:         4,
-	AspirationInitialMarginCP: 10,
+	AspirationInitialMarginCP: 15,
 	AspirationMinDepth:        6,
 }
 
@@ -57,7 +57,7 @@ var searchLMPRegistry = [...]ParameterDescriptor{
 var searchAspirationRegistry = [...]ParameterDescriptor{
 	{
 		Name:        "aspiration_initial_margin_cp",
-		Default:     10,
+		Default:     15,
 		Min:         5,
 		Max:         15,
 		Step:        5,

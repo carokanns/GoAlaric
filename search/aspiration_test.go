@@ -26,8 +26,8 @@ func TestAspirationInitialMarginFallsBackSafely(t *testing.T) {
 	t.Cleanup(func() { parms.Search.AspirationInitialMarginCP = original })
 
 	parms.Search.AspirationInitialMarginCP = 0
-	if got := aspirationInitialMargin(); got != 10 {
-		t.Fatalf("invalid initial aspiration margin=%d, want fallback 10", got)
+	if got := aspirationInitialMargin(); got != 15 {
+		t.Fatalf("invalid initial aspiration margin=%d, want fallback 15", got)
 	}
 }
 

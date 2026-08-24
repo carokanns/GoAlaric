@@ -48,7 +48,7 @@ class SearchAspirationRegistryTest(unittest.TestCase):
             (
                 {
                     "name": "aspiration_initial_margin_cp",
-                    "value": 10,
+                    "value": 15,
                     "min": 5,
                     "max": 15,
                     "step": 5,
@@ -61,7 +61,7 @@ class SearchAspirationRegistryTest(unittest.TestCase):
             {
                 "schema_version": 1,
                 "registry": "search-aspiration-v1",
-                "parameters": [{"name": "aspiration_initial_margin_cp", "value": 10}],
+                "parameters": [{"name": "aspiration_initial_margin_cp", "value": 15}],
             },
         )
 
