@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "registry": "search-lmp-depth-v1",
+  "parameters": [
+    {
+      "name": "lmp_depth4_min_iteration",
+      "value": 0
+    }
+  ]
+}

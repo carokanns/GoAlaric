@@ -8,6 +8,7 @@ type SearchParameters struct {
 	SearchRepetitionContempt  int
 	LMRDivisorX100            int
 	LMPMoveMultiplier         int
+	LMPDepth4MinIteration     int
 	AspirationInitialMarginCP int
 	AspirationMinDepth        int
 }
@@ -18,6 +19,7 @@ var Search = SearchParameters{
 	SearchRepetitionContempt:  5,
 	LMRDivisorX100:            225,
 	LMPMoveMultiplier:         4,
+	LMPDepth4MinIteration:     0,
 	AspirationInitialMarginCP: 15,
 	AspirationMinDepth:        6,
 }
@@ -27,6 +29,7 @@ const SearchRegistryVersion = 1
 
 const searchRegistryName = "search-lmr-v1"
 const searchLMPRegistryName = "search-lmp-v1"
+const searchLMPDepthRegistryName = "search-lmp-depth-v1"
 const searchAspirationRegistryName = "search-aspiration-v1"
 const searchAspirationDepthRegistryName = "search-aspiration-depth-v1"
 
@@ -51,6 +54,18 @@ var searchLMPRegistry = [...]ParameterDescriptor{
 		Step:        1,
 		UsedIn:      "search/search.go:lateMovePrune",
 		Description: "Move-count multiplier that starts late-move pruning.",
+	},
+}
+
+var searchLMPDepthRegistry = [...]ParameterDescriptor{
+	{
+		Name:        "lmp_depth4_min_iteration",
+		Default:     0,
+		Min:         0,
+		Max:         20,
+		Step:        2,
+		UsedIn:      "search/search.go:lateMovePrune",
+		Description: "Minimum iterative-deepening depth that enables LMP at remaining depth 4; zero disables it.",
 	},
 }
 
@@ -157,6 +172,50 @@ func LoadLMPParameterFile(path string) (ParameterFile, string, error) {
 	}
 	if file.Registry != searchLMPRegistryName {
 		return ParameterFile{}, "", fmt.Errorf("unsupported LMP parameter registry %q", file.Registry)
+	}
+	return file, digest, nil
+}
+
+// LMPDepthRegistry returns a copy of the dynamic late-move-pruning depth
+// descriptors.
+func LMPDepthRegistry() []ParameterDescriptor {
+	result := make([]ParameterDescriptor, len(searchLMPDepthRegistry))
+	copy(result, searchLMPDepthRegistry[:])
+	return result
+}
+
+// DefaultLMPDepthParameterFile returns the engine-default dynamic LMP set.
+// A zero activation depth preserves the historical depth-3 cap exactly.
+func DefaultLMPDepthParameterFile() ParameterFile {
+	return ParameterFile{
+		SchemaVersion: SearchRegistryVersion,
+		Registry:      searchLMPDepthRegistryName,
+		Parameters: []ParameterValue{{
+			Name:  searchLMPDepthRegistry[0].Name,
+			Value: searchLMPDepthRegistry[0].Default,
+		}},
+	}
+}
+
+// DefaultLMPDepthParameterJSON exports the canonical dynamic LMP defaults.
+func DefaultLMPDepthParameterJSON() ([]byte, error) {
+	return MarshalParameterFile(DefaultLMPDepthParameterFile())
+}
+
+// DefaultLMPDepthParameterSHA256 returns the identity of the built-in dynamic
+// LMP set.
+func DefaultLMPDepthParameterSHA256() (string, error) {
+	return ParameterFileSHA256(DefaultLMPDepthParameterFile())
+}
+
+// LoadLMPDepthParameterFile reads and validates search-lmp-depth-v1.
+func LoadLMPDepthParameterFile(path string) (ParameterFile, string, error) {
+	file, digest, err := LoadParameterFile(path)
+	if err != nil {
+		return ParameterFile{}, "", err
+	}
+	if file.Registry != searchLMPDepthRegistryName {
+		return ParameterFile{}, "", fmt.Errorf("unsupported LMP-depth parameter registry %q", file.Registry)
 	}
 	return file, digest, nil
 }

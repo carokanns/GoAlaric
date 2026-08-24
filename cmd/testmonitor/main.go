@@ -208,6 +208,7 @@ type benchCase struct {
 
 type benchReport struct {
 	Engine          string      `json:"engine"`
+	ParameterFile   string      `json:"parameter_file,omitempty"`
 	Depth           int         `json:"depth"`
 	Repetitions     int         `json:"repetitions"`
 	StartedAt       time.Time   `json:"started_at"`
@@ -335,6 +336,7 @@ func validateCommand(args []string) error {
 func benchCommand(args []string) error {
 	fs := flag.NewFlagSet("bench", flag.ContinueOnError)
 	engine := fs.String("engine", "", "engine executable")
+	parameterFile := fs.String("parameter-file", "", "named engine parameter file")
 	epd := fs.String("epd", "scripts/movetime_epd", "EPD input")
 	depth := fs.Int("depth", 8, "fixed search depth")
 	repetitions := fs.Int("repetitions", 7, "runs per position")
@@ -354,6 +356,13 @@ func benchCommand(args []string) error {
 	if err != nil {
 		return err
 	}
+	parameterPath := ""
+	if *parameterFile != "" {
+		parameterPath, err = existingAbs(*parameterFile)
+		if err != nil {
+			return err
+		}
+	}
 	epdPath, err := existingAbs(*epd)
 	if err != nil {
 		return err
@@ -366,12 +375,12 @@ func benchCommand(args []string) error {
 		return fmt.Errorf("no positions found in %s", epdPath)
 	}
 
-	report := benchReport{Engine: enginePath, Depth: *depth, Repetitions: *repetitions, StartedAt: time.Now()}
+	report := benchReport{Engine: enginePath, ParameterFile: parameterPath, Depth: *depth, Repetitions: *repetitions, StartedAt: time.Now()}
 	var allNPS, allElapsed []int64
 	for ix, fen := range fens {
 		bc := benchCase{FEN: fen}
 		for rep := 0; rep < *repetitions; rep++ {
-			sample, runErr := runSearch(enginePath, fen, *depth, *timeout)
+			sample, runErr := runSearchWithParameterFile(enginePath, parameterPath, fen, *depth, *timeout)
 			if runErr != nil {
 				return fmt.Errorf("position %d repetition %d: %w", ix+1, rep+1, runErr)
 			}
@@ -1697,6 +1706,10 @@ func parsePGNGames(input string) ([]pgnGame, error) {
 }
 
 func runSearch(engine, fen string, depth int, timeout time.Duration) (searchSample, error) {
+	return runSearchWithParameterFile(engine, "", fen, depth, timeout)
+}
+
+func runSearchWithParameterFile(engine, parameterFile, fen string, depth int, timeout time.Duration) (searchSample, error) {
 	cmd := exec.Command(engine)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -1742,18 +1755,53 @@ func runSearch(engine, fen string, depth int, timeout time.Duration) (searchSamp
 			}
 		}
 	}
+	waitUntilReady := func(requireParameterLoad bool) error {
+		parameterLoaded := !requireParameterLoad
+		timer := time.NewTimer(timeout)
+		defer timer.Stop()
+		for {
+			select {
+			case line, open := <-lines:
+				if !open {
+					return errors.New("engine exited before readyok")
+				}
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "info string ParameterFile rejected:") {
+					return errors.New(trimmed)
+				}
+				if strings.HasPrefix(trimmed, "info string ParameterFile loaded:") {
+					parameterLoaded = true
+				}
+				if trimmed == "readyok" {
+					if !parameterLoaded {
+						return errors.New("engine did not acknowledge ParameterFile")
+					}
+					return nil
+				}
+			case <-timer.C:
+				return errors.New("timeout waiting for readyok")
+			}
+		}
+	}
 	if err := send("uci"); err != nil {
 		return searchSample{}, err
 	}
 	if err := waitFor("uciok"); err != nil {
 		return searchSample{}, err
 	}
-	for _, line := range []string{"setoption name Hash value 128", "setoption name Threads value 1", "setoption name Ponder value false", "isready"} {
+	options := []string{"setoption name Hash value 128", "setoption name Threads value 1", "setoption name Ponder value false"}
+	if parameterFile != "" {
+		options = append(options, "setoption name ParameterFile value "+parameterFile)
+	}
+	for _, line := range options {
 		if err := send(line); err != nil {
 			return searchSample{}, err
 		}
 	}
-	if err := waitFor("readyok"); err != nil {
+	if err := send("isready"); err != nil {
+		return searchSample{}, err
+	}
+	if err := waitUntilReady(parameterFile != ""); err != nil {
 		return searchSample{}, err
 	}
 	if err := send("ucinewgame"); err != nil {

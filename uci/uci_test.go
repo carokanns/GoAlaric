@@ -142,6 +142,41 @@ func TestSetoptionLMPParameterFileChangesMultiplier(t *testing.T) {
 	}
 }
 
+func TestSetoptionLMPDepthParameterFileChangesActivationIteration(t *testing.T) {
+	originalSearch := parms.Search
+	originalTellGUI := tellGUI
+	originalPath := parameterFilePath
+	originalSHA := parameterFileSHA
+	t.Cleanup(func() {
+		parms.Search = originalSearch
+		parameterFilePath = originalPath
+		parameterFileSHA = originalSHA
+		tellGUI = originalTellGUI
+	})
+
+	file := parms.DefaultLMPDepthParameterFile()
+	file.Parameters[0].Value = 12
+	data, err := parms.MarshalParameterFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir() + "/search-lmp-depth.json"
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var output []string
+	tellGUI = func(line string) { output = append(output, line) }
+	HandleInput("setoption name ParameterFile value "+path, &chSearch)
+
+	if parms.Search.LMPDepth4MinIteration != 12 {
+		t.Fatalf("LMP depth-4 activation=%d, want 12", parms.Search.LMPDepth4MinIteration)
+	}
+	if !strings.Contains(strings.Join(output, "\n"), "registry_name=search-lmp-depth-v1") {
+		t.Fatalf("LMP-depth registry was not reported: %q", output)
+	}
+}
+
 func TestSetoptionAspirationParameterFileChangesInitialMargin(t *testing.T) {
 	originalSearch := parms.Search
 	originalPath := parameterFilePath

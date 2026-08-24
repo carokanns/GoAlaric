@@ -84,7 +84,7 @@ const nodeInterval = 1024
 const maxThreads = 16
 const maxQS = 2 // Max number of qs recursions
 const lmrMoveLimit = 64
-const lmpMaxDepth = 3
+const lmpBaseMaxDepth = 3
 const tablebaseWinScore = EvalMAX - maxPly
 
 var lmrReductions [maxDepth + 1][lmrMoveLimit]int
@@ -373,6 +373,9 @@ var rootSP splitPoint
 // Local is the data used for each thread
 type Local struct {
 	ID int
+	// iterationDepth is fixed before an iterative-deepening pass starts and is
+	// read by LMP while that pass is running.
+	iterationDepth int
 	//std::thread thread;
 
 	todo   bool
@@ -1097,7 +1100,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			dangerous = eval.IsCheck(mv, bd)
 		}
 
-		if lateMovePrune(pvNode, depth, bs, searched.Size(), dangerous) {
+		if lateMovePrune(pvNode, sl.iterationDepth, depth, bs, searched.Size(), dangerous) {
 			continue
 		}
 
@@ -1302,8 +1305,16 @@ func Qs(sl *Local, beta, gain int) int { // for static NMP
 	return bs
 }
 
-func lateMovePrune(pvNode bool, depth, bestScore, searchedSize int, dangerous bool) bool {
-	return !pvNode && depth > 0 && depth <= lmpMaxDepth &&
+func lmpMaxRemainingDepth(iterationDepth int) int {
+	start := parms.Search.LMPDepth4MinIteration
+	if start > 0 && iterationDepth >= start {
+		return lmpBaseMaxDepth + 1
+	}
+	return lmpBaseMaxDepth
+}
+
+func lateMovePrune(pvNode bool, iterationDepth, depth, bestScore, searchedSize int, dangerous bool) bool {
+	return !pvNode && depth > 0 && depth <= lmpMaxRemainingDepth(iterationDepth) &&
 		!IsMateScore(bestScore) &&
 		searchedSize >= depth*parms.Search.LMPMoveMultiplier &&
 		!dangerous
@@ -1354,6 +1365,9 @@ func reduction(sl *Local, mv, depth int, pvNode, inCheck bool, searchedSize int,
 
 func depthStart(depth int) {
 	current.depth = depth
+	for id := 0; id < Engine.Threads; id++ {
+		slEntries[id].iterationDepth = depth
+	}
 }
 
 func updateCurrent() {

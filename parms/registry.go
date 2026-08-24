@@ -253,6 +253,8 @@ func ApplyParameterFile(file ParameterFile) error {
 		Search.LMRDivisorX100 = normalized.Parameters[0].Value
 	case searchLMPRegistryName:
 		Search.LMPMoveMultiplier = normalized.Parameters[0].Value
+	case searchLMPDepthRegistryName:
+		Search.LMPDepth4MinIteration = normalized.Parameters[0].Value
 	case searchAspirationRegistryName:
 		Search.AspirationInitialMarginCP = normalized.Parameters[0].Value
 	case searchAspirationDepthRegistryName:
@@ -273,6 +275,8 @@ func normalize(file ParameterFile) (ParameterFile, error) {
 		descriptors = searchRegistry[:]
 	case searchLMPRegistryName:
 		descriptors = searchLMPRegistry[:]
+	case searchLMPDepthRegistryName:
+		descriptors = searchLMPDepthRegistry[:]
 	case searchAspirationRegistryName:
 		descriptors = searchAspirationRegistry[:]
 	case searchAspirationDepthRegistryName:
