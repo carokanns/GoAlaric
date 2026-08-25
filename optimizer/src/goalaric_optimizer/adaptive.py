@@ -27,12 +27,18 @@ class AdaptiveError(RuntimeError):
 class AdaptivePolicy:
     min_blocks: int = 1
     max_blocks: int = 4
+    pairs_per_block: int = 1
+    last_block_pairs: int | None = None
     weak_upper_score: float = 45.0
     target_score: float = 50.0
 
     def __post_init__(self) -> None:
         if self.min_blocks < 1 or self.max_blocks < self.min_blocks:
             raise AdaptiveError("adaptive block budget must satisfy 1 <= min_blocks <= max_blocks")
+        if self.pairs_per_block < 1:
+            raise AdaptiveError("adaptive pairs_per_block must be positive")
+        if self.last_block_pairs is not None and not 1 <= self.last_block_pairs <= self.pairs_per_block:
+            raise AdaptiveError("adaptive last_block_pairs must be between 1 and pairs_per_block")
         if not 0.0 <= self.weak_upper_score <= 100.0:
             raise AdaptiveError("weak_upper_score must be between 0 and 100")
         if not 0.0 <= self.target_score <= 100.0:
@@ -44,9 +50,14 @@ class BlockRunner(Protocol):
         """Run exactly the supplied block and leave its SQLite row complete or interrupted."""
 
 
-def _block_hashes(campaign_id: str, parameter_hash: str, block_index: int) -> tuple[str, str]:
+def _block_hashes(
+    campaign_id: str, parameter_hash: str, block_index: int, pairs_per_block: int = 1
+) -> tuple[str, str]:
     book_hash = sha256_json(["adaptive-book-v1", campaign_id])
-    block_hash = sha256_json(["adaptive-block-v1", campaign_id, parameter_hash, block_index])
+    identity = ["adaptive-block-v1", campaign_id, parameter_hash, block_index]
+    if pairs_per_block != 1:
+        identity.append(pairs_per_block)
+    block_hash = sha256_json(identity)
     return book_hash, block_hash
 
 
@@ -184,7 +195,7 @@ class AdaptiveCampaign:
         policy: AdaptivePolicy,
         runner: BlockRunner,
         seed: int,
-        block_hash_factory: Callable[[int], tuple[str, str]] | None = None,
+        block_hash_factory: Callable[[int, int], tuple[str, str]] | None = None,
         profile: dict[str, Any] | None = None,
         complete_trial: bool = True,
     ) -> None:
@@ -196,7 +207,7 @@ class AdaptiveCampaign:
         self.seed = seed
         self.parameter_hash = sha256_json(candidate_document)
         self.block_hash_factory = block_hash_factory or (
-            lambda index: _block_hashes(self.campaign_id, self.parameter_hash, index)
+            lambda index, pairs: _block_hashes(self.campaign_id, self.parameter_hash, index, pairs)
         )
         self.complete_trial = complete_trial
         self.profile = dict(profile) if profile is not None else None
@@ -228,13 +239,18 @@ class AdaptiveCampaign:
                 self.profile.get("nodes"),
             )
         for index in range(self.policy.max_blocks):
-            book_hash, block_hash = self.block_hash_factory(index)
+            pairs = (
+                self.policy.last_block_pairs
+                if index == self.policy.max_blocks - 1 and self.policy.last_block_pairs is not None
+                else self.policy.pairs_per_block
+            )
+            book_hash, block_hash = self.block_hash_factory(index, pairs)
             self.database.create_match_block(
                 self.campaign_id,
                 self.trial_id,
                 "adaptive",
                 index,
-                1,
+                pairs,
                 self.seed,
                 book_hash,
                 block_hash,
@@ -410,10 +426,10 @@ class RealAdaptiveBlockRunner:
         self.embedded_campaign = embedded_campaign
         self.block_dir.mkdir(parents=True, exist_ok=True)
 
-    def block_hashes(self, index: int) -> tuple[str, str]:
+    def block_hashes(self, index: int, pairs: int = 1) -> tuple[str, str]:
         path = self.block_dir / f"opening-block-{index:06d}.epd"
         block_config = self.config.__class__(**{**asdict(self.config), "opening_block_file": path})
-        _materialize_real_block(block_config, self.config.seed, block_index=index, pairs=1)
+        _materialize_real_block(block_config, self.config.seed, block_index=index, pairs=pairs)
         from .canonical import sha256_bytes
 
         return sha256_bytes(self.config.opening_book.read_bytes()), sha256_bytes(path.read_bytes())
@@ -455,7 +471,7 @@ class AdaptiveCoordinateEvaluator:
         policy: AdaptivePolicy,
         baseline_evaluator: Callable[[dict[str, Any], int], dict[str, Any]],
         runner_factory: Callable[
-            [dict[str, Any], int], tuple[BlockRunner, Callable[[int], tuple[str, str]] | None]
+            [dict[str, Any], int], tuple[BlockRunner, Callable[[int, int], tuple[str, str]] | None]
         ],
     ) -> None:
         self.database = database
