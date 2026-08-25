@@ -95,6 +95,7 @@ class Phase8RealIntegrationTest(unittest.TestCase):
             opening_block_file=self.opening_block,
             tc="0.2+0.01",
             seed=20260813,
+            concurrency=2,
             hash_mb=16,
             threads=1,
             syzygy_path="off",

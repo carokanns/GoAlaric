@@ -168,12 +168,14 @@ class Phase22NodeProfileTest(unittest.TestCase):
             profile_hash=profile.hash,
             profile_mode=profile.mode,
             nodes=profile.nodes,
+            concurrency=2,
         )
         scheduler = RealTestmonitorScheduler(self.root, "phase22-node-profile", config)
         command = scheduler._command({"pairs_per_block": 1, "block_index": 0, "master_seed": 1}, self.root, self.root / "result.json")
         self.assertIn("--nodes", command)
         self.assertIn("100000", command)
         self.assertNotIn("--tc", command)
+        self.assertEqual(command[command.index("--concurrency") + 1], "2")
 
         time_profile = resolve_profile({"tc": "0.2+0.01"})
         self.assertEqual(time_profile.mode, "time")

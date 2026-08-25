@@ -116,15 +116,18 @@ def run_campaign(data_dir: Path, campaign_id: str, fake: bool = False) -> dict[s
 
 
 def pause_campaign(data_dir: Path, campaign_id: str) -> dict[str, Any]:
-    with campaign_lock(data_dir, campaign_id):
-        database = load_database(data_dir, campaign_id)
-        from .scheduler import terminate_active_blocks
+    # Pause and stop are asynchronous control operations. They must remain
+    # available while a long-running optimize invocation owns campaign.lock.
+    # SQLite transactions serialize their state changes, and terminating a
+    # recorded process group is idempotent.
+    database = load_database(data_dir, campaign_id)
+    from .scheduler import terminate_active_blocks
 
-        campaign = database.campaign(campaign_id)
-        if campaign["status"] not in {"paused", "completed", "failed", "rejected", "interrupted"}:
-            database.transition_campaign(campaign_id, "paused", "pause command")
-        terminate_active_blocks(data_dir, campaign_id, "pause command")
-        return database.campaign(campaign_id)
+    campaign = database.campaign(campaign_id)
+    if campaign["status"] not in {"paused", "completed", "failed", "rejected", "interrupted"}:
+        database.transition_campaign(campaign_id, "paused", "pause command")
+    terminate_active_blocks(data_dir, campaign_id, "pause command")
+    return database.campaign(campaign_id)
 
 
 def resume_campaign(data_dir: Path, campaign_id: str) -> dict[str, Any]:
@@ -137,12 +140,11 @@ def resume_campaign(data_dir: Path, campaign_id: str) -> dict[str, Any]:
 
 
 def stop_campaign(data_dir: Path, campaign_id: str) -> dict[str, Any]:
-    with campaign_lock(data_dir, campaign_id):
-        database = load_database(data_dir, campaign_id)
-        from .scheduler import terminate_active_blocks
+    database = load_database(data_dir, campaign_id)
+    from .scheduler import terminate_active_blocks
 
-        campaign = database.campaign(campaign_id)
-        if campaign["status"] not in {"completed", "failed", "rejected", "interrupted"}:
-            database.transition_campaign(campaign_id, "interrupted", "stop command")
-        terminate_active_blocks(data_dir, campaign_id, "stop command")
-        return database.campaign(campaign_id)
+    campaign = database.campaign(campaign_id)
+    if campaign["status"] not in {"completed", "failed", "rejected", "interrupted"}:
+        database.transition_campaign(campaign_id, "interrupted", "stop command")
+    terminate_active_blocks(data_dir, campaign_id, "stop command")
+    return database.campaign(campaign_id)

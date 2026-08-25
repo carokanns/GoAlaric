@@ -18,6 +18,7 @@ from goalaric_optimizer.database import Database
 from goalaric_optimizer.cli import main
 from goalaric_optimizer.scheduler import Scheduler
 from goalaric_optimizer.service import (
+    campaign_lock,
     init_campaign,
     pause_campaign,
     resume_campaign,
@@ -254,6 +255,17 @@ class Phase6Test(unittest.TestCase):
         with self.database._read() as connection:
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM games").fetchone()[0], 2)
             self.assertEqual(connection.execute("SELECT attempt FROM match_blocks").fetchone()[0], 21)
+
+    def test_stop_remains_available_while_optimize_lock_is_held(self) -> None:
+        self._prepare()
+        self.database.transition_campaign("fake-phase6", "running", "test optimize invocation")
+
+        with campaign_lock(self.data_dir, "fake-phase6"):
+            stopped = stop_campaign(self.data_dir, "fake-phase6")
+
+        self.assertEqual(stopped["status"], "interrupted")
+        self.assertEqual(self.database.status_snapshot("fake-phase6")["games"], 0)
+        self.assertEqual(self.database.running_block_processes("fake-phase6"), [])
 
     def test_scheduler_runs_three_blocks_sequentially(self) -> None:
         self._prepare(block_count=3)

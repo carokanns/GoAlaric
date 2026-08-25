@@ -193,8 +193,8 @@ class RealTestmonitorScheduler(Scheduler):
         )
         if not config.testmonitor_command:
             raise SchedulerError("testmonitor command cannot be empty")
-        if config.concurrency != 1:
-            raise SchedulerError("phase 8 requires concurrency=1")
+        if config.concurrency < 1:
+            raise SchedulerError("phase 8 requires positive concurrency")
         if config.hash_mb < 16 or config.threads < 1:
             raise SchedulerError("phase 8 requires hash >= 16 and positive threads")
         if config.profile_mode == "time":
