@@ -1,6 +1,7 @@
 package search
 
 import (
+	"os"
 	"slices"
 	"testing"
 
@@ -346,5 +347,70 @@ func TestNullMoveIsNotAttemptedWithoutNonPawnMaterial(t *testing.T) {
 	result := runNullWindow(t, fen, 6, -500)
 	if got := rootEventKinds(result.events); len(got) != 0 {
 		t.Fatalf("root null events = %v, want none for king-and-pawn material", got)
+	}
+}
+
+func TestPublishedNullMoveZugzwangPositions(t *testing.T) {
+	if os.Getenv("GOALARIC_NULL_VERIFICATION_EXTENDED") != "1" {
+		t.Skip("set GOALARIC_NULL_VERIFICATION_EXTENDED=1 for the fixed zugzwang suite")
+	}
+	tests := []struct {
+		id               string
+		fen              string
+		bestMove         string
+		requireBestMove  bool
+		requireRejection bool
+	}{
+		{"zugzwang.001", "8/8/p1p5/1p5p/1P5p/8/PPP2K1p/4R1rk w - - 0 1", "e1f1", true, true},
+		{"zugzwang.002", "1q1k4/2Rr4/8/2Q3K1/8/8/8/8 w - - 0 1", "g5h6", true, false},
+		{"zugzwang.003", "7k/5K2/5P1p/3p4/6P1/3p4/8/8 w - - 0 1", "g4g5", false, false},
+		{"zugzwang.004", "8/6B1/p5p1/Pp4kp/1P5r/5P1Q/4q1PK/8 w - - 0 32", "h3h4", false, false},
+		{"zugzwang.005", "8/8/1p1r1k2/p1pPN1p1/P3KnP1/1P6/8/3R4 b - - 0 1", "f4d5", false, false},
+	}
+	for _, test := range tests {
+		t.Run(test.id, func(t *testing.T) {
+			var local Local
+			slInitEarly(&local, 0)
+			slInitLate(&local)
+			board.SetFen(test.fen, &local.Board)
+			requireQuietKings(t, &local.Board)
+			SG.Trans.Clear()
+			SG.History.Clear()
+			SetStop(false)
+			beforeKey := local.Board.Key()
+			var events []nullMoveEvent
+			local.nullMoveObserver = func(event nullMoveEvent) { events = append(events, event) }
+			var pv pvStruct
+			score := search(&local, 14, minScore, maxScore, &pv)
+			got := move.ToString(pv.getMove(0))
+			started, accepted, rejected := 0, 0, 0
+			for _, event := range events {
+				switch event.kind {
+				case nullMoveVerificationStarted:
+					started++
+				case nullMoveVerificationAccepted:
+					accepted++
+				case nullMoveVerificationRejected:
+					rejected++
+				}
+			}
+			if local.Board.Key() != beforeKey || local.Board.Ply() != 0 {
+				t.Fatal("zugzwang search did not restore its board")
+			}
+			if pv.getSize() == 0 || got == move.ToString(move.None) {
+				t.Fatal("zugzwang search returned no principal variation")
+			}
+			if started == 0 || started != accepted+rejected {
+				t.Fatalf("verification events started=%d accepted=%d rejected=%d", started, accepted, rejected)
+			}
+			if test.requireBestMove && got != test.bestMove {
+				t.Fatalf("best move=%s, want published move %s", got, test.bestMove)
+			}
+			if test.requireRejection && rejected == 0 {
+				t.Fatal("known zugzwang search produced no rejected null cutoff")
+			}
+			t.Logf("best=%s published=%s score=%d nodes=%d verification=%d/%d/%d",
+				got, test.bestMove, score, local.node, started, accepted, rejected)
+		})
 	}
 }
