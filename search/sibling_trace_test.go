@@ -183,6 +183,74 @@ func TestDiagnosticExtensionUsesRecordedRecaptureSquare(t *testing.T) {
 	}
 }
 
+func TestSingularTTMoveRequiresSafeRuntimePreconditions(t *testing.T) {
+	var position board.Board
+	board.SetFen(board.StartFen, &position)
+	ttMove := board.FromString("e2e4", &position)
+	SG.Trans.Clear()
+	SG.Trans.Store(position.Key(), 5, position.Ply(), ttMove, 25, scoreTypeLower)
+	probe := SG.Trans.probeDiagnostic(position.Key(), position.Ply())
+	if got := singularTTMove(&position, 6, false, probe); got != ttMove {
+		t.Fatalf("valid singular TT move rejected: got=%d want=%d", got, ttMove)
+	}
+	for _, test := range []struct {
+		name  string
+		depth int
+		check bool
+		probe transDiagnostic
+		want  int
+	}{
+		{name: "too shallow", depth: 9, probe: probe},
+		{name: "in check", depth: 6, check: true, probe: probe},
+		{name: "upper bound", depth: 6, probe: transDiagnostic{Found: true, Move: ttMove, Score: 25, Depth: 5, Bound: scoreTypeUpper}},
+		{name: "missing entry", depth: 6, probe: transDiagnostic{}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := singularTTMove(&position, test.depth, test.check, test.probe); got != test.want {
+				t.Fatalf("got=%d want=%d", got, test.want)
+			}
+		})
+	}
+	var sparse board.Board
+	board.SetFen("4k3/8/8/8/8/8/4R3/4K3 w - -", &sparse)
+	mv := board.FromString("e2e3", &sparse)
+	if got := singularTTMove(&sparse, 6, false, transDiagnostic{Found: true, Move: mv, Score: 25, Depth: 5, Bound: scoreTypeLower}); got != 0 {
+		t.Fatalf("sparse material accepted: %d", got)
+	}
+}
+
+func TestSingularExtensionIsAppliedToTTMove(t *testing.T) {
+	withoutSyzygy(t)
+	run := func(enabled bool) FixedDepthResult {
+		singularExtensionEnabled = enabled
+		defer func() { singularExtensionEnabled = true }()
+		var position board.Board
+		board.SetFen(board.StartFen, &position)
+		ttMove := board.FromString("e2e4", &position)
+		clear()
+		var local Local
+		slInitEarly(&local, 0)
+		slInitLate(&local)
+		slSetRoot(&local, &position)
+		SetStop(false)
+		ClearSearchCaches()
+		initSg()
+		SG.Trans.Store(position.Key(), 5, position.Ply(), ttMove, 25, scoreTypeLower)
+		var pv pvStruct
+		score := search(&local, 6, minScore, maxScore, &pv)
+		best := move.None
+		if pv.getSize() != 0 {
+			best = pv.getMove(0)
+		}
+		return FixedDepthResult{Score: score, BestMove: move.ToString(best), Nodes: local.node}
+	}
+	without := run(false)
+	with := run(true)
+	if with.Nodes <= without.Nodes {
+		t.Fatalf("singular extension did not add the expected ply: enabled=%+v disabled=%+v", with, without)
+	}
+}
+
 func withoutSyzygy(t *testing.T) {
 	t.Helper()
 	oldPath := Engine.SyzygyPath

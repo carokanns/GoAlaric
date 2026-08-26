@@ -47,6 +47,11 @@ var tablebaseGameHits atomic.Uint64
 var tablebaseGameRootWins atomic.Uint64
 var afterCompletedIteration func(int)
 
+// singularExtensionEnabled is deliberately kept as an experiment switch so
+// fixed-depth tests can compare the candidate with the same binary's baseline
+// behavior. The released candidate keeps it enabled.
+var singularExtensionEnabled = true
+
 // ConsumeTablebaseGameStats returns and resets the successful tablebase
 // probes accumulated since the previous UCI game boundary.
 func ConsumeTablebaseGameStats() (uint64, uint64) {
@@ -941,6 +946,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 
 	key := hash.Key(0)
 	transMove := move.None
+	preIIDTT := transDiagnostic{}
 
 	if useTrans {
 
@@ -960,6 +966,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 				return transSc
 			}
 		}
+		preIIDTT = SG.Trans.probeDiagnostic(key, bd.Ply())
 	}
 
 	if wdl, ok := syzygy.ProbeWDL(bd, depth, Engine.SyzygyProbeDepth); ok {
@@ -1078,6 +1085,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 	if siblingTrace != nil {
 		recordSiblingTrace(bd, depth, alpha, beta, pvNode, inCheck, hardPruning, sl.node)
 	}
+	singularMove := singularTTMove(bd, depth, inCheck, preIIDTT)
 
 	//////// The move loop ///////////
 
@@ -1107,6 +1115,9 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 		}
 
 		ext := extension(sl, mv, depth, pvNode)
+		if ext == 0 && mv == singularMove {
+			ext = 1
+		}
 
 		red := 0
 		if ext == 0 {
@@ -1312,6 +1323,29 @@ func lateMovePrune(pvNode bool, depth, bestScore, searchedSize int, dangerous bo
 		!IsMateScore(bestScore) &&
 		searchedSize >= depth*parms.Search.LMPMoveMultiplier &&
 		!dangerous
+}
+
+func singularTTMove(bd *board.Board, depth int, inCheck bool, probe transDiagnostic) int {
+	if !singularExtensionEnabled || depth < 6 || inCheck || bit.Count(bd.All()) <= 4 {
+		return move.None
+	}
+	if !probe.Found || probe.Move == move.None || probe.Depth < depth-3 || IsMateScore(probe.Score) {
+		return move.None
+	}
+	if probe.Bound != scoreTypeLower && probe.Bound != scoreTypeBetween {
+		return move.None
+	}
+	var legal gen.ScMvList
+	gen.LegalMoves(&legal, bd)
+	if legal.Size() < 4 {
+		return move.None
+	}
+	for ix := 0; ix < legal.Size(); ix++ {
+		if legal.Move(ix) == probe.Move {
+			return probe.Move
+		}
+	}
+	return move.None
 }
 
 // ExistingExtensionInfo describes the extension rules already present in the
