@@ -251,6 +251,26 @@ func TestSingularExtensionIsAppliedToTTMove(t *testing.T) {
 	}
 }
 
+func TestQuiescenceStopsBeforeMaxPlyGeneratorAccess(t *testing.T) {
+	var position board.Board
+	board.SetFen(board.StartFen, &position)
+	position.SetRoot()
+	for range maxPly {
+		position.MoveNull()
+	}
+
+	var local Local
+	slInitEarly(&local, 0)
+	slInitLate(&local)
+	local.Board = position
+	if local.Board.Ply() != maxPly {
+		t.Fatalf("test position ply = %d, want %d", local.Board.Ply(), maxPly)
+	}
+
+	// This used to panic at genList[local.ID][maxPly].
+	_ = Qs(&local, maxScore, 100)
+}
+
 func withoutSyzygy(t *testing.T) {
 	t.Helper()
 	oldPath := Engine.SyzygyPath

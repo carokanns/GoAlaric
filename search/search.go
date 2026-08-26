@@ -1274,6 +1274,9 @@ func Qs(sl *Local, beta, gain int) int { // for static NMP
 	if bs >= beta {
 		return bs
 	}
+	if bd.Ply() >= maxPly {
+		return bs
+	}
 
 	// move loop
 
