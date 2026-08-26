@@ -116,14 +116,6 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
     adaptive = AdaptivePolicy(
         min_blocks=_integer(adaptive_goals.get("min_blocks", 1), "adaptive.min_blocks", 1),
         max_blocks=_integer(adaptive_goals.get("max_blocks", 2), "adaptive.max_blocks", 1),
-        pairs_per_block=_integer(
-            adaptive_goals.get("pairs_per_block", 1), "adaptive.pairs_per_block", 1
-        ),
-        last_block_pairs=(
-            _integer(adaptive_goals["last_block_pairs"], "adaptive.last_block_pairs", 1)
-            if adaptive_goals.get("last_block_pairs") is not None
-            else None
-        ),
         weak_upper_score=float(adaptive_goals.get("weak_upper_score", 45.0)),
         target_score=float(adaptive_goals.get("target_score", 50.0)),
     )

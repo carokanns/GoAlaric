@@ -12,7 +12,6 @@ import (
 	"goalaric/eval"
 	"goalaric/gen"
 	"goalaric/hash"
-	"goalaric/material"
 	"goalaric/move"
 	"goalaric/parms"
 	"goalaric/syzygy"
@@ -386,51 +385,11 @@ type Local struct {
 	node     int64 // vill vara volatile - kan ge smp problem utan
 	maxPly   int   // vill vara volatile - kan ge smp problem utan
 
-	// Test seams are nil in engine searches and make null verification observable.
-	nullMoveObserver func(nullMoveEvent)
-	nullMoveVerifier nullMoveVerifier
-
 	//mspStack     [16]splitPoint
 	mspStackSize int
 
 	sspStack     [64]*splitPoint // 64? verkligen? Kanske 16*4
 	sspStackSize int
-}
-
-type nullMoveVerifier func(sl *Local, depth, alpha, beta, transMove int, pv *pvStruct) int
-
-type nullMoveEventKind uint8
-
-const (
-	nullMoveAttempt nullMoveEventKind = iota
-	nullMovePreliminaryCutoff
-	nullMoveVerificationStarted
-	nullMoveVerificationAccepted
-	nullMoveVerificationRejected
-	nullMoveDirectCutoff
-)
-
-type nullMoveEvent struct {
-	kind  nullMoveEventKind
-	depth int
-	ply   int
-	score int
-	beta  int
-	key   hash.Key
-}
-
-func observeNullMove(sl *Local, kind nullMoveEventKind, depth, score, beta int) {
-	if sl.nullMoveObserver == nil {
-		return
-	}
-	sl.nullMoveObserver(nullMoveEvent{
-		kind:  kind,
-		depth: depth,
-		ply:   sl.Board.Ply(),
-		score: score,
-		beta:  beta,
-		key:   sl.Board.Key(),
-	})
 }
 
 // ClearHash is used by tune.go
@@ -938,64 +897,6 @@ func rootSearchWindow(searchedSize, alpha, beta int) (int, int, bool) {
 }
 
 // search is searching the nodes in all depths below the current position
-const nullVerificationReduction = 5
-
-func needsNullMoveVerification(bd *board.Board, side, depth int) bool {
-	if depth <= nullVerificationReduction {
-		return false
-	}
-	nonPawnPieces := bd.Count(material.Knight, side) +
-		bd.Count(material.Bishop, side) +
-		bd.Count(material.Rook, side) +
-		bd.Count(material.Queen, side)
-	return nonPawnPieces <= 1
-}
-
-// nullMoveVerificationSearch searches real moves at the verification root.
-// Its children use the normal search, including null-move pruning where safe.
-func nullMoveVerificationSearch(sl *Local, depth, alpha, beta, transMove int, pv *pvStruct) int {
-	pv.clear()
-	bd := &sl.Board
-	var attacks eval.Attacks
-	eval.InitAttacks(&attacks, bd.Stm(), bd)
-
-	gl := &genList[sl.ID][bd.Ply()]
-	gl.Init(depth, bd, &attacks, transMove, &sl.killer, &SG.History, false)
-	bestScore := noScore
-	for mv := gl.Next(); mv != move.None; mv = gl.Next() {
-		ext := extension(sl, mv, depth, false)
-		var childPV pvStruct
-		slMove(sl, mv)
-		score := -search(sl, depth+ext-1, -beta, -alpha, &childPV)
-		undo(sl)
-
-		if score > bestScore {
-			bestScore = score
-			pv.catenate(mv, &childPV)
-			if score > alpha {
-				alpha = score
-				if score >= beta {
-					return score
-				}
-			}
-		}
-		if bStop.Load() {
-			return alpha
-		}
-	}
-	if bestScore == noScore {
-		return drawScore(bd.Ply())
-	}
-	return bestScore
-}
-
-func runNullMoveVerification(sl *Local, depth, alpha, beta, transMove int, pv *pvStruct) int {
-	if sl.nullMoveVerifier != nil {
-		return sl.nullMoveVerifier(sl, depth, alpha, beta, transMove, pv)
-	}
-	return nullMoveVerificationSearch(sl, depth, alpha, beta, transMove, pv)
-}
-
 // When it reaches its max search depth (set by search_go) it starts the
 // qs (quiscense search) to make sure captures, checks and promotions are
 // tried out before evaluation is made
@@ -1095,7 +996,6 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			evalReady = true
 		}
 		if ev >= beta {
-			observeNullMove(sl, nullMoveAttempt, depth, ev, beta)
 			bd.MoveNull() // TODO: use sl?
 
 			sc := minScore
@@ -1110,35 +1010,15 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			}
 
 			bd.UndoNull() // TODO: use sl?
-			if bStop.Load() {
+			if sc >= beta {
+
+				if useTrans {
+					SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, scoreTypeLower)
+				}
 				return sc
 			}
-			if sc >= beta {
-				observeNullMove(sl, nullMovePreliminaryCutoff, depth, sc, beta)
-				if needsNullMoveVerification(bd, stm, depth) {
-					observeNullMove(sl, nullMoveVerificationStarted, depth, sc, beta)
-					var verificationPV pvStruct
-					verifiedScore := runNullMoveVerification(sl, depth-nullVerificationReduction, alpha, beta, transMove, &verificationPV)
-					if bStop.Load() {
-						return verifiedScore
-					}
-					if verifiedScore < beta {
-						observeNullMove(sl, nullMoveVerificationRejected, depth, verifiedScore, beta)
-					} else {
-						observeNullMove(sl, nullMoveVerificationAccepted, depth, verifiedScore, beta)
-						*pv = verificationPV
-						if useTrans {
-							SG.Trans.Store(key, transDepth, bd.Ply(), pv.getMove(0), verifiedScore, scoreTypeLower)
-						}
-						return verifiedScore
-					}
-				} else {
-					observeNullMove(sl, nullMoveDirectCutoff, depth, sc, beta)
-					if useTrans {
-						SG.Trans.Store(key, transDepth, bd.Ply(), move.None, sc, scoreTypeLower)
-					}
-					return sc
-				}
+			if bStop.Load() {
+				return sc
 			}
 		}
 	}
@@ -1773,8 +1653,6 @@ func slInitEarly(sl *Local, id int) {
 
 	sl.node = 0
 	sl.maxPly = 0
-	sl.nullMoveObserver = nil
-	sl.nullMoveVerifier = nil
 
 	sl.mspStackSize = 0
 	sl.sspStackSize = 0

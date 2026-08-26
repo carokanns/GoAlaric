@@ -148,10 +148,7 @@ class Phase9Test(unittest.TestCase):
                 [{"wins": 2, "draws": 0, "losses": 0}],
             )
             parameter_hash = __import__("goalaric_optimizer.canonical", fromlist=["sha256_json"]).sha256_json(candidate)
-            return runner, lambda index, pairs: (
-                "book-phase9",
-                f"block-{parameter_hash}-{index}-{pairs}",
-            )
+            return runner, lambda index: ("book-phase9", f"block-{parameter_hash}-{index}")
 
         evaluator = AdaptiveCoordinateEvaluator(
             self.database,
@@ -179,42 +176,6 @@ class Phase9Test(unittest.TestCase):
             ]
         self.assertEqual(len(hashes), len(set(hashes)))
         self.assertGreaterEqual(len(hashes), 3)
-
-    def test_multi_pair_blocks_keep_exact_budget_with_smaller_last_block(self) -> None:
-        candidate = self._candidate(2)
-        policy = AdaptivePolicy(
-            min_blocks=3,
-            max_blocks=3,
-            pairs_per_block=3,
-            last_block_pairs=1,
-            weak_upper_score=0.0,
-        )
-        controller = AdaptiveCampaign(
-            self.database,
-            "fake-phase9",
-            candidate,
-            policy,
-            FakeBlockRunner(
-                self.database,
-                "fake-phase9",
-                [
-                    {"wins": 0, "draws": 6, "losses": 0},
-                    {"wins": 0, "draws": 6, "losses": 0},
-                    {"wins": 0, "draws": 2, "losses": 0},
-                ],
-            ),
-            seed=9001,
-        )
-
-        result = controller.run()
-
-        self.assertEqual(result["decision"], "uncertain")
-        self.assertEqual(result["statistics"]["games"], 14)
-        with self.database._read() as connection:
-            pairs = connection.execute(
-                "SELECT pairs_per_block FROM match_blocks ORDER BY block_index"
-            ).fetchall()
-        self.assertEqual([row[0] for row in pairs], [3, 3, 1])
 
 
 if __name__ == "__main__":
