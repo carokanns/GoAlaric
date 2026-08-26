@@ -390,6 +390,14 @@ type Local struct {
 
 	sspStack     [64]*splitPoint // 64? verkligen? Kanske 16*4
 	sspStackSize int
+
+	singleReplyObserver func(singleReplyEvent)
+}
+
+type singleReplyEvent struct {
+	move  int
+	depth int
+	ply   int
 }
 
 // ClearHash is used by tune.go
@@ -810,10 +818,11 @@ func searchRoot(sl *Local, ml *gen.ScMvList, depth, alpha, beta int) {
 	inCheck := eval.IsInCheck(bd)
 	searchedSize := 0
 	// move loop
+	singleReply := ml.Size() == 1
 	for pos := 0; pos < ml.Size(); pos++ {
 		mv := ml.Move(pos)
 
-		ext := extension(sl, mv, depth, pvNode)
+		ext := extension(sl, mv, depth, pvNode, singleReply)
 		red := 0
 		if ext == 0 {
 			dangerous := inCheck || move.IsTactical(mv) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd)
@@ -1082,7 +1091,15 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 
 	searched := &genSearched[sl.ID][bd.Ply()]
 	searched.Clear()
-	for mv := gl.Next(); mv != move.None; mv = gl.Next() {
+	current := nextGeneratedMove(gl)
+	lookAhead := singleReplyLookAheadAllowed(depth, hardPruning, current.move)
+	next := generatedMove{move: move.None}
+	if lookAhead {
+		next = nextGeneratedMove(gl)
+	}
+	singleReply := lookAhead && next.move == move.None
+	for ; current.move != move.None; current = advanceGeneratedMove(gl, lookAhead, &next) {
+		mv := current.move
 		if hardPruning {
 			if move.IsTactical(mv) && !eval.IsCheck(mv, bd) && val+move.CaptMax(mv) <= alpha { // delta pruning
 				continue
@@ -1092,7 +1109,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			}
 		}
 
-		dangerous := inCheck || move.IsTactical(mv) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd) || gl.Candidate()
+		dangerous := inCheck || singleReply || move.IsTactical(mv) || move.IsCastling(mv) || eval.IsPawnPush(mv, bd) || current.candidate
 		if !dangerous {
 			dangerous = eval.IsCheck(mv, bd)
 		}
@@ -1101,7 +1118,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			continue
 		}
 
-		ext := extension(sl, mv, depth, pvNode)
+		ext := extension(sl, mv, depth, pvNode, singleReply)
 
 		red := 0
 		if ext == 0 {
@@ -1309,9 +1326,40 @@ func lateMovePrune(pvNode bool, depth, bestScore, searchedSize int, dangerous bo
 		!dangerous
 }
 
-func extension(sl *Local, mv int, depth int, pvNode bool) int {
+type generatedMove struct {
+	move      int
+	candidate bool
+}
+
+func singleReplyLookAheadAllowed(depth int, hardPruning bool, firstMove int) bool {
+	return depth > 0 && !hardPruning && firstMove != move.None
+}
+
+func nextGeneratedMove(gl *gen.List) generatedMove {
+	mv := gl.Next()
+	return generatedMove{move: mv, candidate: mv != move.None && gl.Candidate()}
+}
+
+func advanceGeneratedMove(gl *gen.List, lookAhead bool, next *generatedMove) generatedMove {
+	if !lookAhead {
+		return nextGeneratedMove(gl)
+	}
+	result := *next
+	if result.move != move.None {
+		*next = nextGeneratedMove(gl)
+	}
+	return result
+}
+
+func extension(sl *Local, mv int, depth int, pvNode, singleReply bool) int {
 
 	bd := &sl.Board
+	if depth > 0 && singleReply {
+		if sl.singleReplyObserver != nil {
+			sl.singleReplyObserver(singleReplyEvent{move: mv, depth: depth, ply: bd.Ply()})
+		}
+		return 1
+	}
 
 	if depth <= 4 && (eval.IsCheck(mv, bd) || gen.IsRecapture(mv, bd)) {
 		return 1
