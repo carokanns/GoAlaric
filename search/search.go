@@ -961,6 +961,7 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 			}
 		}
 	}
+
 	if wdl, ok := syzygy.ProbeWDL(bd, depth, Engine.SyzygyProbeDepth); ok {
 		sc := tablebaseScore(wdl, bd.Ply())
 		if useTrans {
@@ -1072,6 +1073,10 @@ func search(sl *Local, depth, alpha, beta int, pv *pvStruct) int {
 		if sc > alpha && npv.getSize() != 0 {
 			transMove = npv.getMove(0)
 		}
+	}
+
+	if siblingTrace != nil {
+		recordSiblingTrace(bd, depth, alpha, beta, pvNode, inCheck, hardPruning, sl.node)
 	}
 
 	//////// The move loop ///////////
@@ -1309,22 +1314,47 @@ func lateMovePrune(pvNode bool, depth, bestScore, searchedSize int, dangerous bo
 		!dangerous
 }
 
+// ExistingExtensionInfo describes the extension rules already present in the
+// engine. It is exported only so the opt-in sibling diagnostic can exclude
+// moves that are already extended.
+type ExistingExtensionInfo struct {
+	Extended       bool `json:"extended"`
+	GivesCheck     bool `json:"gives_check"`
+	Recapture      bool `json:"recapture"`
+	WinningCapture bool `json:"winning_capture"`
+	PassedPawnPush bool `json:"passed_pawn_push"`
+}
+
+func ClassifyExistingExtension(bd *board.Board, mv, depth int, pvNode bool) ExistingExtensionInfo {
+	return ClassifyExistingExtensionAtNode(bd, mv, depth, pvNode, bd.Recap())
+}
+
+// ClassifyExistingExtensionAtNode accepts the recapture square explicitly so
+// a traced node can be classified after FEN replay (FEN does not contain it).
+func ClassifyExistingExtensionAtNode(bd *board.Board, mv, depth int, pvNode bool, recaptureSquare int) ExistingExtensionInfo {
+	givesCheck := eval.IsCheck(mv, bd)
+	recapture := move.To(mv) == recaptureSquare && gen.IsWin(mv, bd)
+	winningCapture := move.IsTactical(mv) && gen.IsWin(mv, bd)
+	passedPawnPush := eval.IsPawnPush(mv, bd)
+	extended := depth <= 4 && (givesCheck || recapture)
+	if pvNode && (givesCheck || winningCapture || passedPawnPush) {
+		extended = true
+	}
+	return ExistingExtensionInfo{
+		Extended: extended, GivesCheck: givesCheck, Recapture: recapture,
+		WinningCapture: winningCapture, PassedPawnPush: passedPawnPush,
+	}
+}
+
 func extension(sl *Local, mv int, depth int, pvNode bool) int {
-
 	bd := &sl.Board
-
 	if depth <= 4 && (eval.IsCheck(mv, bd) || gen.IsRecapture(mv, bd)) {
 		return 1
 	}
-
-	if pvNode {
-		if eval.IsCheck(mv, bd) || (move.IsTactical(mv) && gen.IsWin(mv, bd)) || eval.IsPawnPush(mv, bd) {
-			return 1
-		}
+	if pvNode && (eval.IsCheck(mv, bd) || (move.IsTactical(mv) && gen.IsWin(mv, bd)) || eval.IsPawnPush(mv, bd)) {
+		return 1
 	}
-
 	return 0
-
 }
 
 func reduction(sl *Local, mv, depth int, pvNode, inCheck bool, searchedSize int, interesting bool) int {

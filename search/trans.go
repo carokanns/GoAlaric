@@ -59,6 +59,38 @@ type transTable struct {
 	cntUsed    uint64
 }
 
+type transDiagnostic struct {
+	Found bool
+	Move  int
+	Score int
+	Depth int
+	Bound int
+}
+
+// probeDiagnostic reads a transposition entry without refreshing its
+// generation or changing any table counters. It is only used by opt-in search
+// diagnostics, so normal search replacement and ageing remain untouched.
+func (t *transTable) probeDiagnostic(key hash.Key, ply int) transDiagnostic {
+	if len(t.entries) == 0 {
+		return transDiagnostic{}
+	}
+	index := uint64(hash.Index(key)) & t.mask
+	lock := hash.Lock(key)
+	for i := uint64(0); i < 4; i++ {
+		entry := &t.entries[(index+i)&t.mask]
+		if entry.lock == lock && entry.date != 0 {
+			return transDiagnostic{
+				Found: true,
+				Move:  int(entry.move),
+				Score: AddMatePly(int(entry.score), ply),
+				Depth: int(entry.depth),
+				Bound: int(entry.scoreType),
+			}
+		}
+	}
+	return transDiagnostic{}
+}
+
 // IncDate bump:ar generationen så nya poster markeras som färska.
 func (t *transTable) IncDate() {
 	if t.generation == ^uint16(0) {
