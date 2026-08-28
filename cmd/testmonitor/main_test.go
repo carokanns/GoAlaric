@@ -353,8 +353,8 @@ func TestSyzygyPathUsesLocalTablesByDefault(t *testing.T) {
 	if cfg.SyzygyPath != tables {
 		t.Fatalf("Syzygy path = %q, want %q", cfg.SyzygyPath, tables)
 	}
-	if cfg.DrawMoveNumber != defaultDrawMoveNumber {
-		t.Fatalf("draw adjudication starts at move %d, want %d", cfg.DrawMoveNumber, defaultDrawMoveNumber)
+	if cfg.DrawMoveNumber != 60 {
+		t.Fatalf("draw adjudication starts at move %d, want 60", cfg.DrawMoveNumber)
 	}
 	for _, engine := range []string{cfg.Candidate, cfg.Baseline} {
 		if !strings.Contains(strings.Join(fastchessEngineArgs(engine, "test", tables, cfg), " "), "option.SyzygyPath="+tables) {

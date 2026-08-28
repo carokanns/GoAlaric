@@ -37,7 +37,7 @@ const (
 	defaultSPRTAlpha         = "0.04"
 	defaultSPRTBeta          = "0.20"
 	defaultResignScore       = 500
-	defaultDrawMoveNumber    = 40
+	defaultDrawMoveNumber    = 60
 	defaultProgressInterval  = "1m"
 	defaultScreeningProgress = 10
 	defaultSPRTProgress      = 50
