@@ -45,6 +45,17 @@ ignorerade av Git. Aktivera dem med:
 setoption name SyzygyPath value /absolut/sökväg/till/.tools/syzygy/3-4
 ```
 
+Hämta den kompletta uppsättningen för tre till fem pjäser:
+
+```bash
+bash scripts/setup_syzygy_5.sh
+```
+
+De 145 WDL- och 145 DTZ-filerna hamnar i
+`.tools/syzygy/3-4-5-complete`, verifieras mot Lichess SHA-256-manifest och
+tar 983 957 920 byte, ungefär 939 MiB. WDL-delen räcker för Fastchess
+tabellavdömning; GoAlarics rotprobering använder även DTZ-delen.
+
 Installera de små, checksummekontrollerade testtabellerna:
 
 ```bash

@@ -124,6 +124,20 @@ ut en annan tabellmapp med `--syzygy-path <sökväg>`.
 A/B-test där bara den ena motorn har tabeller. Remiavdömningens startdrag kan
 ändras med `--draw-movenumber`; standardvärdet är 60.
 
+Fastchess kan avdöma tabellställningar symmetriskt och oberoende av motorernas
+egna Syzygy-stöd. Ange både tabellmapp och pjäsgräns:
+
+```bash
+--tablebase-adjudication-path .tools/syzygy/3-4-5-complete \
+--tablebase-adjudication-pieces 5
+```
+
+Testmonitor skickar då `-tb PATH -tbpieces 5 -tbadjudicate BOTH` till
+Fastchess. Både vinster och remier avdöms med WDL-tabellerna och
+50-dragsregeln behålls. Vanlig resign-, remi- eller regelavdömning kan fortsatt
+avsluta partiet innan en tabellställning nås. Motorernas `SyzygyPath` styr bara
+deras interna sökning och är separat från Fastchess avdömning.
+
 ## Fristående depth pre-scan
 
 Pre-scanningen mäter sista kompletta UCI-`depth` före varje `bestmove`. Den
