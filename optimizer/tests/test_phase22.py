@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 from goalaric_optimizer.canonical import sha256_json
 from goalaric_optimizer.dashboard import DashboardReader, final_report
-from goalaric_optimizer.database import CampaignConflict, Database
+from goalaric_optimizer.database import CampaignConflict, Database, SCHEMA_VERSION
 from goalaric_optimizer.optimization import run_optimization
 from goalaric_optimizer.profiles import MatchProfile, ProfileError, resolve_profile
 from goalaric_optimizer.real_integration import RealTestmonitorConfig, RealTestmonitorScheduler
@@ -203,7 +203,7 @@ class Phase22NodeProfileTest(unittest.TestCase):
                 connection.execute(
                     "SELECT value FROM schema_meta WHERE key='schema_version'"
                 ).fetchone()[0],
-                "5",
+                str(SCHEMA_VERSION),
             )
             for table in ("trials", "confirmations"):
                 columns = {

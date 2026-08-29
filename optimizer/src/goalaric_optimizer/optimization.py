@@ -11,6 +11,14 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 from .adaptive import AdaptiveCampaign, AdaptiveError, AdaptivePolicy, RealAdaptiveBlockRunner
+from .bayes import BayesianSearchError
+from .bayesian_optimization import (
+    BayesianOptimizationError,
+    BayesianOptimizer,
+    BayesianRunSettings,
+    DeterministicFakePairRunner,
+    dimensions_from_registry,
+)
 from .canonical import atomic_write_json, canonical_json, sha256_bytes, sha256_json
 from .confirmation import (
     ConfirmationCampaign,
@@ -45,6 +53,7 @@ def _integer(value: Any, name: str, minimum: int = 0) -> int:
 
 @dataclass(frozen=True)
 class OptimizeSettings:
+    algorithm: str
     max_games: int
     max_evaluations: int
     max_passes: int
@@ -55,6 +64,8 @@ class OptimizeSettings:
     fake_optimum: dict[str, int] | None
     search_profile: MatchProfile
     confirmation: ConfirmationSettings
+    bayesian_initial_points: int
+    bayesian_pairs_per_evaluation: int
 
 
 def _settings(database: Database, campaign_id: str, registry: Registry) -> OptimizeSettings:
@@ -72,6 +83,10 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
     fake_goals = goals.get("fake_match", {})
     if not isinstance(fake_goals, dict):
         raise OptimizationError("goals.fake_match must be an object")
+
+    algorithm = optimizer_goals.get("algorithm", "coordinate-multires-v1")
+    if algorithm not in {"coordinate-multires-v1", "finite-noise-aware-bo-v1"}:
+        raise OptimizationError(f"unsupported optimizer algorithm: {algorithm}")
 
     max_games = _integer(
         goals.get("max_games", optimizer_goals.get("max_games", 0)), "goals.max_games"
@@ -153,6 +168,7 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
         confirmation_source, int(campaign["master_seed"]), profile=confirmation_profile
     )
     return OptimizeSettings(
+        algorithm=algorithm,
         max_games=max_games,
         max_evaluations=max_evaluations,
         max_passes=max_passes,
@@ -163,6 +179,20 @@ def _settings(database: Database, campaign_id: str, registry: Registry) -> Optim
         fake_optimum=fake_optimum,
         search_profile=search_profile,
         confirmation=confirmation,
+        bayesian_initial_points=(
+            _integer(optimizer_goals.get("initial_points", 9), "optimizer.initial_points", 1)
+            if algorithm == "finite-noise-aware-bo-v1"
+            else 9
+        ),
+        bayesian_pairs_per_evaluation=(
+            _integer(
+                optimizer_goals.get("pairs_per_evaluation", 16),
+                "optimizer.pairs_per_evaluation",
+                2,
+            )
+            if algorithm == "finite-noise-aware-bo-v1"
+            else 16
+        ),
     )
 
 
@@ -653,6 +683,52 @@ class AutonomousOptimizer:
                 return report
 
 
+def _run_fake_bayesian_optimization(
+    database: Database,
+    definition: Any,
+    settings: OptimizeSettings,
+    invocation_limit: int,
+) -> dict[str, Any]:
+    if settings.fake_optimum is None:
+        raise OptimizationError("goals.fake_match.optimum is required for Bayesian fake mode")
+    if settings.confirmation.enabled:
+        raise OptimizationError("Bayesian confirmation is not implemented until the real-runner milestone")
+    if settings.max_evaluations < 1:
+        raise OptimizationError("Bayesian optimization requires goals.max_evaluations")
+    dimensions = dimensions_from_registry(definition.registry, settings.parameter_names)
+    optimum = tuple(settings.fake_optimum[item.name] for item in dimensions)
+
+    def objective(values: tuple[int, ...]) -> float:
+        distances = []
+        for value, target, dimension in zip(values, optimum, dimensions, strict=True):
+            span = dimension.values[-1] - dimension.values[0]
+            distances.append(0.0 if span == 0 else ((value - target) / span) ** 2)
+        mean_distance = sum(distances) / len(distances)
+        return min(0.60, max(0.40, 0.56 - 0.12 * mean_distance))
+
+    max_evaluations = settings.max_evaluations
+    if settings.max_games:
+        games_per_evaluation = settings.bayesian_pairs_per_evaluation * 2
+        budgeted_evaluations = settings.max_games // games_per_evaluation
+        if budgeted_evaluations < 1:
+            raise OptimizationError("match budget cannot fund one Bayesian evaluation")
+        max_evaluations = min(max_evaluations, budgeted_evaluations)
+    controller = BayesianOptimizer(
+        database,
+        definition.campaign_id,
+        definition.registry,
+        BayesianRunSettings(
+            seed=definition.master_seed,
+            pairs_per_evaluation=settings.bayesian_pairs_per_evaluation,
+            max_evaluations=max_evaluations,
+            initial_points=settings.bayesian_initial_points,
+            parameter_names=settings.parameter_names,
+        ),
+        DeterministicFakePairRunner(objective, seed=definition.master_seed),
+    )
+    return controller.run(max_results=invocation_limit)
+
+
 def run_optimization(
     campaign_path: Path,
     data_dir: Path,
@@ -671,6 +747,23 @@ def run_optimization(
         settings = replace(settings, max_games=_integer(max_games_override, "max_games"))
     if max_evaluations_override is not None:
         settings = replace(settings, max_evaluations=_integer(max_evaluations_override, "max_evaluations"))
+    if settings.algorithm == "finite-noise-aware-bo-v1":
+        if definition.mode != "fake":
+            raise OptimizationError("Bayesian real mode is not implemented until the real-runner milestone")
+        with campaign_lock(data_dir, definition.campaign_id):
+            token = f"optimizer-{os.getpid()}"
+            try:
+                database.claim_campaign(definition.campaign_id, token, takeover=True)
+                return _run_fake_bayesian_optimization(
+                    database, definition, settings, invocation_limit
+                )
+            except (BayesianOptimizationError, BayesianSearchError) as exc:
+                raise OptimizationError(str(exc)) from exc
+            finally:
+                try:
+                    database.release_campaign(definition.campaign_id, token)
+                except (DatabaseError, CampaignBusy):
+                    pass
     if definition.mode == "fake":
         if settings.fake_optimum is None:
             raise OptimizationError("goals.fake_match.optimum is required for mode=fake")

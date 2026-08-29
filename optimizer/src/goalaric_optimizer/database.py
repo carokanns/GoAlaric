@@ -12,7 +12,7 @@ from .profiles import profile_identity, profiles_equivalent
 from .statistics import aggregate_wdl
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 CAMPAIGN_STATES = {"pending", "running", "completed", "failed", "interrupted", "paused", "rejected"}
 TRIAL_STATES = CAMPAIGN_STATES
 BLOCK_STATES = {"pending", "running", "completed", "failed", "interrupted", "rejected"}
@@ -269,6 +269,48 @@ CREATE TABLE IF NOT EXISTS confirmation_games (
 
 CREATE INDEX IF NOT EXISTS confirmations_campaign_idx ON confirmations(campaign_id);
 CREATE INDEX IF NOT EXISTS confirmation_blocks_status_idx ON confirmation_blocks(confirmation_id, status);
+
+-- Bayesian ask/tell state is separate from coordinate trials. A pending
+-- proposal is durable work; its observation and the model checkpoint are
+-- committed together so a restart cannot train on half-recorded evidence.
+CREATE TABLE IF NOT EXISTS bayesian_proposals (
+    proposal_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL REFERENCES campaigns(campaign_id),
+    sequence INTEGER NOT NULL,
+    parameter_hash TEXT NOT NULL,
+    parameter_document_json TEXT NOT NULL,
+    values_json TEXT NOT NULL,
+    pairs_requested INTEGER NOT NULL CHECK (pairs_requested >= 2),
+    model_seed INTEGER NOT NULL,
+    algorithm TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending','completed')),
+    created_at TEXT NOT NULL,
+    finished_at TEXT,
+    updated_at TEXT NOT NULL,
+    UNIQUE (campaign_id, sequence),
+    UNIQUE (campaign_id, parameter_hash)
+);
+
+CREATE TABLE IF NOT EXISTS bayesian_observations (
+    observation_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL REFERENCES campaigns(campaign_id),
+    proposal_id TEXT NOT NULL REFERENCES bayesian_proposals(proposal_id),
+    parameter_hash TEXT NOT NULL,
+    pairs INTEGER NOT NULL CHECK (pairs >= 2),
+    games INTEGER NOT NULL CHECK (games >= 4),
+    score REAL NOT NULL,
+    variance REAL NOT NULL CHECK (variance > 0),
+    pair_points_json TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (campaign_id, proposal_id),
+    UNIQUE (campaign_id, parameter_hash)
+);
+
+CREATE INDEX IF NOT EXISTS bayesian_proposals_campaign_idx
+    ON bayesian_proposals(campaign_id, sequence);
+CREATE INDEX IF NOT EXISTS bayesian_observations_campaign_idx
+    ON bayesian_observations(campaign_id, proposal_id);
 """
 
 
@@ -402,6 +444,10 @@ class Database:
                             table,
                             (("profile_mode", "TEXT"), ("profile_nodes", "INTEGER")),
                         )
+                    connection.execute(
+                        "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
+                    )
+                elif version == 5:
                     connection.execute(
                         "UPDATE schema_meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
                     )
@@ -2349,6 +2395,22 @@ class Database:
                 "SELECT COALESCE(SUM(wins+draws+losses),0) AS games FROM match_blocks WHERE campaign_id=?",
                 (campaign_id,),
             ).fetchone()["games"]
+            has_bayesian_schema = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='bayesian_observations'"
+            ).fetchone() is not None
+            if has_bayesian_schema:
+                bayesian_counts = connection.execute(
+                    "SELECT COUNT(*) AS observations,COALESCE(SUM(pairs),0) AS pairs,"
+                    "COALESCE(SUM(games),0) AS games FROM bayesian_observations WHERE campaign_id=?",
+                    (campaign_id,),
+                ).fetchone()
+                pending_bayesian = connection.execute(
+                    "SELECT COUNT(*) AS count FROM bayesian_proposals WHERE campaign_id=? AND status='pending'",
+                    (campaign_id,),
+                ).fetchone()["count"]
+            else:
+                bayesian_counts = {"observations": 0, "pairs": 0, "games": 0}
+                pending_bayesian = 0
             checkpoint = connection.execute(
                 "SELECT revision,checkpoint_hash,updated_at,state_json FROM optimizer_state WHERE campaign_id=?",
                 (campaign_id,),
@@ -2444,6 +2506,15 @@ class Database:
                 "trials": {row["status"]: row["count"] for row in trial_rows},
                 "blocks": {row["status"]: row["count"] for row in block_rows},
                 "games": int(games),
+                "bayesian": {
+                    "observations": int(bayesian_counts["observations"]),
+                    "pairs": int(bayesian_counts["pairs"]),
+                    "games": int(bayesian_counts["games"]),
+                    "pending_proposals": int(pending_bayesian),
+                    "identity_hash": checkpoint_state.get("bayesian_identity_hash"),
+                }
+                if checkpoint_state.get("bayesian_identity") is not None
+                else None,
                 "checkpoint": checkpoint_dict,
                 "search_profile": checkpoint_state.get("search_profile"),
                 "confirmation_profile": confirmation_profile,
@@ -2490,3 +2561,234 @@ class Database:
             result = dict(row)
             result["state"] = json.loads(result.pop("state_json"))
             return result
+
+    def create_bayesian_proposal(
+        self,
+        campaign_id: str,
+        sequence: int,
+        document: dict[str, Any],
+        values: list[int],
+        pairs_requested: int,
+        model_seed: int,
+        algorithm: str,
+    ) -> dict[str, Any]:
+        """Persist one ask result, returning the identical proposal on replay."""
+        if sequence < 1 or pairs_requested < 2 or not algorithm:
+            raise DatabaseError("invalid Bayesian proposal identity")
+        parameter_digest = sha256_json(document)
+        proposal_id = f"bayes-{sequence:06d}-{parameter_digest[:16]}"
+        now = utc_now()
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            existing = connection.execute(
+                "SELECT * FROM bayesian_proposals WHERE campaign_id=? AND sequence=?",
+                (campaign_id, sequence),
+            ).fetchone()
+            if existing is not None:
+                expected = (
+                    parameter_digest,
+                    _json(document),
+                    _json(values),
+                    pairs_requested,
+                    model_seed,
+                    algorithm,
+                )
+                actual = (
+                    existing["parameter_hash"],
+                    existing["parameter_document_json"],
+                    existing["values_json"],
+                    int(existing["pairs_requested"]),
+                    int(existing["model_seed"]),
+                    existing["algorithm"],
+                )
+                if actual != expected:
+                    raise CampaignConflict("Bayesian proposal replay differs from SQLite")
+                return self._decode_bayesian_proposal(existing)
+            duplicate = connection.execute(
+                "SELECT sequence FROM bayesian_proposals WHERE campaign_id=? AND parameter_hash=?",
+                (campaign_id, parameter_digest),
+            ).fetchone()
+            if duplicate is not None:
+                raise CampaignConflict(
+                    f"Bayesian parameter set was already proposed at sequence {duplicate['sequence']}"
+                )
+            connection.execute(
+                "INSERT INTO bayesian_proposals(proposal_id,campaign_id,sequence,parameter_hash,"
+                "parameter_document_json,values_json,pairs_requested,model_seed,algorithm,status,"
+                "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'pending',?,?)",
+                (
+                    proposal_id,
+                    campaign_id,
+                    sequence,
+                    parameter_digest,
+                    _json(document),
+                    _json(values),
+                    pairs_requested,
+                    model_seed,
+                    algorithm,
+                    now,
+                    now,
+                ),
+            )
+            self._event(
+                connection,
+                campaign_id,
+                "bayesian_proposal_created",
+                "bayesian_proposal",
+                proposal_id,
+                {"sequence": sequence, "parameter_hash": parameter_digest},
+                to_status="pending",
+            )
+            row = connection.execute(
+                "SELECT * FROM bayesian_proposals WHERE proposal_id=?", (proposal_id,)
+            ).fetchone()
+            return self._decode_bayesian_proposal(row)
+
+    @staticmethod
+    def _decode_bayesian_proposal(row: sqlite3.Row) -> dict[str, Any]:
+        result = dict(row)
+        result["parameter_document"] = json.loads(result.pop("parameter_document_json"))
+        result["values"] = json.loads(result.pop("values_json"))
+        return result
+
+    @staticmethod
+    def _decode_bayesian_observation(row: sqlite3.Row) -> dict[str, Any]:
+        result = dict(row)
+        result["pair_points"] = json.loads(result.pop("pair_points_json"))
+        result["result"] = json.loads(result.pop("result_json"))
+        return result
+
+    def pending_bayesian_proposal(self, campaign_id: str) -> dict[str, Any] | None:
+        with self._read() as connection:
+            self._campaign(connection, campaign_id)
+            rows = connection.execute(
+                "SELECT * FROM bayesian_proposals WHERE campaign_id=? AND status='pending' ORDER BY sequence",
+                (campaign_id,),
+            ).fetchall()
+            if len(rows) > 1:
+                raise DatabaseError("campaign has multiple pending Bayesian proposals")
+            return self._decode_bayesian_proposal(rows[0]) if rows else None
+
+    def bayesian_proposals(self, campaign_id: str) -> list[dict[str, Any]]:
+        with self._read() as connection:
+            self._campaign(connection, campaign_id)
+            rows = connection.execute(
+                "SELECT * FROM bayesian_proposals WHERE campaign_id=? ORDER BY sequence",
+                (campaign_id,),
+            ).fetchall()
+            return [self._decode_bayesian_proposal(row) for row in rows]
+
+    def bayesian_observations(self, campaign_id: str) -> list[dict[str, Any]]:
+        with self._read() as connection:
+            self._campaign(connection, campaign_id)
+            rows = connection.execute(
+                "SELECT observations.* FROM bayesian_observations observations "
+                "JOIN bayesian_proposals proposals ON proposals.proposal_id=observations.proposal_id "
+                "WHERE observations.campaign_id=? ORDER BY proposals.sequence",
+                (campaign_id,),
+            ).fetchall()
+            return [self._decode_bayesian_observation(row) for row in rows]
+
+    def record_bayesian_observation_atomically(
+        self,
+        campaign_id: str,
+        proposal_id: str,
+        pair_points: list[float],
+        score: float,
+        variance: float,
+        result: dict[str, Any],
+        state: dict[str, Any],
+    ) -> tuple[dict[str, Any], tuple[int, str]]:
+        """Commit tell evidence and its resulting optimizer checkpoint together."""
+        if len(pair_points) < 2 or variance <= 0 or not isinstance(state, dict):
+            raise DatabaseError("invalid Bayesian observation")
+        now = utc_now()
+        with self._transaction() as connection:
+            self._campaign(connection, campaign_id)
+            proposal = connection.execute(
+                "SELECT * FROM bayesian_proposals WHERE campaign_id=? AND proposal_id=?",
+                (campaign_id, proposal_id),
+            ).fetchone()
+            if proposal is None:
+                raise DatabaseError(f"unknown Bayesian proposal: {proposal_id}")
+            if len(pair_points) != int(proposal["pairs_requested"]):
+                raise CampaignConflict("Bayesian observation pair count differs from proposal")
+            observation_id = f"observation-{proposal_id}"
+            existing = connection.execute(
+                "SELECT * FROM bayesian_observations WHERE campaign_id=? AND proposal_id=?",
+                (campaign_id, proposal_id),
+            ).fetchone()
+            canonical_result = _json(result)
+            if existing is not None:
+                expected = (_json(pair_points), float(score), float(variance), canonical_result)
+                actual = (
+                    existing["pair_points_json"],
+                    float(existing["score"]),
+                    float(existing["variance"]),
+                    existing["result_json"],
+                )
+                if actual != expected:
+                    raise CampaignConflict("Bayesian observation replay differs from SQLite")
+                state_row = connection.execute(
+                    "SELECT revision,checkpoint_hash FROM optimizer_state WHERE campaign_id=?",
+                    (campaign_id,),
+                ).fetchone()
+                return self._decode_bayesian_observation(existing), (
+                    int(state_row["revision"]), str(state_row["checkpoint_hash"])
+                )
+            if proposal["status"] != "pending":
+                raise CampaignConflict("completed Bayesian proposal has no matching observation")
+            connection.execute(
+                "INSERT INTO bayesian_observations(observation_id,campaign_id,proposal_id,parameter_hash,"
+                "pairs,games,score,variance,pair_points_json,result_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    observation_id,
+                    campaign_id,
+                    proposal_id,
+                    proposal["parameter_hash"],
+                    len(pair_points),
+                    len(pair_points) * 2,
+                    float(score),
+                    float(variance),
+                    _json(pair_points),
+                    canonical_result,
+                    now,
+                ),
+            )
+            connection.execute(
+                "UPDATE bayesian_proposals SET status='completed',finished_at=?,updated_at=? WHERE proposal_id=?",
+                (now, now, proposal_id),
+            )
+            state_row = connection.execute(
+                "SELECT revision FROM optimizer_state WHERE campaign_id=?", (campaign_id,)
+            ).fetchone()
+            if state_row is None:
+                raise DatabaseError(f"optimizer state is missing for campaign: {campaign_id}")
+            revision = int(state_row["revision"]) + 1
+            checkpoint_hash = sha256_json(state)
+            connection.execute(
+                "UPDATE optimizer_state SET revision=?,state_json=?,checkpoint_hash=?,updated_at=? WHERE campaign_id=?",
+                (revision, _json(state), checkpoint_hash, now, campaign_id),
+            )
+            if state.get("phase") == "completed":
+                campaign = self._campaign(connection, campaign_id)
+                if campaign["status"] in {"pending", "running", "interrupted", "paused"}:
+                    connection.execute(
+                        "UPDATE campaigns SET status='completed',updated_at=?,finished_at=?,revision=revision+1 "
+                        "WHERE campaign_id=?",
+                        (now, now, campaign_id),
+                    )
+            self._event(
+                connection,
+                campaign_id,
+                "bayesian_observation_recorded",
+                "bayesian_observation",
+                observation_id,
+                {"proposal_id": proposal_id, "revision": revision, "checkpoint_hash": checkpoint_hash},
+                from_status="pending",
+                to_status="completed",
+            )
+            row = connection.execute(
+                "SELECT * FROM bayesian_observations WHERE observation_id=?", (observation_id,)
+            ).fetchone()
+            return self._decode_bayesian_observation(row), (revision, checkpoint_hash)
