@@ -595,7 +595,11 @@ def _original_baseline(database: Database, campaign_id: str) -> dict[str, Any]:
 
 def _final_search_candidate(database: Database, campaign_id: str) -> dict[str, Any]:
     state = database.optimizer_state(campaign_id)["state"]
-    candidate = state.get("anchor_parameters") or state.get("coordinate_base_parameters")
+    candidate = (
+        state.get("bayesian_best_parameters")
+        or state.get("anchor_parameters")
+        or state.get("coordinate_base_parameters")
+    )
     if not isinstance(candidate, dict):
         raise OptimizationError("completed search has no final candidate parameter set")
     return dict(candidate)
@@ -766,8 +770,6 @@ def _run_fake_bayesian_optimization(
 ) -> dict[str, Any]:
     if settings.fake_optimum is None:
         raise OptimizationError("goals.fake_match.optimum is required for Bayesian fake mode")
-    if settings.confirmation.enabled:
-        raise OptimizationError("Bayesian confirmation is not implemented until the real-runner milestone")
     if settings.max_evaluations < 1:
         raise OptimizationError("Bayesian optimization requires goals.max_evaluations")
     dimensions = dimensions_from_registry(definition.registry, settings.parameter_names)
@@ -798,6 +800,11 @@ def _run_fake_bayesian_optimization(
             max_evaluations=max_evaluations,
             initial_points=settings.bayesian_initial_points,
             parameter_names=settings.parameter_names,
+            exact_baseline_prior=True,
+            exact_baseline_values=tuple(
+                _parameter_values(definition.baseline_parameters)[item.name]
+                for item in dimensions
+            ),
         ),
         DeterministicFakePairRunner(objective, seed=definition.master_seed),
     )
@@ -812,8 +819,6 @@ def _run_real_bayesian_optimization(
     settings: OptimizeSettings,
     invocation_limit: int,
 ) -> dict[str, Any]:
-    if settings.confirmation.enabled:
-        raise OptimizationError("Bayesian confirmation is implemented in the next milestone")
     if settings.max_evaluations < 1:
         raise OptimizationError("Bayesian optimization requires goals.max_evaluations")
     max_evaluations = settings.max_evaluations
@@ -908,17 +913,17 @@ def run_optimization(
                     definition.campaign_id, "search", settings.search_profile.as_dict()
                 )
                 if definition.mode == "fake":
-                    return _run_fake_bayesian_optimization(
+                    report = _run_fake_bayesian_optimization(
                         database, definition, settings, invocation_limit
                     )
-                if definition.mode == "real":
+                elif definition.mode == "real":
                     terminate_active_blocks(
                         data_dir,
                         definition.campaign_id,
                         "Bayesian optimizer startup recovered abandoned job",
                     )
                     database.recover_abandoned_jobs(definition.campaign_id)
-                    return _run_real_bayesian_optimization(
+                    report = _run_real_bayesian_optimization(
                         database,
                         data_dir,
                         campaign_path,
@@ -926,7 +931,38 @@ def run_optimization(
                         settings,
                         invocation_limit,
                     )
-                raise OptimizationError(f"unsupported campaign mode: {definition.mode}")
+                else:
+                    raise OptimizationError(f"unsupported campaign mode: {definition.mode}")
+                processed = int(report.get("processed", 0))
+                quota_stopped_search = bool(invocation_limit and processed >= invocation_limit)
+                if (
+                    settings.confirmation.enabled
+                    and report.get("phase") == "completed"
+                    and (not quota_stopped_search or processed == 0)
+                ):
+                    confirmation_report = _run_confirmation(
+                        database,
+                        data_dir,
+                        campaign_path,
+                        definition,
+                        settings,
+                        invocation_limit,
+                        processed,
+                    )
+                    recommendation_path = _materialize_recommendation(
+                        database, data_dir, definition.campaign_id
+                    )
+                    if recommendation_path is not None:
+                        confirmation_report = (
+                            database.confirmation_snapshot(definition.campaign_id)
+                            or confirmation_report
+                        )
+                        confirmation_report["recommendation_parameter_file"] = str(
+                            recommendation_path.resolve()
+                        )
+                    report = dict(report)
+                    report["confirmation"] = confirmation_report
+                return report
             except (BayesianOptimizationError, BayesianSearchError) as exc:
                 raise OptimizationError(str(exc)) from exc
             finally:

@@ -128,6 +128,15 @@ class Phase25BayesianFixedPairTransportTest(unittest.TestCase):
         self.assertEqual(observation["pair_points"], [2.0, 1.0, 0.0])
         self.assertEqual(observation["games"], 6)
         self.assertEqual(observation["result"]["profile"]["nodes"], 100000)
+        self.assertEqual(report["best"]["score"], 0.5)
+        self.assertEqual(
+            report["best"]["parameter_hash"],
+            database.campaign(definition.campaign_id)["baseline_parameter_hash"],
+        )
+        self.assertEqual(
+            report["highest_observed"]["parameter_hash"],
+            report["proposals"][0]["parameter_hash"],
+        )
         self.assertEqual(len(database.list_trials(definition.campaign_id)), 1)
         snapshot = database.status_snapshot(definition.campaign_id)
         self.assertEqual(snapshot["games"], 6)

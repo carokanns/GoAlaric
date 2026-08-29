@@ -341,6 +341,17 @@ class DashboardReader:
             if checkpoint_row is not None:
                 checkpoint = dict(checkpoint_row)
                 checkpoint["state"] = _json(checkpoint.pop("state_json"), {})
+            bayesian_games = 0
+            bayesian_table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='bayesian_observations'"
+            ).fetchone()
+            if bayesian_table is not None:
+                bayesian_games = int(
+                    connection.execute(
+                        "SELECT COALESCE(SUM(games),0) FROM bayesian_observations WHERE campaign_id=?",
+                        (self.campaign_id,),
+                    ).fetchone()[0]
+                )
             error_rows: list[dict[str, Any]] = []
             for trial in trial_rows:
                 if trial["error"]:
@@ -505,16 +516,25 @@ class DashboardReader:
                 ),
             }
         checkpoint_state = checkpoint.get("state", {}) if isinstance(checkpoint, dict) else {}
-        anchor_document = checkpoint_state.get("anchor_parameters")
+        bayesian_document = checkpoint_state.get("bayesian_best_parameters")
+        if isinstance(bayesian_document, dict):
+            anchor_document = bayesian_document
+            anchor_hash = checkpoint_state.get("bayesian_best_parameter_hash")
+            anchor_result = {"score": checkpoint_state.get("bayesian_best_score")}
+            anchor_source = "bayesian_checkpoint_candidate"
+        else:
+            anchor_document = checkpoint_state.get("anchor_parameters")
+            anchor_hash = checkpoint_state.get("anchor_hash")
+            anchor_result = checkpoint_state.get("anchor_result")
+            anchor_source = "optimizer_checkpoint"
         if not isinstance(anchor_document, dict):
             anchor_document = {}
-        anchor_hash = checkpoint_state.get("anchor_hash")
         final_anchor = {
-            "source": "optimizer_checkpoint",
+            "source": anchor_source,
             "parameter_hash": anchor_hash,
             "parameters": anchor_document,
             "values": _parameter_values(anchor_document),
-            "result": checkpoint_state.get("anchor_result"),
+            "result": anchor_result,
             "phase": checkpoint_state.get("phase"),
             "stop_reason": checkpoint_state.get("stop_reason"),
             "result_count": checkpoint_state.get("result_count"),
@@ -542,7 +562,7 @@ class DashboardReader:
             reported_values = _parameter_values(confirmed_document)
         else:
             reported_values = _parameter_values(anchor_document) or baseline_values
-        search_games = int(all_metrics.get("games", 0))
+        search_games = max(int(all_metrics.get("games", 0)), bayesian_games)
         confirmation_games = int(confirmation.get("games", 0)) if confirmation else 0
         total_games = search_games + confirmation_games
         search_finished_at = (

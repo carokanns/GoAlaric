@@ -209,14 +209,87 @@ class BayesianOptimizer:
 
     def _document(self, values: tuple[int, ...]) -> dict[str, Any]:
         selected = dict(zip((item.name for item in self.dimensions), values, strict=True))
+        defaults = {
+            str(item["name"]): int(item["value"])
+            for item in self.registry.parameters
+        }
+        if self.settings.exact_baseline_prior:
+            defaults.update(
+                {
+                    str(item["name"]): int(item["value"])
+                    for item in self._exact_baseline_document().get("parameters", [])
+                }
+            )
         return {
             "schema_version": self.registry.schema_version,
             "registry": self.registry.name,
             "parameters": [
-                {"name": str(item["name"]), "value": selected.get(str(item["name"]), int(item["value"]))}
+                {"name": str(item["name"]), "value": selected.get(str(item["name"]), defaults[str(item["name"])])}
                 for item in self.registry.parameters
             ],
         }
+
+    def _exact_baseline_document(self) -> dict[str, Any]:
+        campaign = self.database.campaign(self.campaign_id)
+        stored = self.database.parameter_set_by_hash(
+            self.campaign_id, str(campaign["baseline_parameter_hash"])
+        )
+        if stored is None:
+            raise BayesianOptimizationError("exact baseline parameter set is missing")
+        document = dict(stored["document"])
+        values_by_name = {
+            str(item["name"]): int(item["value"])
+            for item in document.get("parameters", [])
+        }
+        expected = self.settings.exact_baseline_values or tuple(
+            item.default for item in self.dimensions
+        )
+        actual = tuple(values_by_name.get(item.name) for item in self.dimensions)
+        if actual != expected:
+            raise BayesianOptimizationError(
+                "exact baseline values differ from the stored baseline parameter set"
+            )
+        return document
+
+    def _best_document(
+        self, proposal: dict[str, Any], current_score: float
+    ) -> tuple[dict[str, Any], str, float]:
+        proposals = {
+            str(item["parameter_hash"]): item
+            for item in self.database.bayesian_proposals(self.campaign_id)
+        }
+        choices: list[tuple[float, bool, str, dict[str, Any]]] = []
+        baseline_hash = ""
+        if self.settings.exact_baseline_prior:
+            baseline_document = self._exact_baseline_document()
+            baseline_hash = sha256_json(baseline_document)
+            choices.append((0.5, True, baseline_hash, baseline_document))
+        for observation in self.database.bayesian_observations(self.campaign_id):
+            parameter_hash = str(observation["parameter_hash"])
+            stored_proposal = proposals.get(parameter_hash)
+            if stored_proposal is None:
+                raise BayesianOptimizationError("observation has no Bayesian proposal")
+            choices.append(
+                (
+                    float(observation["score"]),
+                    parameter_hash == baseline_hash,
+                    parameter_hash,
+                    dict(stored_proposal["parameter_document"]),
+                )
+            )
+        current_hash = str(proposal["parameter_hash"])
+        choices.append(
+            (
+                current_score,
+                current_hash == baseline_hash,
+                current_hash,
+                dict(proposal["parameter_document"]),
+            )
+        )
+        score, _, parameter_hash, document = max(
+            choices, key=lambda item: (item[0], item[1], item[2])
+        )
+        return document, parameter_hash, score
 
     def ask(self) -> dict[str, Any]:
         pending = self.database.pending_bayesian_proposal(self.campaign_id)
@@ -254,6 +327,7 @@ class BayesianOptimizer:
                 if len(self.search.grid) <= self.settings.max_evaluations
                 else "evaluation_budget_exhausted"
             )
+        best_document, best_hash, best_score = self._best_document(proposal, score)
         state = {
             "version": 1,
             "phase": "completed" if terminal else "bayesian",
@@ -264,6 +338,9 @@ class BayesianOptimizer:
             "consumed_games": observations_after * self.settings.pairs_per_evaluation * 2,
             "last_proposal_id": proposal["proposal_id"],
             "stop_reason": stop_reason,
+            "bayesian_best_parameters": best_document,
+            "bayesian_best_parameter_hash": best_hash,
+            "bayesian_best_score": best_score,
         }
         current_state = self.database.optimizer_state(self.campaign_id)["state"]
         if current_state.get("search_profile") is not None:
@@ -303,7 +380,19 @@ class BayesianOptimizer:
     def report(self, processed: int = 0) -> dict[str, Any]:
         checkpoint = self.database.optimizer_state(self.campaign_id)
         observations = self.database.bayesian_observations(self.campaign_id)
-        best = max(observations, key=lambda item: (float(item["score"]), item["parameter_hash"])) if observations else None
+        highest_observed = (
+            max(observations, key=lambda item: (float(item["score"]), item["parameter_hash"]))
+            if observations
+            else None
+        )
+        state = checkpoint["state"]
+        best = None
+        if isinstance(state.get("bayesian_best_parameters"), dict):
+            best = {
+                "parameter_hash": state.get("bayesian_best_parameter_hash"),
+                "parameters": state["bayesian_best_parameters"],
+                "score": state.get("bayesian_best_score"),
+            }
         return {
             "campaign_id": self.campaign_id,
             "phase": checkpoint["state"].get("phase"),
@@ -312,6 +401,7 @@ class BayesianOptimizer:
             "proposals": self.database.bayesian_proposals(self.campaign_id),
             "observations": observations,
             "best": best,
+            "highest_observed": highest_observed,
             "checkpoint": {
                 "revision": checkpoint["revision"],
                 "checkpoint_hash": checkpoint["checkpoint_hash"],
