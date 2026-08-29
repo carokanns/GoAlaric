@@ -426,6 +426,81 @@ class FakeAdaptiveEvaluator:
         return result
 
 
+class FixedPairBayesianEvaluator:
+    """Evaluate one Bayesian proposal against the original baseline for a fixed pair budget."""
+
+    def __init__(
+        self,
+        database: Database,
+        campaign_id: str,
+        pairs: int,
+        seed: int,
+        runner_factory: Callable[
+            [dict[str, Any], dict[str, Any]],
+            tuple[Any, Callable[[int], tuple[str, str]] | None],
+        ],
+        profile: MatchProfile,
+    ) -> None:
+        self.database = database
+        self.campaign_id = campaign_id
+        self.pairs = pairs
+        self.seed = seed
+        self.runner_factory = runner_factory
+        self.profile = profile
+
+    def __call__(self, proposal: dict[str, Any]) -> dict[str, Any]:
+        candidate = proposal.get("parameter_document")
+        if not isinstance(candidate, dict):
+            raise OptimizationError("Bayesian proposal has no parameter document")
+        if int(proposal.get("pairs_requested", 0)) != self.pairs:
+            raise OptimizationError("Bayesian proposal pair budget differs from runner")
+        runner, block_hash_factory = self.runner_factory(candidate, proposal)
+        policy = AdaptivePolicy(
+            min_blocks=self.pairs,
+            max_blocks=self.pairs,
+            weak_upper_score=0.0,
+            target_score=50.0,
+        )
+        controller = AdaptiveCampaign(
+            self.database,
+            self.campaign_id,
+            candidate,
+            policy,
+            runner,
+            self.seed,
+            block_hash_factory=block_hash_factory,
+            profile=self.profile.as_dict(),
+        )
+        evidence = controller.run()
+        if controller.trial_id is None:
+            raise OptimizationError("Bayesian fixed-pair evaluation has no trial")
+        with self.database._read() as connection:
+            blocks = connection.execute(
+                "SELECT block_index,wins,draws,losses FROM match_blocks "
+                "WHERE campaign_id=? AND trial_id=? AND status='completed' ORDER BY block_index",
+                (self.campaign_id, controller.trial_id),
+            ).fetchall()
+        if len(blocks) != self.pairs:
+            raise OptimizationError("Bayesian fixed-pair evaluation is incomplete")
+        pair_points = [float(row["wins"] + row["draws"] / 2.0) for row in blocks]
+        return {
+            "runner": "fixed-pair-bayesian-v1",
+            "trial_id": controller.trial_id,
+            "pair_points": pair_points,
+            "pairs": self.pairs,
+            "games": self.pairs * 2,
+            "wins": int(evidence["wins"]),
+            "draws": int(evidence["draws"]),
+            "losses": int(evidence["losses"]),
+            "score": float(evidence["score"]) / 100.0,
+            "profile": self.profile.as_dict(),
+            "candidate_parameter_hash": proposal["parameter_hash"],
+            "baseline_parameter_hash": self.database.campaign(self.campaign_id)[
+                "baseline_parameter_hash"
+            ],
+        }
+
+
 def _reference_parameter_file(
     database: Database, data_dir: Path, campaign_id: str, document: dict[str, Any]
 ) -> Path:
@@ -729,6 +804,83 @@ def _run_fake_bayesian_optimization(
     return controller.run(max_results=invocation_limit)
 
 
+def _run_real_bayesian_optimization(
+    database: Database,
+    data_dir: Path,
+    campaign_path: Path,
+    definition: Any,
+    settings: OptimizeSettings,
+    invocation_limit: int,
+) -> dict[str, Any]:
+    if settings.confirmation.enabled:
+        raise OptimizationError("Bayesian confirmation is implemented in the next milestone")
+    if settings.max_evaluations < 1:
+        raise OptimizationError("Bayesian optimization requires goals.max_evaluations")
+    max_evaluations = settings.max_evaluations
+    if settings.max_games:
+        games_per_evaluation = settings.bayesian_pairs_per_evaluation * 2
+        budgeted_evaluations = settings.max_games // games_per_evaluation
+        if budgeted_evaluations < 1:
+            raise OptimizationError("match budget cannot fund one Bayesian evaluation")
+        max_evaluations = min(max_evaluations, budgeted_evaluations)
+    runtime = _real_config(campaign_path, data_dir, definition, settings.search_profile)
+    baseline_path = campaign_dir(data_dir, definition.campaign_id) / "baseline-parameters.json"
+
+    def runner_factory(
+        candidate: dict[str, Any], proposal: dict[str, Any]
+    ) -> tuple[Any, Callable[[int], tuple[str, str]]]:
+        candidate_path = _materialize_candidate(
+            database, data_dir, definition.campaign_id, candidate
+        )
+        block_dir = (
+            campaign_dir(data_dir, definition.campaign_id)
+            / "bayesian-blocks"
+            / str(proposal["proposal_id"])
+        )
+        effective = replace(
+            runtime,
+            seed=definition.master_seed,
+            baseline_parameter_file=baseline_path,
+            candidate_parameter_file=candidate_path,
+            opening_block_file=block_dir / "placeholder.epd",
+        )
+        runner = RealAdaptiveBlockRunner(
+            data_dir,
+            definition.campaign_id,
+            effective,
+            block_dir,
+            embedded_campaign=True,
+        )
+        return runner, runner.block_hashes
+
+    evaluator = FixedPairBayesianEvaluator(
+        database,
+        definition.campaign_id,
+        settings.bayesian_pairs_per_evaluation,
+        definition.master_seed,
+        runner_factory,
+        settings.search_profile,
+    )
+    baseline_by_name = _parameter_values(definition.baseline_parameters)
+    dimensions = dimensions_from_registry(definition.registry, settings.parameter_names)
+    controller = BayesianOptimizer(
+        database,
+        definition.campaign_id,
+        definition.registry,
+        BayesianRunSettings(
+            seed=definition.master_seed,
+            pairs_per_evaluation=settings.bayesian_pairs_per_evaluation,
+            max_evaluations=max_evaluations,
+            initial_points=settings.bayesian_initial_points,
+            parameter_names=settings.parameter_names,
+            exact_baseline_prior=True,
+            exact_baseline_values=tuple(baseline_by_name[item.name] for item in dimensions),
+        ),
+        evaluator,
+    )
+    return controller.run(max_results=invocation_limit)
+
+
 def run_optimization(
     campaign_path: Path,
     data_dir: Path,
@@ -748,15 +900,33 @@ def run_optimization(
     if max_evaluations_override is not None:
         settings = replace(settings, max_evaluations=_integer(max_evaluations_override, "max_evaluations"))
     if settings.algorithm == "finite-noise-aware-bo-v1":
-        if definition.mode != "fake":
-            raise OptimizationError("Bayesian real mode is not implemented until the real-runner milestone")
         with campaign_lock(data_dir, definition.campaign_id):
             token = f"optimizer-{os.getpid()}"
             try:
                 database.claim_campaign(definition.campaign_id, token, takeover=True)
-                return _run_fake_bayesian_optimization(
-                    database, definition, settings, invocation_limit
+                database.bind_optimizer_profile(
+                    definition.campaign_id, "search", settings.search_profile.as_dict()
                 )
+                if definition.mode == "fake":
+                    return _run_fake_bayesian_optimization(
+                        database, definition, settings, invocation_limit
+                    )
+                if definition.mode == "real":
+                    terminate_active_blocks(
+                        data_dir,
+                        definition.campaign_id,
+                        "Bayesian optimizer startup recovered abandoned job",
+                    )
+                    database.recover_abandoned_jobs(definition.campaign_id)
+                    return _run_real_bayesian_optimization(
+                        database,
+                        data_dir,
+                        campaign_path,
+                        definition,
+                        settings,
+                        invocation_limit,
+                    )
+                raise OptimizationError(f"unsupported campaign mode: {definition.mode}")
             except (BayesianOptimizationError, BayesianSearchError) as exc:
                 raise OptimizationError(str(exc)) from exc
             finally:

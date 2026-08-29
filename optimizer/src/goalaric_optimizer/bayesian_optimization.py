@@ -38,6 +38,8 @@ class BayesianRunSettings:
     max_evaluations: int
     initial_points: int = 9
     parameter_names: tuple[str, ...] | None = None
+    exact_baseline_prior: bool = False
+    exact_baseline_values: tuple[int, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.pairs_per_evaluation < 2:
@@ -46,6 +48,8 @@ class BayesianRunSettings:
             raise BayesianOptimizationError("max_evaluations must be positive")
         if self.initial_points < 1:
             raise BayesianOptimizationError("initial_points must be positive")
+        if self.exact_baseline_values is not None and not self.exact_baseline_prior:
+            raise BayesianOptimizationError("baseline values require exact_baseline_prior")
 
 
 def dimensions_from_registry(
@@ -134,6 +138,12 @@ class BayesianOptimizer:
             "initial_points": settings.initial_points,
             "pairs_per_evaluation": settings.pairs_per_evaluation,
             "max_evaluations": settings.max_evaluations,
+            "exact_baseline_prior": settings.exact_baseline_prior,
+            "exact_baseline_values": (
+                list(settings.exact_baseline_values)
+                if settings.exact_baseline_values is not None
+                else None
+            ),
             "dimensions": [
                 {"name": item.name, "values": list(item.values), "default": item.default}
                 for item in self.dimensions
@@ -144,6 +154,11 @@ class BayesianOptimizer:
             },
         }
         self.identity_hash = sha256_json(self.identity)
+        if (
+            settings.exact_baseline_values is not None
+            and len(settings.exact_baseline_values) != len(self.dimensions)
+        ):
+            raise BayesianOptimizationError("exact baseline does not match Bayesian dimensions")
         self._initialize_or_validate_state()
 
     def _initialize_or_validate_state(self) -> None:
@@ -169,10 +184,12 @@ class BayesianOptimizer:
             "last_proposal_id": None,
             "stop_reason": None,
         }
+        if state.get("search_profile") is not None:
+            new_state["search_profile"] = state["search_profile"]
         self.database.checkpoint(self.campaign_id, new_state, event_type="bayesian_initialized")
 
     def _observations(self) -> list[Observation]:
-        return [
+        stored = [
             Observation(
                 tuple(int(value) for value in row["result"]["values"]),
                 float(row["score"]),
@@ -181,6 +198,14 @@ class BayesianOptimizer:
             )
             for row in self.database.bayesian_observations(self.campaign_id)
         ]
+        if self.settings.exact_baseline_prior:
+            baseline = self.settings.exact_baseline_values or tuple(
+                item.default for item in self.dimensions
+            )
+            if any(value not in dimension.values for value, dimension in zip(baseline, self.dimensions, strict=True)):
+                raise BayesianOptimizationError("exact baseline is outside the Bayesian grid")
+            return [Observation(baseline, 0.5, 1e-8, 2), *stored]
+        return stored
 
     def _document(self, values: tuple[int, ...]) -> dict[str, Any]:
         selected = dict(zip((item.name for item in self.dimensions), values, strict=True))
@@ -197,11 +222,12 @@ class BayesianOptimizer:
         pending = self.database.pending_bayesian_proposal(self.campaign_id)
         if pending is not None:
             return pending
+        stored_count = len(self.database.bayesian_observations(self.campaign_id))
         observations = self._observations()
-        if len(observations) >= self.settings.max_evaluations:
+        if stored_count >= self.settings.max_evaluations:
             raise BayesianSearchError("evaluation budget is exhausted")
         values = self.search.ask(observations)
-        sequence = len(observations) + 1
+        sequence = stored_count + 1
         return self.database.create_bayesian_proposal(
             self.campaign_id,
             sequence,
@@ -239,6 +265,9 @@ class BayesianOptimizer:
             "last_proposal_id": proposal["proposal_id"],
             "stop_reason": stop_reason,
         }
+        current_state = self.database.optimizer_state(self.campaign_id)["state"]
+        if current_state.get("search_profile") is not None:
+            state["search_profile"] = current_state["search_profile"]
         stored_result = dict(result)
         stored_result["values"] = list(proposal["values"])
         stored_result["parameter_hash"] = proposal["parameter_hash"]

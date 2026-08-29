@@ -212,6 +212,7 @@ class Phase24BayesianAskTellTest(unittest.TestCase):
         database = Database(data_dir / "phase24-cli" / "campaign.db")
         self.assertEqual(database.campaign("phase24-cli")["status"], "completed")
         self.assertEqual(len(database.bayesian_proposals("phase24-cli")), 3)
+        self.assertEqual(database.status_snapshot("phase24-cli")["search_profile"]["name"], "default")
 
 
 if __name__ == "__main__":
