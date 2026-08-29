@@ -9,6 +9,11 @@ description = "Restartable, SQLite-backed GoAlaric optimizer core"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+bayes = [
+  "botorch==0.18.1",
+]
+
 [project.scripts]
 optimizer = "goalaric_optimizer.cli:main"
 
