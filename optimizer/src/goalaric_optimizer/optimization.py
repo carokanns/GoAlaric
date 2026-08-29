@@ -483,6 +483,7 @@ class FixedPairBayesianEvaluator:
         if len(blocks) != self.pairs:
             raise OptimizationError("Bayesian fixed-pair evaluation is incomplete")
         pair_points = [float(row["wins"] + row["draws"] / 2.0) for row in blocks]
+        exact_score = sum(pair_points) / (len(pair_points) * 2.0)
         return {
             "runner": "fixed-pair-bayesian-v1",
             "trial_id": controller.trial_id,
@@ -492,7 +493,7 @@ class FixedPairBayesianEvaluator:
             "wins": int(evidence["wins"]),
             "draws": int(evidence["draws"]),
             "losses": int(evidence["losses"]),
-            "score": float(evidence["score"]) / 100.0,
+            "score": exact_score,
             "profile": self.profile.as_dict(),
             "candidate_parameter_hash": proposal["parameter_hash"],
             "baseline_parameter_hash": self.database.campaign(self.campaign_id)[

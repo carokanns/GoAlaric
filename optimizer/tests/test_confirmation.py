@@ -230,6 +230,7 @@ class ConfirmationFakeOutcomesTest(unittest.TestCase):
             watcher = subprocess.Popen(
                 [
                     sys.executable,
+                    "-u",
                     "-m",
                     "goalaric_optimizer",
                     "status",
@@ -241,12 +242,13 @@ class ConfirmationFakeOutcomesTest(unittest.TestCase):
                     "0.01",
                 ],
                 env=environment,
-                stdout=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
             )
             try:
-                time.sleep(0.1)
+                assert watcher.stdout is not None
+                self.assertEqual(watcher.stdout.readline().strip(), "{")
                 watcher.send_signal(signal.SIGINT)
                 _, stderr = watcher.communicate(timeout=5)
             finally:

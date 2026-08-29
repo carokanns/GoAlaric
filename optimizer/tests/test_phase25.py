@@ -85,11 +85,14 @@ class Phase25BayesianFixedPairTransportTest(unittest.TestCase):
         database: Database,
         definition: object,
         stop_after_first: bool = False,
+        results: list[dict[str, object]] | None = None,
     ) -> BayesianOptimizer:
         profile = MatchProfile.create("node-search", source="test", nodes=100000)
 
         def runner_factory(candidate, proposal):
-            runner = FakeBlockRunner(database, definition.campaign_id, self._results())
+            runner = FakeBlockRunner(
+                database, definition.campaign_id, results or self._results()
+            )
             return (_StopAfterFirstBlock(runner) if stop_after_first else runner), None
 
         evaluator = FixedPairBayesianEvaluator(
@@ -161,6 +164,20 @@ class Phase25BayesianFixedPairTransportTest(unittest.TestCase):
             ).fetchone()[0]
         self.assertEqual(tuple(counts), (3, 3, 6, 1))
         self.assertEqual(games, 6)
+
+    def test_fractional_fixed_pair_score_is_transported_without_rounding(self) -> None:
+        database, definition = self._campaign("phase25-fractional-score")
+        report = self._controller(
+            database,
+            definition,
+            results=[
+                {"wins": 2, "draws": 0, "losses": 0},
+                {"wins": 1, "draws": 1, "losses": 0},
+                {"wins": 0, "draws": 0, "losses": 2},
+            ],
+        ).run()
+        self.assertEqual(report["observations"][0]["pair_points"], [2.0, 1.5, 0.0])
+        self.assertAlmostEqual(report["observations"][0]["score"], 7.0 / 12.0)
 
 
 if __name__ == "__main__":
