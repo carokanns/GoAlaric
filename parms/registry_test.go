@@ -166,6 +166,94 @@ func TestSearchParameterFileLeavesEvaluationParametersUntouched(t *testing.T) {
 	}
 }
 
+func TestSearchHPORegistryRoundTripsAndAppliesAtomically(t *testing.T) {
+	originalParms := Parms
+	originalSearch := Search
+	t.Cleanup(func() {
+		Parms = originalParms
+		Search = originalSearch
+	})
+
+	registry := SearchHPORegistry()
+	wantNames := []string{
+		"lmr_divisor_x100",
+		"lmp_move_multiplier",
+		"aspiration_initial_margin_cp",
+		"aspiration_min_depth",
+	}
+	if len(registry) != len(wantNames) {
+		t.Fatalf("search HPO registry has %d parameters, want %d", len(registry), len(wantNames))
+	}
+	for index, name := range wantNames {
+		if registry[index].Name != name {
+			t.Fatalf("search HPO registry[%d]=%q, want %q", index, registry[index].Name, name)
+		}
+	}
+
+	wantJSON, err := DefaultSearchHPOParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseParameterFile(wantJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotJSON, err := MarshalParameterFile(parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotJSON, wantJSON) {
+		t.Fatalf("search HPO JSON changed after round trip:\n%s\nwant:\n%s", gotJSON, wantJSON)
+	}
+
+	parsed.Parameters[0].Value = 175
+	parsed.Parameters[1].Value = 3
+	parsed.Parameters[2].Value = 10
+	parsed.Parameters[3].Value = 7
+	if err := ApplyParameterFile(parsed); err != nil {
+		t.Fatal(err)
+	}
+	if Search.LMRDivisorX100 != 175 || Search.LMPMoveMultiplier != 3 ||
+		Search.AspirationInitialMarginCP != 10 || Search.AspirationMinDepth != 7 {
+		t.Fatalf("combined search values were not applied: %+v", Search)
+	}
+	if Search.Contempt != originalSearch.Contempt ||
+		Search.SearchRepetitionContempt != originalSearch.SearchRepetitionContempt {
+		t.Fatal("search-hpo-v1 changed contempt parameters")
+	}
+	if Parms != originalParms {
+		t.Fatal("search-hpo-v1 changed evaluation parameters")
+	}
+
+	beforeInvalid := Search
+	parsed.Parameters[2].Value = 11
+	if err := ApplyParameterFile(parsed); err == nil {
+		t.Fatal("invalid combined search file was accepted")
+	}
+	if Search != beforeInvalid {
+		t.Fatalf("invalid combined file partially changed search parameters: got %+v want %+v", Search, beforeInvalid)
+	}
+}
+
+func TestCheckedInDefaultSearchHPOParameterFileMatchesExporter(t *testing.T) {
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	path := filepath.Join(filepath.Dir(source), "..", "optimizer", "registries", "search-hpo-v1-default.json")
+	checkedIn, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported, err := DefaultSearchHPOParameterJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(checkedIn, exported) {
+		t.Fatalf("checked-in search HPO file differs from exporter:\n%s\nwant:\n%s", checkedIn, exported)
+	}
+}
+
 func TestLMPRegistryIsStableAndComplete(t *testing.T) {
 	registry := LMPRegistry()
 	if len(registry) != 1 {

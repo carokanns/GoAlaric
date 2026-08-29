@@ -106,6 +106,58 @@ func TestSetoptionSearchParameterFileRefreshesLMR(t *testing.T) {
 	}
 }
 
+func TestSetoptionSearchHPOParameterFileAppliesAllSearchValues(t *testing.T) {
+	originalSearch := parms.Search
+	originalTellGUI := tellGUI
+	originalPath := parameterFilePath
+	originalSHA := parameterFileSHA
+	t.Cleanup(func() {
+		parms.Search = originalSearch
+		search.RefreshRuntimeParameters()
+		parameterFilePath = originalPath
+		parameterFileSHA = originalSHA
+		tellGUI = originalTellGUI
+	})
+
+	parms.Search.LMRDivisorX100 = 225
+	search.RefreshRuntimeParameters()
+	baselineReduction := search.LMRReduction(12, 30)
+	file := parms.DefaultSearchHPOParameterFile()
+	file.Parameters[0].Value = 175
+	file.Parameters[1].Value = 3
+	file.Parameters[2].Value = 10
+	file.Parameters[3].Value = 7
+	data, err := parms.MarshalParameterFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir() + "/search-hpo.json"
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wantSHA, err := parms.ParameterFileSHA256(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var output []string
+	tellGUI = func(line string) { output = append(output, line) }
+	HandleInput("setoption name ParameterFile value "+path, &chSearch)
+
+	if parms.Search.LMRDivisorX100 != 175 || parms.Search.LMPMoveMultiplier != 3 ||
+		parms.Search.AspirationInitialMarginCP != 10 || parms.Search.AspirationMinDepth != 7 {
+		t.Fatalf("combined search parameters were not applied: %+v", parms.Search)
+	}
+	if got := search.LMRReduction(12, 30); got <= baselineReduction {
+		t.Fatalf("refreshed LMR reduction=%d, want greater than %d", got, baselineReduction)
+	}
+	joined := strings.Join(output, "\n")
+	if !strings.Contains(joined, "registry_name=search-hpo-v1") ||
+		!strings.Contains(joined, "sha256="+wantSHA) {
+		t.Fatalf("combined search registry identity was not reported: %q", joined)
+	}
+}
+
 func TestSetoptionLMPParameterFileChangesMultiplier(t *testing.T) {
 	originalSearch := parms.Search
 	originalTellGUI := tellGUI

@@ -257,6 +257,19 @@ func ApplyParameterFile(file ParameterFile) error {
 		Search.AspirationInitialMarginCP = normalized.Parameters[0].Value
 	case searchAspirationDepthRegistryName:
 		Search.AspirationMinDepth = normalized.Parameters[0].Value
+	case searchHPORegistryName:
+		for _, value := range normalized.Parameters {
+			switch value.Name {
+			case searchRegistry[0].Name:
+				Search.LMRDivisorX100 = value.Value
+			case searchLMPRegistry[0].Name:
+				Search.LMPMoveMultiplier = value.Value
+			case searchAspirationRegistry[0].Name:
+				Search.AspirationInitialMarginCP = value.Value
+			case searchAspirationDepthRegistry[0].Name:
+				Search.AspirationMinDepth = value.Value
+			}
+		}
 	}
 	return nil
 }
@@ -277,6 +290,8 @@ func normalize(file ParameterFile) (ParameterFile, error) {
 		descriptors = searchAspirationRegistry[:]
 	case searchAspirationDepthRegistryName:
 		descriptors = searchAspirationDepthRegistry[:]
+	case searchHPORegistryName:
+		descriptors = searchHPORegistry[:]
 	default:
 		return ParameterFile{}, fmt.Errorf("unsupported parameter registry %q", file.Registry)
 	}

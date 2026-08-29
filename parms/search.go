@@ -29,6 +29,7 @@ const searchRegistryName = "search-lmr-v1"
 const searchLMPRegistryName = "search-lmp-v1"
 const searchAspirationRegistryName = "search-aspiration-v1"
 const searchAspirationDepthRegistryName = "search-aspiration-depth-v1"
+const searchHPORegistryName = "search-hpo-v1"
 
 var searchRegistry = [...]ParameterDescriptor{
 	{
@@ -76,6 +77,58 @@ var searchAspirationDepthRegistry = [...]ParameterDescriptor{
 		UsedIn:      "search/search.go:searchAsp",
 		Description: "Minimum iterative-deepening depth that enables aspiration windows.",
 	},
+}
+
+var searchHPORegistry = [...]ParameterDescriptor{
+	searchRegistry[0],
+	searchLMPRegistry[0],
+	searchAspirationRegistry[0],
+	searchAspirationDepthRegistry[0],
+}
+
+// SearchHPORegistry returns the stable combined search space used for
+// multi-parameter optimization. The legacy one-parameter registries remain
+// valid and keep their existing identities.
+func SearchHPORegistry() []ParameterDescriptor {
+	result := make([]ParameterDescriptor, len(searchHPORegistry))
+	copy(result, searchHPORegistry[:])
+	return result
+}
+
+// DefaultSearchHPOParameterFile returns all runtime-tunable search defaults in
+// canonical registry order.
+func DefaultSearchHPOParameterFile() ParameterFile {
+	values := make([]ParameterValue, len(searchHPORegistry))
+	for index, descriptor := range searchHPORegistry {
+		values[index] = ParameterValue{Name: descriptor.Name, Value: descriptor.Default}
+	}
+	return ParameterFile{
+		SchemaVersion: SearchRegistryVersion,
+		Registry:      searchHPORegistryName,
+		Parameters:    values,
+	}
+}
+
+// DefaultSearchHPOParameterJSON exports the canonical search-hpo-v1 defaults.
+func DefaultSearchHPOParameterJSON() ([]byte, error) {
+	return MarshalParameterFile(DefaultSearchHPOParameterFile())
+}
+
+// DefaultSearchHPOParameterSHA256 returns the combined search baseline identity.
+func DefaultSearchHPOParameterSHA256() (string, error) {
+	return ParameterFileSHA256(DefaultSearchHPOParameterFile())
+}
+
+// LoadSearchHPOParameterFile reads and validates search-hpo-v1.
+func LoadSearchHPOParameterFile(path string) (ParameterFile, string, error) {
+	file, digest, err := LoadParameterFile(path)
+	if err != nil {
+		return ParameterFile{}, "", err
+	}
+	if file.Registry != searchHPORegistryName {
+		return ParameterFile{}, "", fmt.Errorf("unsupported search HPO parameter registry %q", file.Registry)
+	}
+	return file, digest, nil
 }
 
 // SearchRegistry returns a copy of the stable search-parameter descriptors.

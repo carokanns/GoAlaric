@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "registry": "search-hpo-v1",
+  "parameters": [
+    {
+      "name": "lmr_divisor_x100",
+      "value": 225
+    },
+    {
+      "name": "lmp_move_multiplier",
+      "value": 4
+    },
+    {
+      "name": "aspiration_initial_margin_cp",
+      "value": 15
+    },
+    {
+      "name": "aspiration_min_depth",
+      "value": 6
+    }
+  ]
+}
