@@ -772,8 +772,7 @@ function render(data){
  const baselineValues=(data.baseline_parameters||{}).values||{}, selectedParameters=((((c.config||{}).goals||{}).optimizer||{}).parameters)||[];
  const campaignCompleted=c.status==='completed';
  const activeValues=confirming?(confirmation.candidate_values||{}):(campaignCompleted?((data.final_anchor||{}).values||{}):((t.parameter||{}).values||{}));
- const changedParameterNames=Object.keys(activeValues).filter(name=>activeValues[name]!==baselineValues[name]);
- const activeParameterNames=changedParameterNames.length?changedParameterNames:selectedParameters;
+ const activeParameterNames=selectedParameters.length?selectedParameters:Object.keys(activeValues);
  const confirmationMetrics=confirmation?(confirmation.metrics||confirmation):{}, confirmationGames=Number(confirmationMetrics.games_completed??confirmationMetrics.games??0), confirmationHasResults=!!confirmation&&confirmationGames>0;
  document.title='GoAlaric · '+(c.name||c.campaign_id||'dashboard');
  document.getElementById('campaign-name').textContent=(c.name||'—')+' · '+(c.campaign_id||'—');

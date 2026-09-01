@@ -54,6 +54,10 @@ class DashboardFormattingTest(unittest.TestCase):
         self.assertIn("confirming candidate", _DASHBOARD_HTML)
         self.assertIn("confirmation.candidate_values", _DASHBOARD_HTML)
         self.assertIn("activeParameterNames", _DASHBOARD_HTML)
+        self.assertIn(
+            "const activeParameterNames=selectedParameters.length?selectedParameters:Object.keys(activeValues);",
+            _DASHBOARD_HTML,
+        )
         self.assertIn('id="campaign-heading"', _DASHBOARD_HTML)
         self.assertIn("Campaign'+(t.trial_id?' – '+t.trial_id:'')", _DASHBOARD_HTML)
         self.assertIn('id="active-parameter-cards"', _DASHBOARD_HTML)
