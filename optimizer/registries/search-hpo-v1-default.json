@@ -8,15 +8,15 @@
     },
     {
       "name": "lmp_move_multiplier",
-      "value": 4
+      "value": 3
     },
     {
       "name": "aspiration_initial_margin_cp",
-      "value": 15
+      "value": 10
     },
     {
       "name": "aspiration_min_depth",
-      "value": 6
+      "value": 5
     }
   ]
 }

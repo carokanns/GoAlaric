@@ -4,7 +4,7 @@
   "parameters": [
     {
       "name": "aspiration_min_depth",
-      "value": 6
+      "value": 5
     }
   ]
 }

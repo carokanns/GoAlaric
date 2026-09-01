@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -18,7 +19,7 @@ class SearchLMPRegistryTest(unittest.TestCase):
             (
                 {
                     "name": "lmp_move_multiplier",
-                    "value": 4,
+                    "value": 3,
                     "min": 3,
                     "max": 5,
                     "step": 1,
@@ -31,7 +32,7 @@ class SearchLMPRegistryTest(unittest.TestCase):
             {
                 "schema_version": 1,
                 "registry": "search-lmp-v1",
-                "parameters": [{"name": "lmp_move_multiplier", "value": 4}],
+                "parameters": [{"name": "lmp_move_multiplier", "value": 3}],
             },
         )
 
@@ -48,7 +49,7 @@ class SearchAspirationRegistryTest(unittest.TestCase):
             (
                 {
                     "name": "aspiration_initial_margin_cp",
-                    "value": 15,
+                    "value": 10,
                     "min": 5,
                     "max": 15,
                     "step": 5,
@@ -61,9 +62,25 @@ class SearchAspirationRegistryTest(unittest.TestCase):
             {
                 "schema_version": 1,
                 "registry": "search-aspiration-v1",
-                "parameters": [{"name": "aspiration_initial_margin_cp", "value": 15}],
+                "parameters": [{"name": "aspiration_initial_margin_cp", "value": 10}],
             },
         )
+
+
+class SearchHPOBaselineRegistryTest(unittest.TestCase):
+    def test_combined_registry_uses_confirmed_v124_baseline(self) -> None:
+        root = Path(__file__).resolve().parents[1] / "registries"
+        registry = load_registry(root / "search-hpo-v1.json")
+        expected = [
+            {"name": "lmr_divisor_x100", "value": 225},
+            {"name": "lmp_move_multiplier", "value": 3},
+            {"name": "aspiration_initial_margin_cp", "value": 10},
+            {"name": "aspiration_min_depth", "value": 5},
+        ]
+
+        self.assertEqual(default_parameter_document(registry)["parameters"], expected)
+        checked_in = json.loads((root / "search-hpo-v1-default.json").read_text(encoding="utf-8"))
+        self.assertEqual(checked_in["parameters"], expected)
 
 
 if __name__ == "__main__":
