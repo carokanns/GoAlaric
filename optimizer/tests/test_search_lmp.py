@@ -18,7 +18,7 @@ class SearchLMPRegistryTest(unittest.TestCase):
             (
                 {
                     "name": "lmp_move_multiplier",
-                    "value": 4,
+                    "value": 3,
                     "min": 3,
                     "max": 5,
                     "step": 1,
@@ -31,7 +31,7 @@ class SearchLMPRegistryTest(unittest.TestCase):
             {
                 "schema_version": 1,
                 "registry": "search-lmp-v1",
-                "parameters": [{"name": "lmp_move_multiplier", "value": 4}],
+                "parameters": [{"name": "lmp_move_multiplier", "value": 3}],
             },
         )
 
@@ -48,7 +48,7 @@ class SearchAspirationRegistryTest(unittest.TestCase):
             (
                 {
                     "name": "aspiration_initial_margin_cp",
-                    "value": 15,
+                    "value": 10,
                     "min": 5,
                     "max": 15,
                     "step": 5,
@@ -61,7 +61,7 @@ class SearchAspirationRegistryTest(unittest.TestCase):
             {
                 "schema_version": 1,
                 "registry": "search-aspiration-v1",
-                "parameters": [{"name": "aspiration_initial_margin_cp", "value": 15}],
+                "parameters": [{"name": "aspiration_initial_margin_cp", "value": 10}],
             },
         )
 

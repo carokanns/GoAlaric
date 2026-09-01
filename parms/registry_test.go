@@ -172,7 +172,7 @@ func TestLMPRegistryIsStableAndComplete(t *testing.T) {
 		t.Fatalf("LMP registry has %d parameters, want 1", len(registry))
 	}
 	got := registry[0]
-	if got.Name != "lmp_move_multiplier" || got.Default != 4 || got.Min != 3 || got.Max != 5 || got.Step != 1 {
+	if got.Name != "lmp_move_multiplier" || got.Default != 3 || got.Min != 3 || got.Max != 5 || got.Step != 1 {
 		t.Fatalf("LMP registry descriptor = %+v", got)
 	}
 	if Search.LMPMoveMultiplier != got.Default {
@@ -265,7 +265,7 @@ func TestAspirationRegistryIsStableAndComplete(t *testing.T) {
 		t.Fatalf("aspiration registry has %d parameters, want 1", len(registry))
 	}
 	got := registry[0]
-	if got.Name != "aspiration_initial_margin_cp" || got.Default != 15 || got.Min != 5 || got.Max != 15 || got.Step != 5 {
+	if got.Name != "aspiration_initial_margin_cp" || got.Default != 10 || got.Min != 5 || got.Max != 15 || got.Step != 5 {
 		t.Fatalf("aspiration registry descriptor = %+v", got)
 	}
 	if Search.AspirationInitialMarginCP != got.Default {
@@ -349,7 +349,7 @@ func TestAspirationDepthRegistryIsStableAndComplete(t *testing.T) {
 		t.Fatalf("aspiration-depth registry has %d parameters, want 1", len(registry))
 	}
 	got := registry[0]
-	if got.Name != "aspiration_min_depth" || got.Default != 6 || got.Min != 5 || got.Max != 7 || got.Step != 1 {
+	if got.Name != "aspiration_min_depth" || got.Default != 5 || got.Min != 5 || got.Max != 7 || got.Step != 1 {
 		t.Fatalf("aspiration-depth registry descriptor = %+v", got)
 	}
 	if Search.AspirationMinDepth != got.Default {

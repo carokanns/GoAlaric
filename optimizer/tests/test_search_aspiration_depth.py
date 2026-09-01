@@ -22,7 +22,7 @@ class SearchAspirationDepthRegistryTest(unittest.TestCase):
             (
                 {
                     "name": "aspiration_min_depth",
-                    "value": 6,
+                    "value": 5,
                     "min": 5,
                     "max": 7,
                     "step": 1,
@@ -35,7 +35,7 @@ class SearchAspirationDepthRegistryTest(unittest.TestCase):
             {
                 "schema_version": 1,
                 "registry": "search-aspiration-depth-v1",
-                "parameters": [{"name": "aspiration_min_depth", "value": 6}],
+                "parameters": [{"name": "aspiration_min_depth", "value": 5}],
             },
         )
 
