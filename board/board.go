@@ -1107,20 +1107,10 @@ func (bd *Board) CreateFen() string {
 	if castl == 0 {
 		castlStr = "-"
 	} else {
-		if castl >= 15 {
-			castlStr += "K"
-			castl -= 8
-		}
-		if castl >= 7 {
-			castlStr += "Q"
-			castl -= 4
-		}
-		if castl >= 3 {
-			castlStr += "k"
-			castl -= 2
-		}
-		if castl == 1 {
-			castlStr += "q"
+		for index, symbol := range "KQkq" {
+			if CastleFlag(castl, uint(index)) {
+				castlStr += string(symbol)
+			}
 		}
 	}
 	epStr := "-"
