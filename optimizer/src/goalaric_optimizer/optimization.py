@@ -644,6 +644,7 @@ def _run_confirmation(
     settings: OptimizeSettings,
     invocation_limit: int,
     search_processed: int,
+    confirmation_workers: int,
 ) -> dict[str, Any]:
     confirmation_settings = settings.confirmation
     if not confirmation_settings.enabled:
@@ -664,12 +665,15 @@ def _run_confirmation(
         )
 
     if definition.mode == "fake":
-        runner: Any = FakeConfirmationRunner(
-            database,
-            definition.campaign_id,
-            confirmation_settings.fake_results,
-            profile=(confirmation_settings.profile.as_dict() if confirmation_settings.profile else None),
-        )
+        def runner_factory() -> FakeConfirmationRunner:
+            return FakeConfirmationRunner(
+                database,
+                definition.campaign_id,
+                confirmation_settings.fake_results,
+                profile=(confirmation_settings.profile.as_dict() if confirmation_settings.profile else None),
+            )
+
+        runner: Any = runner_factory()
     else:
         runtime = _real_config(campaign_path, data_dir, definition, confirmation_settings.profile)
         candidate_path = _materialize_candidate(database, data_dir, definition.campaign_id, candidate)
@@ -679,13 +683,16 @@ def _run_confirmation(
             baseline_parameter_file=campaign_dir(data_dir, definition.campaign_id) / "baseline-parameters.json",
             candidate_parameter_file=candidate_path,
         )
-        runner = RealConfirmationRunner(
-            database,
-            data_dir,
-            definition.campaign_id,
-            runtime,
-            candidate_path,
-        )
+        def runner_factory() -> RealConfirmationRunner:
+            return RealConfirmationRunner(
+                database,
+                data_dir,
+                definition.campaign_id,
+                runtime,
+                candidate_path,
+            )
+
+        runner = runner_factory()
 
     if invocation_limit and search_processed >= invocation_limit:
         snapshot = database.confirmation_snapshot(definition.campaign_id)
@@ -696,6 +703,8 @@ def _run_confirmation(
         definition.campaign_id,
         confirmation_settings,
         runner,
+        parallel_blocks=confirmation_workers,
+        runner_factory=runner_factory,
     )
     return confirmation.run(max_blocks=remaining)
 
@@ -894,8 +903,11 @@ def run_optimization(
     max_games_override: int | None = None,
     max_evaluations_override: int | None = None,
     required_mode: str | None = None,
+    confirmation_workers: int = 1,
 ) -> dict[str, Any]:
     """Initialize or resume an autonomous fake or real optimization campaign."""
+    if not isinstance(confirmation_workers, int) or isinstance(confirmation_workers, bool) or confirmation_workers < 1:
+        raise OptimizationError("confirmation_workers must be a positive integer")
     definition, _, _ = init_campaign(campaign_path, data_dir)
     if required_mode is not None and definition.mode != required_mode:
         raise OptimizationError(f"optimization requires campaign mode={required_mode}")
@@ -949,6 +961,7 @@ def run_optimization(
                         settings,
                         invocation_limit,
                         processed,
+                        confirmation_workers,
                     )
                     recommendation_path = _materialize_recommendation(
                         database, data_dir, definition.campaign_id
@@ -1040,6 +1053,7 @@ def run_optimization(
                     settings,
                     invocation_limit,
                     controller.processed,
+                    confirmation_workers,
                 )
                 recommendation_path = _materialize_recommendation(
                     database, data_dir, definition.campaign_id

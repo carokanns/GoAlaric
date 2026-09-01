@@ -7,14 +7,17 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 from goalaric_optimizer.cli import main
 from goalaric_optimizer.canonical import sha256_json
+from goalaric_optimizer.confirmation import FakeConfirmationRunner
 from goalaric_optimizer.database import Database
 from goalaric_optimizer.dashboard import DashboardReader
 from goalaric_optimizer.registry import load_registry
@@ -159,6 +162,173 @@ class ConfirmationFakeOutcomesTest(unittest.TestCase):
             with database._read() as connection:
                 self.assertEqual(connection.execute("SELECT COUNT(*) FROM confirmation_blocks").fetchone()[0], 10)
                 self.assertEqual(connection.execute("SELECT COUNT(*) FROM confirmation_games").fetchone()[0], 20)
+
+    def test_parallel_confirmation_respects_quota_and_restarts_idempotently(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="goalaric-confirmation-parallel-") as temp:
+            root = Path(temp)
+            data_dir = root / "campaigns"
+            campaign, _ = self._campaign(
+                root,
+                "confirmation-parallel",
+                {"wins": 10, "draws": 0, "losses": 10},
+                9050,
+            )
+            self.assertEqual(
+                main(["optimize", str(campaign), "--data-dir", str(data_dir), "--max-results", "3"]),
+                0,
+            )
+
+            original_run = FakeConfirmationRunner.run
+            barrier = threading.Barrier(3, timeout=5)
+            lock = threading.Lock()
+            active = 0
+            maximum_active = 0
+
+            def synchronized_run(runner: FakeConfirmationRunner, block: dict[str, object]) -> dict[str, object]:
+                nonlocal active, maximum_active
+                with lock:
+                    active += 1
+                    maximum_active = max(maximum_active, active)
+                try:
+                    barrier.wait()
+                    return original_run(runner, block)
+                finally:
+                    with lock:
+                        active -= 1
+
+            with patch.object(FakeConfirmationRunner, "run", synchronized_run):
+                self.assertEqual(
+                    main(
+                        [
+                            "optimize",
+                            str(campaign),
+                            "--data-dir",
+                            str(data_dir),
+                            "--max-results",
+                            "3",
+                            "--confirmation-workers",
+                            "3",
+                        ]
+                    ),
+                    0,
+                )
+
+            database = Database(data_dir / "confirmation-parallel" / "campaign.db")
+            partial = database.confirmation_snapshot("confirmation-parallel")
+            self.assertIsNotNone(partial)
+            assert partial is not None
+            self.assertEqual(maximum_active, 3)
+            self.assertEqual(partial["blocks_completed"], 3)
+            self.assertEqual(partial["games"], 6)
+
+            self.assertEqual(
+                main(
+                    [
+                        "optimize",
+                        str(campaign),
+                        "--data-dir",
+                        str(data_dir),
+                        "--confirmation-workers",
+                        "3",
+                    ]
+                ),
+                0,
+            )
+            finished = database.confirmation_snapshot("confirmation-parallel")
+            self.assertIsNotNone(finished)
+            assert finished is not None
+            self.assertEqual(finished["status"], "completed")
+            self.assertEqual(finished["blocks_completed"], 10)
+            self.assertEqual(finished["games"], 20)
+
+            self.assertEqual(
+                main(
+                    [
+                        "optimize",
+                        str(campaign),
+                        "--data-dir",
+                        str(data_dir),
+                        "--confirmation-workers",
+                        "3",
+                    ]
+                ),
+                0,
+            )
+            with database._read() as connection:
+                self.assertEqual(connection.execute("SELECT COUNT(*) FROM confirmation_blocks").fetchone()[0], 10)
+                self.assertEqual(connection.execute("SELECT COUNT(*) FROM confirmation_games").fetchone()[0], 20)
+
+    def test_parallel_confirmation_worker_failure_is_restart_safe(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="goalaric-confirmation-parallel-failure-") as temp:
+            root = Path(temp)
+            data_dir = root / "campaigns"
+            campaign, _ = self._campaign(
+                root,
+                "confirmation-parallel-failure",
+                {"wins": 10, "draws": 0, "losses": 10},
+                9060,
+            )
+            self.assertEqual(
+                main(["optimize", str(campaign), "--data-dir", str(data_dir), "--max-results", "3"]),
+                0,
+            )
+
+            original_run = FakeConfirmationRunner.run
+            barrier = threading.Barrier(3, timeout=5)
+
+            def failing_run(runner: FakeConfirmationRunner, block: dict[str, object]) -> dict[str, object]:
+                barrier.wait()
+                if int(block["block_index"]) == 1:
+                    raise RuntimeError("simulated worker death")
+                return original_run(runner, block)
+
+            with patch.object(FakeConfirmationRunner, "run", failing_run):
+                self.assertEqual(
+                    main(
+                        [
+                            "optimize",
+                            str(campaign),
+                            "--data-dir",
+                            str(data_dir),
+                            "--confirmation-workers",
+                            "3",
+                        ]
+                    ),
+                    1,
+                )
+
+            database = Database(data_dir / "confirmation-parallel-failure" / "campaign.db")
+            interrupted = database.confirmation_snapshot("confirmation-parallel-failure")
+            self.assertIsNotNone(interrupted)
+            assert interrupted is not None
+            self.assertFalse(any(block["status"] == "running" for block in interrupted["blocks"]))
+
+            self.assertEqual(
+                main(
+                    [
+                        "optimize",
+                        str(campaign),
+                        "--data-dir",
+                        str(data_dir),
+                        "--confirmation-workers",
+                        "3",
+                    ]
+                ),
+                0,
+            )
+            finished = database.confirmation_snapshot("confirmation-parallel-failure")
+            self.assertIsNotNone(finished)
+            assert finished is not None
+            self.assertEqual(finished["status"], "completed")
+            self.assertEqual(finished["games"], 20)
+            with database._read() as connection:
+                self.assertEqual(connection.execute("SELECT COUNT(*) FROM confirmation_games").fetchone()[0], 20)
+                self.assertEqual(
+                    connection.execute(
+                        "SELECT COUNT(DISTINCT block_id || ':' || game_index) FROM confirmation_games"
+                    ).fetchone()[0],
+                    20,
+                )
 
     def test_live_confirmation_metrics_are_read_from_completed_blocks(self) -> None:
         """The read-only views must expose partial confirmation progress."""

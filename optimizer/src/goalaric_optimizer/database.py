@@ -1951,7 +1951,11 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
-    def claim_next_confirmation_block(self, campaign_id: str) -> dict[str, Any] | None:
+    def claim_next_confirmation_block(
+        self, campaign_id: str, max_running: int = 1
+    ) -> dict[str, Any] | None:
+        if max_running < 1:
+            raise DatabaseError("maximum running confirmation blocks must be positive")
         with self._transaction() as connection:
             self._campaign(connection, campaign_id)
             confirmation = connection.execute(
@@ -1963,8 +1967,10 @@ class Database:
                 "SELECT COUNT(*) FROM confirmation_blocks WHERE campaign_id=? AND status='running'",
                 (campaign_id,),
             ).fetchone()[0]
-            if running:
-                raise CampaignBusy(f"campaign {campaign_id} already has a running confirmation block")
+            if running >= max_running:
+                raise CampaignBusy(
+                    f"campaign {campaign_id} already has {running} running confirmation blocks"
+                )
             row = connection.execute(
                 "SELECT * FROM confirmation_blocks WHERE campaign_id=? AND confirmation_id=? "
                 "AND status IN ('pending','interrupted') ORDER BY block_index,block_id LIMIT 1",

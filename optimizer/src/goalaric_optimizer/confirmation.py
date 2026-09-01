@@ -6,10 +6,11 @@ import math
 import os
 import subprocess
 import time
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, replace
 from pathlib import Path
 from statistics import NormalDist
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from .canonical import sha256_bytes, sha256_json
 from .database import Database, DatabaseError, InvalidTransition
@@ -336,11 +337,19 @@ class ConfirmationCampaign:
         campaign_id: str,
         settings: ConfirmationSettings,
         runner: ConfirmationBlockRunner,
+        parallel_blocks: int = 1,
+        runner_factory: Callable[[], ConfirmationBlockRunner] | None = None,
     ) -> None:
+        if parallel_blocks < 1:
+            raise ConfirmationError("parallel confirmation blocks must be positive")
+        if parallel_blocks > 1 and runner_factory is None:
+            raise ConfirmationError("parallel confirmation requires a runner factory")
         self.database = database
         self.campaign_id = campaign_id
         self.settings = settings
         self.runner = runner
+        self.parallel_blocks = parallel_blocks
+        self.runner_factory = runner_factory
 
     def _ensure_schedule(self) -> dict[str, Any]:
         campaign = self.database.campaign(self.campaign_id)
@@ -379,6 +388,98 @@ class ConfirmationCampaign:
             )
         return self.database.confirmation_snapshot(self.campaign_id) or existing
 
+    def _finish_or_snapshot(self) -> dict[str, Any]:
+        snapshot = self.database.confirmation_snapshot(self.campaign_id)
+        if snapshot is None:
+            raise ConfirmationError("confirmation disappeared before finalization")
+        if snapshot["status"] == "completed":
+            return snapshot
+        blocks = snapshot["blocks"]
+        if blocks and all(row["status"] == "completed" for row in blocks):
+            result = _summary(blocks, self.settings.confidence)
+            candidate_hash = str(snapshot["candidate_parameter_hash"])
+            if result["outcome"] == "confirmed":
+                result["recommendation_parameter_hash"] = candidate_hash
+                result["recommendation"] = "candidate"
+            else:
+                result["recommendation_parameter_hash"] = None
+                result["recommendation"] = None
+            result["automatic_promotion"] = False
+            if self.settings.profile is not None:
+                result["profile"] = self.settings.profile.as_dict()
+            return self.database.finalize_confirmation(self.campaign_id, result)
+        return snapshot
+
+    def _run_sequential(self, max_blocks: int) -> dict[str, Any]:
+        completed_this_run = 0
+        while True:
+            snapshot = self.database.confirmation_snapshot(self.campaign_id)
+            if snapshot is None:
+                raise ConfirmationError("confirmation disappeared during execution")
+            if snapshot["status"] == "completed":
+                return snapshot
+            block = self.database.claim_next_confirmation_block(self.campaign_id)
+            if block is None:
+                snapshot = self._finish_or_snapshot()
+                if snapshot.get("status") == "completed":
+                    return snapshot
+                raise ConfirmationError("confirmation has no runnable block but is not complete")
+            self.runner.run(block)
+            completed_this_run += 1
+            if max_blocks and completed_this_run >= max_blocks:
+                return self.database.confirmation_snapshot(self.campaign_id) or {}
+
+    def _run_parallel(self, max_blocks: int) -> dict[str, Any]:
+        if self.runner_factory is None:
+            raise ConfirmationError("parallel confirmation requires a runner factory")
+        claimed_this_run = 0
+        futures: dict[Future[dict[str, Any]], str] = {}
+        executor = ThreadPoolExecutor(
+            max_workers=self.parallel_blocks,
+            thread_name_prefix="confirmation",
+        )
+        try:
+            while True:
+                while len(futures) < self.parallel_blocks and (
+                    not max_blocks or claimed_this_run < max_blocks
+                ):
+                    block = self.database.claim_next_confirmation_block(
+                        self.campaign_id, max_running=self.parallel_blocks
+                    )
+                    if block is None:
+                        break
+                    runner = self.runner_factory()
+                    future = executor.submit(runner.run, block)
+                    futures[future] = str(block["block_id"])
+                    claimed_this_run += 1
+
+                if futures:
+                    done, _ = wait(tuple(futures), return_when=FIRST_COMPLETED)
+                    for future in done:
+                        futures.pop(future)
+                        future.result()
+                    continue
+
+                if max_blocks and claimed_this_run >= max_blocks:
+                    return self.database.confirmation_snapshot(self.campaign_id) or {}
+                snapshot = self._finish_or_snapshot()
+                if snapshot.get("status") == "completed":
+                    return snapshot
+                raise ConfirmationError("confirmation has no runnable block but is not complete")
+        except BaseException as exc:
+            terminate_active_confirmation_blocks(
+                self.database,
+                self.campaign_id,
+                "parallel confirmation stopped after worker failure",
+            )
+            for future in futures:
+                future.cancel()
+            if isinstance(exc, (KeyboardInterrupt, SystemExit, ConfirmationError, DatabaseError)):
+                raise
+            raise ConfirmationError(f"parallel confirmation worker failed: {exc}") from exc
+        finally:
+            executor.shutdown(wait=True, cancel_futures=True)
+
     def run(self, max_blocks: int = 0) -> dict[str, Any]:
         if max_blocks < 0:
             raise ConfirmationError("max confirmation blocks cannot be negative")
@@ -414,37 +515,9 @@ class ConfirmationCampaign:
             self.database, self.campaign_id, "confirmation startup recovered abandoned job"
         )
         self.database.recover_abandoned_confirmation_jobs(self.campaign_id)
-        completed_this_run = 0
-        while True:
-            snapshot = self.database.confirmation_snapshot(self.campaign_id)
-            if snapshot is None:
-                raise ConfirmationError("confirmation disappeared during execution")
-            if snapshot["status"] == "completed":
-                return snapshot
-            block = self.database.claim_next_confirmation_block(self.campaign_id)
-            if block is None:
-                snapshot = self.database.confirmation_snapshot(self.campaign_id)
-                if snapshot is None:
-                    raise ConfirmationError("confirmation disappeared before finalization")
-                blocks = snapshot["blocks"]
-                if blocks and all(row["status"] == "completed" for row in blocks):
-                    result = _summary(blocks, self.settings.confidence)
-                    candidate_hash = str(snapshot["candidate_parameter_hash"])
-                    if result["outcome"] == "confirmed":
-                        result["recommendation_parameter_hash"] = candidate_hash
-                        result["recommendation"] = "candidate"
-                    else:
-                        result["recommendation_parameter_hash"] = None
-                        result["recommendation"] = None
-                    result["automatic_promotion"] = False
-                    if self.settings.profile is not None:
-                        result["profile"] = self.settings.profile.as_dict()
-                    return self.database.finalize_confirmation(self.campaign_id, result)
-                raise ConfirmationError("confirmation has no runnable block but is not complete")
-            self.runner.run(block)
-            completed_this_run += 1
-            if max_blocks and completed_this_run >= max_blocks:
-                return self.database.confirmation_snapshot(self.campaign_id) or {}
+        if self.parallel_blocks == 1:
+            return self._run_sequential(max_blocks)
+        return self._run_parallel(max_blocks)
 
 
 def initialize_confirmation(

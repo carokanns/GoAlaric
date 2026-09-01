@@ -112,6 +112,12 @@ def _parser() -> argparse.ArgumentParser:
     optimize.add_argument(
         "--max-evaluations", type=int, help="override the campaign-wide candidate evaluation budget"
     )
+    optimize.add_argument(
+        "--confirmation-workers",
+        type=int,
+        default=1,
+        help="parallel confirmation opening pairs for this invocation; defaults to 1",
+    )
     _add_data_dir(optimize)
 
     real = commands.add_parser(
@@ -263,6 +269,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     invocation_limit=args.max_results,
                     max_games_override=args.max_games,
                     max_evaluations_override=args.max_evaluations,
+                    confirmation_workers=args.confirmation_workers,
                 )
             )
             return 0
