@@ -29,6 +29,10 @@ for nodes in 25000 100000 400000; do
     padded=$(printf '%02d' "$margin")
     candidate="$definition/parameters/margin-$padded.json"
     run_dir="$artifact/runs/nodes-$nodes-margin-$padded"
+	mode_args=(--optimizer-mode)
+	if [[ $margin -eq 10 ]]; then
+	  mode_args=(--allow-identical-binaries)
+	fi
     if [[ -f $run_dir/status.json ]] && grep -q '"state": "completed"' "$run_dir/status.json"; then
       echo "Hoppar över färdig cell: nodes=$nodes margin=$margin"
       continue
@@ -38,8 +42,7 @@ for nodes in 25000 100000 400000; do
       --candidate "$engine" \
       --baseline-parameter-file "$baseline" \
       --candidate-parameter-file "$candidate" \
-      --optimizer-mode \
-      --allow-identical-binaries \
+	  "${mode_args[@]}" \
       --fastchess "$fastchess" \
       --openings "$openings" \
       --nodes "$nodes" \
