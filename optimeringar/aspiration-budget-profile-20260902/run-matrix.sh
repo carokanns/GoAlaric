@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo=/home/peter/Projekt/GoAlaric
 experiment=aspiration-budget-profile-20260902
-definition="$repo/optimeringar/$experiment"
+definition=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 artifact="$repo/artifacts/experiments/$experiment"
 engine="$artifact/bin/goalaric"
 monitor="$artifact/bin/testmonitor"
