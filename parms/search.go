@@ -59,7 +59,7 @@ var searchAspirationRegistry = [...]ParameterDescriptor{
 		Name:        "aspiration_initial_margin_cp",
 		Default:     10,
 		Min:         5,
-		Max:         15,
+		Max:         30,
 		Step:        5,
 		UsedIn:      "search/search.go:searchAsp",
 		Description: "Initial aspiration-window margin in centipawns.",

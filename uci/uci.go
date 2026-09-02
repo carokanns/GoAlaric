@@ -51,6 +51,7 @@ func HandleInput(line string, chSearch *chan int) string {
 			tellGUI(fmt.Sprintf("option name SyzygyProbeDepth type spin default %v min 1 max 100", search.Engine.SyzygyProbeDepth))
 			tellGUI("option name TablebaseStatsFile type string default <empty>")
 			tellGUI(fmt.Sprintf("option name LogFile type check default %v", search.Engine.Log))
+			tellGUI(fmt.Sprintf("option name AspirationProfile type check default %v", search.Engine.AspirationProfile))
 			tellGUI("option name ParameterFile type string default <empty>")
 			tellGUI(fmt.Sprintf("info string ParameterFile registry=%d sha256=%s source=builtin-defaults", parms.RegistryVersion, parameterFileSHA))
 
@@ -475,6 +476,12 @@ func setOption(words []string) { // NOTE: "setoption" is already removed from th
 			return
 		}
 		search.Engine.Log = log
+	case "aspirationprofile":
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return
+		}
+		search.Engine.AspirationProfile = enabled
 	case "parameterfile":
 		setParameterFile(value)
 	case "ponder":

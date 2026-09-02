@@ -265,7 +265,7 @@ func TestAspirationRegistryIsStableAndComplete(t *testing.T) {
 		t.Fatalf("aspiration registry has %d parameters, want 1", len(registry))
 	}
 	got := registry[0]
-	if got.Name != "aspiration_initial_margin_cp" || got.Default != 10 || got.Min != 5 || got.Max != 15 || got.Step != 5 {
+	if got.Name != "aspiration_initial_margin_cp" || got.Default != 10 || got.Min != 5 || got.Max != 30 || got.Step != 5 {
 		t.Fatalf("aspiration registry descriptor = %+v", got)
 	}
 	if Search.AspirationInitialMarginCP != got.Default {

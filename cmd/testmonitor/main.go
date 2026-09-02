@@ -176,6 +176,7 @@ type matchConfig struct {
 	ProgressTime           string `json:"progress_interval"`
 	Follow                 bool   `json:"-"`
 	DepthProfile           bool   `json:"depth_profile,omitempty"`
+	AspirationProfile      bool   `json:"aspiration_profile,omitempty"`
 	TablebaseStats         bool   `json:"tablebase_stats,omitempty"`
 	TablebaseStatsFile     string `json:"tablebase_stats_file,omitempty"`
 	ProfileRole            string `json:"profile_role,omitempty"`
@@ -496,8 +497,14 @@ func startCommand(args []string) error {
 	if cfg.AutoEvaluate {
 		childArgs = append(childArgs, "--auto-evaluate", "--candidate-id", cfg.CandidateID, "--codex", cfg.Codex, "--repo-root", cfg.RepoRoot)
 	}
-	if cfg.DepthProfile {
-		childArgs = append(childArgs, "--depth-profile", "--profile-role", cfg.ProfileRole, "--minimum-depth", strconv.Itoa(cfg.MinimumDepth), "--repo-root", cfg.RepoRoot, "--depth-cache-dir", cfg.DepthCacheDir)
+	if cfg.DepthProfile || cfg.AspirationProfile {
+		childArgs = append(childArgs, "--profile-role", cfg.ProfileRole, "--minimum-depth", strconv.Itoa(cfg.MinimumDepth), "--repo-root", cfg.RepoRoot, "--depth-cache-dir", cfg.DepthCacheDir)
+		if cfg.DepthProfile {
+			childArgs = append(childArgs, "--depth-profile")
+		}
+		if cfg.AspirationProfile {
+			childArgs = append(childArgs, "--aspiration-profile")
+		}
 	}
 	if cfg.TablebaseStats {
 		childArgs = append(childArgs, "--tablebase-stats")
@@ -616,7 +623,7 @@ func runMatchCommand(args []string) error {
 
 	rounds := cfg.Games / 2
 	logOptions := []string{"-log", "file=" + filepath.Join(cfg.RunDir, "fastchess.log"), "level=info", "append=false", "realtime=true"}
-	if cfg.DepthProfile {
+	if cfg.DepthProfile || cfg.AspirationProfile {
 		logOptions = []string{"-log", "file=" + filepath.Join(cfg.RunDir, "fastchess.log"), "level=trace", "append=false", "realtime=true", "engine=true"}
 	}
 	fcArgs := []string{}
@@ -689,7 +696,7 @@ func runMatchCommand(args []string) error {
 	} else if err == nil && !stopped {
 		err = fmt.Errorf("audit completed PGN: %w", auditErr)
 	}
-	if err == nil && !stopped && cfg.DepthProfile {
+	if err == nil && !stopped && (cfg.DepthProfile || cfg.AspirationProfile) {
 		profile, profileErr := buildDepthProfile(cfg, filepath.Join(cfg.RunDir, "fastchess.log"))
 		if profileErr != nil {
 			err = profileErr
@@ -948,6 +955,7 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.Codex, "codex", "codex", "Codex CLI executable used after match completion")
 	fs.StringVar(&cfg.RepoRoot, "repo-root", ".", "repository root containing artifacts/experiments")
 	fs.BoolVar(&cfg.DepthProfile, "depth-profile", false, "collect final UCI depth before each bestmove")
+	fs.BoolVar(&cfg.AspirationProfile, "aspiration-profile", false, "collect aspiration-window outcomes and node costs")
 	fs.BoolVar(&cfg.TablebaseStats, "tablebase-stats", false, "collect tablebase hits by search and game")
 	fs.StringVar(&cfg.ProfileRole, "profile-role", "standalone", "depth profile role: baseline, candidate or standalone")
 	fs.IntVar(&cfg.MinimumDepth, "minimum-depth", 0, "minimum accepted median depth")
@@ -1001,9 +1009,9 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	if cfg.NodesSet && (cfg.TCSet || cfg.TC != "") {
 		return cfg, errors.New("--tc and --nodes are mutually exclusive")
 	}
-	if cfg.DepthProfile {
+	if cfg.DepthProfile || cfg.AspirationProfile {
 		if cfg.SPRT || cfg.AutoEvaluate {
-			return cfg, errors.New("depth profiling cannot use SPRT or automatic LLM evaluation")
+			return cfg, errors.New("search profiling cannot use SPRT or automatic LLM evaluation")
 		}
 		if cfg.MinimumDepth < 0 {
 			return cfg, errors.New("--minimum-depth cannot be negative")
@@ -1103,7 +1111,7 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 			return cfg, fmt.Errorf("automatic evaluation requires candidate experiment: %w", err)
 		}
 	}
-	if cfg.DepthProfile {
+	if cfg.DepthProfile || cfg.AspirationProfile {
 		if cfg.DepthCacheDir == "" {
 			cfg.DepthCacheDir = filepath.Join(cfg.RepoRoot, "artifacts", "depth-profiles", "cache")
 		} else if !filepath.IsAbs(cfg.DepthCacheDir) {
@@ -1237,6 +1245,9 @@ func fastchessEngineArgs(engine, name, syzygyPath string, cfg matchConfig) []str
 	}
 	if parameterFile != "" {
 		args = append(args, "option.ParameterFile="+parameterFile)
+	}
+	if cfg.AspirationProfile {
+		args = append(args, "option.AspirationProfile=true")
 	}
 	if name == "Candidate" && cfg.TablebaseStats && cfg.TablebaseStatsFile != "" {
 		args = append(args, "option.TablebaseStatsFile="+cfg.TablebaseStatsFile)

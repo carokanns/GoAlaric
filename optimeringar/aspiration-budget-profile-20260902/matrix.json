@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "experiment": "aspiration-budget-profile-20260902",
+  "baseline_margin_cp": 10,
+  "candidate_margins_cp": [5, 10, 15, 20, 30],
+  "node_budgets_per_move": [25000, 100000, 400000],
+  "games_per_cell": 128,
+  "opening_pairs_per_cell": 64,
+  "total_cells": 15,
+  "total_games": 1920,
+  "seed": 20261005,
+  "concurrency": 6,
+  "threads_per_engine": 1,
+  "hash_mb": 128,
+  "aspiration_min_depth": 5,
+  "opening_book": "/home/peter/Projekt/GoAlaric/.tools/books/8moves_v3.pgn",
+  "syzygy_path": "/home/peter/Projekt/GoAlaric/.tools/syzygy/3-4-5-complete",
+  "automatic_promotion": false
+}

@@ -153,7 +153,7 @@ func TestSetoptionAspirationParameterFileChangesInitialMargin(t *testing.T) {
 	})
 
 	file := parms.DefaultAspirationParameterFile()
-	file.Parameters[0].Value = 15
+	file.Parameters[0].Value = 30
 	data, err := parms.MarshalParameterFile(file)
 	if err != nil {
 		t.Fatal(err)
@@ -169,11 +169,31 @@ func TestSetoptionAspirationParameterFileChangesInitialMargin(t *testing.T) {
 	tellGUI = func(line string) { output = append(output, line) }
 	HandleInput("setoption name ParameterFile value "+path, &chSearch)
 
-	if parms.Search.AspirationInitialMarginCP != 15 {
-		t.Fatalf("aspiration initial margin=%d, want 15", parms.Search.AspirationInitialMarginCP)
+	if parms.Search.AspirationInitialMarginCP != 30 {
+		t.Fatalf("aspiration initial margin=%d, want 30", parms.Search.AspirationInitialMarginCP)
 	}
 	if !strings.Contains(strings.Join(output, "\n"), "registry_name=search-aspiration-v1") {
 		t.Fatalf("aspiration registry was not reported: %q", output)
+	}
+}
+
+func TestUCIAdvertisesAndSetsAspirationProfile(t *testing.T) {
+	originalTellGUI := tellGUI
+	originalEnabled := search.Engine.AspirationProfile
+	t.Cleanup(func() {
+		tellGUI = originalTellGUI
+		search.Engine.AspirationProfile = originalEnabled
+	})
+
+	var lines []string
+	tellGUI = func(line string) { lines = append(lines, line) }
+	HandleInput("uci", &chSearch)
+	if !slices.Contains(lines, "option name AspirationProfile type check default false") {
+		t.Fatalf("uci output did not advertise AspirationProfile: %v", lines)
+	}
+	HandleInput("setoption name AspirationProfile value true", &chSearch)
+	if !search.Engine.AspirationProfile {
+		t.Fatal("AspirationProfile was not enabled")
 	}
 }
 
