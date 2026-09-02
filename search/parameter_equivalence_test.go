@@ -64,3 +64,22 @@ func TestExportedDefaultParameterFileIsSearchEquivalent(t *testing.T) {
 		t.Fatalf("default parameter file changed fixed-depth result: baseline=%+v from_file=%+v", baseline, fromFile)
 	}
 }
+
+func TestAspirationProfilingDoesNotChangeSearch(t *testing.T) {
+	originalEnabled := Engine.AspirationProfile
+	t.Cleanup(func() { Engine.AspirationProfile = originalEnabled })
+
+	var position board.Board
+	board.SetFen("r1bq1rk1/ppp1p1bp/5np1/3Ppp2/8/1QP3P1/PP2PPBP/RNBR2K1 w - - 3 10", &position)
+	Engine.AspirationProfile = false
+	baseline := runFixedDepth(t, &position)
+	Engine.AspirationProfile = true
+	profiled := runFixedDepth(t, &position)
+
+	if profiled != baseline {
+		t.Fatalf("profiling changed search: baseline=%+v profiled=%+v", baseline, profiled)
+	}
+	if aspirationProfile.Depths == 0 || aspirationProfile.WindowSearches == 0 {
+		t.Fatalf("profiling collected no aspiration work: %+v", aspirationProfile)
+	}
+}

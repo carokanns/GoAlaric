@@ -33,6 +33,7 @@ type engineStruct struct {
 	Ponder                   bool
 	Threads                  int
 	Log                      bool
+	AspirationProfile        bool
 	Contempt                 int
 	SearchRepetitionContempt int
 	SyzygyPath               string
@@ -51,6 +52,21 @@ var afterCompletedIteration func(int)
 // fixed-depth tests can compare the candidate with the same binary's baseline
 // behavior. The released candidate keeps it enabled.
 var singularExtensionEnabled = true
+
+type aspirationProfileStats struct {
+	Depths          int64
+	WindowSearches  int64
+	FailLow         int64
+	FailHigh        int64
+	Retries         int64
+	FullWindow      int64
+	InitialNodes    int64
+	ResearchNodes   int64
+	FullWindowNodes int64
+	Aborted         int64
+}
+
+var aspirationProfile aspirationProfileStats
 
 // ConsumeTablebaseGameStats returns and resets the successful tablebase
 // probes accumulated since the previous UCI game boundary.
@@ -454,6 +470,7 @@ func clear() {
 	Best.Score = noScore
 	Best.scoreType = 0
 	Best.pv.clear()
+	aspirationProfile = aspirationProfileStats{}
 }
 
 func updateBest(best *bestStruct, sc, scoreType int, pv *pvStruct) {
@@ -765,15 +782,33 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 	//util.ASSERT(depth <= 1 || p_time.last_score == best.score)
 
 	if depth >= aspirationMinDepth() && !IsMateScore(limit.lastScore) {
+		if Engine.AspirationProfile {
+			aspirationProfile.Depths++
+		}
 
+		attempt := int64(0)
 		for margin := aspirationInitialMargin(); margin < 500; margin *= 2 {
 
 			a := limit.lastScore - margin
 			b := limit.lastScore + margin
 			//util.ASSERT(EVAL_MIN <= a && a < b && b <= EVAL_MAX)
 
+			beforeNodes := current.node
 			searchRoot(sl, ml, depth, a, b)
+			searchedNodes := current.node - beforeNodes
+			if Engine.AspirationProfile {
+				aspirationProfile.WindowSearches++
+				if attempt == 0 {
+					aspirationProfile.InitialNodes += searchedNodes
+				} else {
+					aspirationProfile.Retries++
+					aspirationProfile.ResearchNodes += searchedNodes
+				}
+			}
 			if bStop.Load() {
+				if Engine.AspirationProfile {
+					aspirationProfile.Aborted++
+				}
 				return
 			}
 
@@ -781,11 +816,25 @@ func searchAsp(ml *gen.ScMvList, depth int) {
 				return
 			} else if IsMateScore(Best.Score) {
 				break
+			} else if Engine.AspirationProfile {
+				if Best.Score <= a {
+					aspirationProfile.FailLow++
+				} else {
+					aspirationProfile.FailHigh++
+				}
 			}
+			attempt++
+		}
+		if Engine.AspirationProfile {
+			aspirationProfile.FullWindow++
 		}
 	}
 
+	beforeNodes := current.node
 	searchRoot(sl, ml, depth, minScore, maxScore)
+	if Engine.AspirationProfile && depth >= aspirationMinDepth() {
+		aspirationProfile.FullWindowNodes += current.node - beforeNodes
+	}
 }
 
 // search_root is the search from the current position.
@@ -1678,6 +1727,21 @@ func writePV(best *bestStruct) {
 	}
 
 	line += fmt.Sprintf(" pv %v ", best.pv.toString())
+	if Engine.AspirationProfile {
+		line += fmt.Sprintf(
+			" aspdepths %d aspwindows %d aspfail_low %d aspfail_high %d aspretries %d aspfull %d aspinitialnodes %d aspresearchnodes %d aspfullnodes %d aspaborted %d",
+			aspirationProfile.Depths,
+			aspirationProfile.WindowSearches,
+			aspirationProfile.FailLow,
+			aspirationProfile.FailHigh,
+			aspirationProfile.Retries,
+			aspirationProfile.FullWindow,
+			aspirationProfile.InitialNodes,
+			aspirationProfile.ResearchNodes,
+			aspirationProfile.FullWindowNodes,
+			aspirationProfile.Aborted,
+		)
+	}
 
 	/*
 	   std::cout << "info";

@@ -15,7 +15,7 @@ func TestParseCandidateDepthTraceUsesOnlyTargetEngine(t *testing.T) {
 [Engine] [10:00:00.000003] < 101 > Baseline ---> info depth 20 seldepth 30 nodes 9000 time 10 score cp 0 pv e7e5
 [Engine] [10:00:00.000004] < 101 > Baseline ---> bestmove e7e5
 [Engine] [10:00:00.000005] < 202 > Candidate ---> info depth 8 seldepth 12 nodes 800 time 10 nps 80000 score cp 2 pv g1f3
-[Engine] [10:00:00.000006] < 202 > Candidate ---> info depth 9 seldepth 14 nodes 900 time 12 score cp 3 pv g1f3
+[Engine] [10:00:00.000006] < 202 > Candidate ---> info depth 9 seldepth 14 nodes 900 time 12 score cp 3 pv g1f3 aspdepths 5 aspwindows 7 aspfail_low 1 aspfail_high 1 aspretries 2 aspfull 1 aspinitialnodes 500 aspresearchnodes 200 aspfullnodes 100 aspaborted 0
 [Engine] [10:00:00.000007] < 202 > Candidate ---> bestmove g1f3
 `
 	if err := os.WriteFile(path, []byte(trace), 0o644); err != nil {
@@ -34,6 +34,9 @@ func TestParseCandidateDepthTraceUsesOnlyTargetEngine(t *testing.T) {
 	if samples[1].Depth != 9 || samples[1].SelDepth != 14 || samples[1].NPS != 75000 {
 		t.Fatalf("second sample=%+v", samples[1])
 	}
+	if samples[1].AspirationDepths != 5 || samples[1].AspirationRetries != 2 || samples[1].AspirationFullWindowNodes != 100 {
+		t.Fatalf("aspiration sample=%+v", samples[1])
+	}
 }
 
 func TestDepthProfileDecisionUsesMedian(t *testing.T) {
@@ -48,7 +51,7 @@ func TestDepthProfileDecisionUsesMedian(t *testing.T) {
 	lines := ""
 	for ix, depth := range []int{5, 6, 8, 9, 10} {
 		context := strconv.Itoa(ix + 1)
-		lines += "[Engine] [10:00:00.000001] < " + context + " > Candidate ---> info depth " + strconv.Itoa(depth) + " seldepth 12 nodes 100 time 10\n"
+		lines += "[Engine] [10:00:00.000001] < " + context + " > Candidate ---> info depth " + strconv.Itoa(depth) + " seldepth 12 nodes 100 time 10 aspdepths 2 aspwindows 3 aspfail_low 1 aspfail_high 0 aspretries 1 aspfull 0 aspinitialnodes 50 aspresearchnodes 10 aspfullnodes 0 aspaborted 0\n"
 		lines += "[Engine] [10:00:00.000002] < " + context + " > Candidate ---> bestmove e2e4\n"
 	}
 	if err := os.WriteFile(trace, []byte(lines), 0o644); err != nil {
@@ -65,6 +68,12 @@ func TestDepthProfileDecisionUsesMedian(t *testing.T) {
 	}
 	if report.MedianDepth != 8 || report.Decision != "increase_time_control" {
 		t.Fatalf("unexpected report: %+v", report)
+	}
+	if report.AspirationWindowSearches != 15 || report.AspirationRetries != 5 || report.AspirationFailurePercent != 100.0/3.0 {
+		t.Fatalf("unexpected aspiration totals: %+v", report)
+	}
+	if bucket := report.AspirationByFinalDepth["8"]; bucket.Samples != 1 || bucket.WindowSearches != 3 {
+		t.Fatalf("unexpected depth bucket: %+v", bucket)
 	}
 }
 

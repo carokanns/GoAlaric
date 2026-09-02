@@ -51,7 +51,7 @@ class SearchAspirationRegistryTest(unittest.TestCase):
                     "name": "aspiration_initial_margin_cp",
                     "value": 10,
                     "min": 5,
-                    "max": 15,
+                    "max": 30,
                     "step": 5,
                     "min_step": 5,
                 },

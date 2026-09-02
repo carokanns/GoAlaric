@@ -21,47 +21,88 @@ const (
 )
 
 type depthProfileSettings struct {
-	TimeControl  string `json:"time_control"`
-	Games        int    `json:"games"`
-	Concurrency  int    `json:"concurrency"`
-	HashMB       int    `json:"hash_mb"`
-	Threads      int    `json:"threads"`
-	Openings     string `json:"openings"`
-	OpeningsSHA  string `json:"openings_sha256"`
-	Fastchess    string `json:"fastchess"`
-	FastchessSHA string `json:"fastchess_sha256"`
-	OpponentSHA  string `json:"opponent_sha256"`
-	Machine      string `json:"machine"`
-	RandomSeed   int64  `json:"random_seed"`
+	TimeControl          string `json:"time_control,omitempty"`
+	Nodes                int64  `json:"nodes,omitempty"`
+	Games                int    `json:"games"`
+	Concurrency          int    `json:"concurrency"`
+	HashMB               int    `json:"hash_mb"`
+	Threads              int    `json:"threads"`
+	Openings             string `json:"openings"`
+	OpeningsSHA          string `json:"openings_sha256"`
+	Fastchess            string `json:"fastchess"`
+	FastchessSHA         string `json:"fastchess_sha256"`
+	OpponentSHA          string `json:"opponent_sha256"`
+	ParameterSHA         string `json:"parameter_sha256,omitempty"`
+	OpponentParameterSHA string `json:"opponent_parameter_sha256,omitempty"`
+	Machine              string `json:"machine"`
+	RandomSeed           int64  `json:"random_seed"`
+	AspirationProfile    bool   `json:"aspiration_profile,omitempty"`
 }
 
 type depthProfileReport struct {
-	SchemaVersion  int                  `json:"schema_version"`
-	CacheKey       string               `json:"cache_key"`
-	Role           string               `json:"role"`
-	CreatedAt      time.Time            `json:"created_at"`
-	Engine         experimentIdentity   `json:"engine"`
-	Settings       depthProfileSettings `json:"settings"`
-	MinimumDepth   int                  `json:"minimum_depth"`
-	SampleCount    int                  `json:"sample_count"`
-	MeanDepth      float64              `json:"mean_depth"`
-	MedianDepth    int                  `json:"median_depth"`
-	P25Depth       int                  `json:"p25_depth"`
-	P90Depth       int                  `json:"p90_depth"`
-	MeanSelDepth   float64              `json:"mean_seldepth"`
-	MedianSelDepth int                  `json:"median_seldepth"`
-	MedianNodes    int64                `json:"median_nodes"`
-	MedianNPS      int64                `json:"median_nps"`
-	Decision       string               `json:"decision"`
-	TracePath      string               `json:"trace_path"`
+	SchemaVersion             int                               `json:"schema_version"`
+	CacheKey                  string                            `json:"cache_key"`
+	Role                      string                            `json:"role"`
+	CreatedAt                 time.Time                         `json:"created_at"`
+	Engine                    experimentIdentity                `json:"engine"`
+	Settings                  depthProfileSettings              `json:"settings"`
+	MinimumDepth              int                               `json:"minimum_depth"`
+	SampleCount               int                               `json:"sample_count"`
+	MeanDepth                 float64                           `json:"mean_depth"`
+	MedianDepth               int                               `json:"median_depth"`
+	P25Depth                  int                               `json:"p25_depth"`
+	P90Depth                  int                               `json:"p90_depth"`
+	MeanSelDepth              float64                           `json:"mean_seldepth"`
+	MedianSelDepth            int                               `json:"median_seldepth"`
+	MedianNodes               int64                             `json:"median_nodes"`
+	MedianNPS                 int64                             `json:"median_nps"`
+	Decision                  string                            `json:"decision"`
+	TracePath                 string                            `json:"trace_path"`
+	AspirationDepths          int64                             `json:"aspiration_depths,omitempty"`
+	AspirationWindowSearches  int64                             `json:"aspiration_window_searches,omitempty"`
+	AspirationFailLow         int64                             `json:"aspiration_fail_low,omitempty"`
+	AspirationFailHigh        int64                             `json:"aspiration_fail_high,omitempty"`
+	AspirationRetries         int64                             `json:"aspiration_retries,omitempty"`
+	AspirationFullWindow      int64                             `json:"aspiration_full_window,omitempty"`
+	AspirationInitialNodes    int64                             `json:"aspiration_initial_nodes,omitempty"`
+	AspirationResearchNodes   int64                             `json:"aspiration_research_nodes,omitempty"`
+	AspirationFullWindowNodes int64                             `json:"aspiration_full_window_nodes,omitempty"`
+	AspirationAborted         int64                             `json:"aspiration_aborted,omitempty"`
+	AspirationFailurePercent  float64                           `json:"aspiration_failure_percent,omitempty"`
+	AspirationOverheadPercent float64                           `json:"aspiration_overhead_percent,omitempty"`
+	AspirationByFinalDepth    map[string]aspirationDepthSummary `json:"aspiration_by_final_depth,omitempty"`
+}
+
+type aspirationDepthSummary struct {
+	Samples         int     `json:"samples"`
+	WindowSearches  int64   `json:"window_searches"`
+	FailLow         int64   `json:"fail_low"`
+	FailHigh        int64   `json:"fail_high"`
+	Retries         int64   `json:"retries"`
+	FullWindow      int64   `json:"full_window"`
+	InitialNodes    int64   `json:"initial_nodes"`
+	ResearchNodes   int64   `json:"research_nodes"`
+	FullWindowNodes int64   `json:"full_window_nodes"`
+	FailurePercent  float64 `json:"failure_percent"`
+	OverheadPercent float64 `json:"overhead_percent"`
 }
 
 type depthTraceSample struct {
-	Depth    int
-	SelDepth int
-	Nodes    int64
-	TimeMS   int64
-	NPS      int64
+	Depth                     int
+	SelDepth                  int
+	Nodes                     int64
+	TimeMS                    int64
+	NPS                       int64
+	AspirationDepths          int64
+	AspirationWindowSearches  int64
+	AspirationFailLow         int64
+	AspirationFailHigh        int64
+	AspirationRetries         int64
+	AspirationFullWindow      int64
+	AspirationInitialNodes    int64
+	AspirationResearchNodes   int64
+	AspirationFullWindowNodes int64
+	AspirationAborted         int64
 }
 
 func preScanCommand(args []string) error {
@@ -150,6 +191,8 @@ func buildDepthProfile(cfg matchConfig, tracePath string) (depthProfileReport, e
 	nodes := make([]int64, 0, len(samples))
 	nps := make([]int64, 0, len(samples))
 	var depthSum, selDepthSum int64
+	var report depthProfileReport
+	byFinalDepth := make(map[string]aspirationDepthSummary)
 	for _, sample := range samples {
 		depths = append(depths, sample.Depth)
 		selDepths = append(selDepths, sample.SelDepth)
@@ -159,15 +202,65 @@ func buildDepthProfile(cfg matchConfig, tracePath string) (depthProfileReport, e
 		}
 		depthSum += int64(sample.Depth)
 		selDepthSum += int64(sample.SelDepth)
+		report.AspirationDepths += sample.AspirationDepths
+		report.AspirationWindowSearches += sample.AspirationWindowSearches
+		report.AspirationFailLow += sample.AspirationFailLow
+		report.AspirationFailHigh += sample.AspirationFailHigh
+		report.AspirationRetries += sample.AspirationRetries
+		report.AspirationFullWindow += sample.AspirationFullWindow
+		report.AspirationInitialNodes += sample.AspirationInitialNodes
+		report.AspirationResearchNodes += sample.AspirationResearchNodes
+		report.AspirationFullWindowNodes += sample.AspirationFullWindowNodes
+		report.AspirationAborted += sample.AspirationAborted
+		key := strconv.Itoa(sample.Depth)
+		bucket := byFinalDepth[key]
+		bucket.Samples++
+		bucket.WindowSearches += sample.AspirationWindowSearches
+		bucket.FailLow += sample.AspirationFailLow
+		bucket.FailHigh += sample.AspirationFailHigh
+		bucket.Retries += sample.AspirationRetries
+		bucket.FullWindow += sample.AspirationFullWindow
+		bucket.InitialNodes += sample.AspirationInitialNodes
+		bucket.ResearchNodes += sample.AspirationResearchNodes
+		bucket.FullWindowNodes += sample.AspirationFullWindowNodes
+		byFinalDepth[key] = bucket
 	}
-	report := depthProfileReport{
+	for key, bucket := range byFinalDepth {
+		if bucket.WindowSearches > 0 {
+			bucket.FailurePercent = 100 * float64(bucket.FailLow+bucket.FailHigh) / float64(bucket.WindowSearches)
+		}
+		totalNodes := bucket.InitialNodes + bucket.ResearchNodes + bucket.FullWindowNodes
+		if totalNodes > 0 {
+			bucket.OverheadPercent = 100 * float64(bucket.ResearchNodes+bucket.FullWindowNodes) / float64(totalNodes)
+		}
+		byFinalDepth[key] = bucket
+	}
+	report = depthProfileReport{
 		SchemaVersion: depthProfileSchemaVersion, CacheKey: cacheKey, Role: cfg.ProfileRole,
 		CreatedAt: time.Now(), Engine: engine, Settings: settings, MinimumDepth: cfg.MinimumDepth,
 		SampleCount: len(samples), MeanDepth: float64(depthSum) / float64(len(samples)),
 		MedianDepth: percentileInt(depths, 50), P25Depth: percentileInt(depths, 25),
 		P90Depth: percentileInt(depths, 90), MeanSelDepth: float64(selDepthSum) / float64(len(samples)),
 		MedianSelDepth: percentileInt(selDepths, 50), MedianNodes: median(nodes), MedianNPS: median(nps),
-		TracePath: tracePath,
+		TracePath:                 tracePath,
+		AspirationDepths:          report.AspirationDepths,
+		AspirationWindowSearches:  report.AspirationWindowSearches,
+		AspirationFailLow:         report.AspirationFailLow,
+		AspirationFailHigh:        report.AspirationFailHigh,
+		AspirationRetries:         report.AspirationRetries,
+		AspirationFullWindow:      report.AspirationFullWindow,
+		AspirationInitialNodes:    report.AspirationInitialNodes,
+		AspirationResearchNodes:   report.AspirationResearchNodes,
+		AspirationFullWindowNodes: report.AspirationFullWindowNodes,
+		AspirationAborted:         report.AspirationAborted,
+		AspirationByFinalDepth:    byFinalDepth,
+	}
+	if report.AspirationWindowSearches > 0 {
+		report.AspirationFailurePercent = 100 * float64(report.AspirationFailLow+report.AspirationFailHigh) / float64(report.AspirationWindowSearches)
+	}
+	totalAspirationNodes := report.AspirationInitialNodes + report.AspirationResearchNodes + report.AspirationFullWindowNodes
+	if totalAspirationNodes > 0 {
+		report.AspirationOverheadPercent = 100 * float64(report.AspirationResearchNodes+report.AspirationFullWindowNodes) / float64(totalAspirationNodes)
 	}
 	report.Decision = "depth_adequate"
 	if cfg.MinimumDepth > 0 && report.MedianDepth < cfg.MinimumDepth {
@@ -243,6 +336,26 @@ func parseDepthInfo(fields []string, sample *depthTraceSample) {
 			sample.TimeMS, _ = strconv.ParseInt(fields[ix+1], 10, 64)
 		case "nps":
 			sample.NPS, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspdepths":
+			sample.AspirationDepths, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspwindows":
+			sample.AspirationWindowSearches, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspfail_low":
+			sample.AspirationFailLow, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspfail_high":
+			sample.AspirationFailHigh, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspretries":
+			sample.AspirationRetries, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspfull":
+			sample.AspirationFullWindow, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspinitialnodes":
+			sample.AspirationInitialNodes, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspresearchnodes":
+			sample.AspirationResearchNodes, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspfullnodes":
+			sample.AspirationFullWindowNodes, _ = strconv.ParseInt(fields[ix+1], 10, 64)
+		case "aspaborted":
+			sample.AspirationAborted, _ = strconv.ParseInt(fields[ix+1], 10, 64)
 		}
 	}
 }
@@ -258,11 +371,11 @@ func percentileInt(values []int, percent int) int {
 }
 
 func depthProfileIdentity(cfg matchConfig) (experimentIdentity, depthProfileSettings, string, error) {
-	engine, err := identifyExperimentBinary(cfg.Candidate)
+	engine, err := identifyExperimentInstance(cfg.Candidate, cfg.CandidateParameterFile)
 	if err != nil {
 		return experimentIdentity{}, depthProfileSettings{}, "", err
 	}
-	opponent, err := identifyExperimentBinary(cfg.Baseline)
+	opponent, err := identifyExperimentInstance(cfg.Baseline, cfg.BaselineParameterFile)
 	if err != nil {
 		return experimentIdentity{}, depthProfileSettings{}, "", err
 	}
@@ -275,11 +388,13 @@ func depthProfileIdentity(cfg matchConfig) (experimentIdentity, depthProfileSett
 		return experimentIdentity{}, depthProfileSettings{}, "", err
 	}
 	settings := depthProfileSettings{
-		TimeControl: cfg.TC, Games: cfg.Games, Concurrency: cfg.Concurrency,
+		TimeControl: cfg.TC, Nodes: cfg.Nodes, Games: cfg.Games, Concurrency: cfg.Concurrency,
 		HashMB: cfg.HashMB, Threads: cfg.Threads, Openings: cfg.Openings,
 		OpeningsSHA: digest(openingsData), Fastchess: cfg.Fastchess,
 		FastchessSHA: digest(fastchessData), Machine: depthMachineIdentity(),
 		RandomSeed: cfg.Seed, OpponentSHA: opponent.SHA256,
+		ParameterSHA: engine.ParameterSHA256, OpponentParameterSHA: opponent.ParameterSHA256,
+		AspirationProfile: cfg.AspirationProfile,
 	}
 	key := hashJSON(struct {
 		SchemaVersion int                  `json:"schema_version"`
@@ -307,6 +422,11 @@ func depthMachineIdentity() string {
 func persistDepthProfile(cfg matchConfig, report depthProfileReport) error {
 	if err := writeJSON(filepath.Join(cfg.RunDir, "depth-profile.json"), report); err != nil {
 		return err
+	}
+	if cfg.AspirationProfile {
+		if err := writeJSON(filepath.Join(cfg.RunDir, "aspiration-profile.json"), report); err != nil {
+			return err
+		}
 	}
 	return writeJSON(filepath.Join(cfg.DepthCacheDir, report.CacheKey+".json"), report)
 }
