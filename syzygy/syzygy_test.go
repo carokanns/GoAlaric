@@ -139,7 +139,11 @@ func TestTablebaseOracle(t *testing.T) {
 	}
 
 	var fullCardinality board.Board
-	board.SetFen("2K5/k7/8/8/5q2/8/3B4/8 w - - 0 1", &fullCardinality)
+	fullCardinalityFEN := "2K5/k7/8/8/5q2/8/3B4/8 w - - 0 1"
+	if Largest() == 5 {
+		fullCardinalityFEN = "2K5/k7/8/8/5q2/8/3B4/4N3 w - - 0 1"
+	}
+	board.SetFen(fullCardinalityFEN, &fullCardinality)
 	if _, ok := ProbeWDL(&fullCardinality, 0, 1); ok {
 		t.Fatal("full-cardinality table should respect probe depth")
 	}

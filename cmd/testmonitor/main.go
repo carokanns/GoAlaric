@@ -37,7 +37,7 @@ const (
 	defaultSPRTAlpha         = "0.04"
 	defaultSPRTBeta          = "0.20"
 	defaultResignScore       = 500
-	defaultDrawMoveNumber    = 40
+	defaultDrawMoveNumber    = 60
 	defaultProgressInterval  = "1m"
 	defaultScreeningProgress = 10
 	defaultSPRTProgress      = 50
@@ -61,6 +61,8 @@ type matchStatus struct {
 	ValidationPolicy      string                `json:"validation_policy,omitempty"`
 	TimeControl           string                `json:"time_control,omitempty"`
 	NodeBudget            int64                 `json:"node_budget,omitempty"`
+	TBAdjudicationPath    string                `json:"tablebase_adjudication_path,omitempty"`
+	TBAdjudicationPieces  int                   `json:"tablebase_adjudication_pieces,omitempty"`
 	TargetGames           int                   `json:"target_games"`
 	ProgressEvery         int                   `json:"progress_every_games"`
 	ProgressTime          string                `json:"progress_interval"`
@@ -184,6 +186,8 @@ type matchConfig struct {
 	SyzygyPath             string `json:"syzygy_path,omitempty"`
 	CandidateSyzygyPath    string `json:"candidate_syzygy_path,omitempty"`
 	BaselineSyzygyPath     string `json:"baseline_syzygy_path,omitempty"`
+	TBAdjudicationPath     string `json:"tablebase_adjudication_path,omitempty"`
+	TBAdjudicationPieces   int    `json:"tablebase_adjudication_pieces,omitempty"`
 	DrawMoveNumber         int    `json:"draw_move_number"`
 	NodesSet               bool   `json:"-"`
 	TCSet                  bool   `json:"-"`
@@ -468,6 +472,12 @@ func startCommand(args []string) error {
 		"--baseline-syzygy-path", syzygyFlagValue(cfg.BaselineSyzygyPath),
 		"--draw-movenumber", strconv.Itoa(cfg.DrawMoveNumber),
 	)
+	if cfg.TBAdjudicationPath != "" {
+		childArgs = append(childArgs,
+			"--tablebase-adjudication-path", cfg.TBAdjudicationPath,
+			"--tablebase-adjudication-pieces", strconv.Itoa(cfg.TBAdjudicationPieces),
+		)
+	}
 	if cfg.BaselineParameterFile != "" {
 		childArgs = append(childArgs, "--baseline-parameter-file", cfg.BaselineParameterFile)
 	}
@@ -621,6 +631,7 @@ func runMatchCommand(args []string) error {
 		"-recover", "-autosaveinterval", "10", "-strict",
 		"-pgnout", "file="+filepath.Join(cfg.RunDir, "games.pgn"), "append=false", "notation=uci", "nodes=true", "nps=true", "seldepth=true",
 	)
+	fcArgs = append(fcArgs, fastchessTablebaseAdjudicationArgs(cfg)...)
 	fcArgs = append(fcArgs, logOptions...)
 	fcArgs = append(fcArgs,
 		"-output", "format=cutechess", "-scoreinterval", "1",
@@ -946,6 +957,8 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	fs.StringVar(&cfg.SyzygyPath, "syzygy-path", "", "Syzygy tablebase directory; local .tools/syzygy/3-4 is used when available, or use off")
 	fs.StringVar(&cfg.CandidateSyzygyPath, "candidate-syzygy-path", "", "override Syzygy tablebase directory for candidate, or use off")
 	fs.StringVar(&cfg.BaselineSyzygyPath, "baseline-syzygy-path", "", "override Syzygy tablebase directory for baseline, or use off")
+	fs.StringVar(&cfg.TBAdjudicationPath, "tablebase-adjudication-path", "", "Syzygy directory used by Fastchess to adjudicate tablebase positions")
+	fs.IntVar(&cfg.TBAdjudicationPieces, "tablebase-adjudication-pieces", 0, "maximum pieces for Fastchess tablebase adjudication")
 	fs.IntVar(&cfg.DrawMoveNumber, "draw-movenumber", defaultDrawMoveNumber, "first move eligible for draw adjudication")
 	if err := fs.Parse(args); err != nil {
 		return cfg, err
@@ -975,6 +988,12 @@ func parseMatchConfig(name string, args []string) (matchConfig, error) {
 	}
 	if cfg.DrawMoveNumber < 1 {
 		return cfg, errors.New("--draw-movenumber must be positive")
+	}
+	if (cfg.TBAdjudicationPath == "") != (cfg.TBAdjudicationPieces == 0) {
+		return cfg, errors.New("--tablebase-adjudication-path and --tablebase-adjudication-pieces must be used together")
+	}
+	if cfg.TBAdjudicationPieces < 0 {
+		return cfg, errors.New("--tablebase-adjudication-pieces cannot be negative")
 	}
 	if cfg.NodesSet && cfg.Nodes <= 0 {
 		return cfg, errors.New("--nodes must be positive")
@@ -1045,6 +1064,14 @@ func normalizeConfig(cfg matchConfig) (matchConfig, error) {
 		cfg.BaselineSyzygyPath = cfg.SyzygyPath
 	} else if cfg.BaselineSyzygyPath, err = resolveSyzygyPath(cfg.RepoRoot, cfg.BaselineSyzygyPath); err != nil {
 		return cfg, err
+	}
+	if cfg.TBAdjudicationPath != "" {
+		if cfg.TBAdjudicationPath, err = resolveSyzygyPath(cfg.RepoRoot, cfg.TBAdjudicationPath); err != nil {
+			return cfg, err
+		}
+		if cfg.TBAdjudicationPath == "" {
+			return cfg, errors.New("--tablebase-adjudication-path cannot be off when adjudication is configured")
+		}
 	}
 	if cfg.DrawMoveNumber == 0 {
 		cfg.DrawMoveNumber = defaultDrawMoveNumber
@@ -1217,11 +1244,23 @@ func fastchessEngineArgs(engine, name, syzygyPath string, cfg matchConfig) []str
 	return args
 }
 
+func fastchessTablebaseAdjudicationArgs(cfg matchConfig) []string {
+	if cfg.TBAdjudicationPath == "" {
+		return nil
+	}
+	return []string{
+		"-tb", cfg.TBAdjudicationPath,
+		"-tbpieces", strconv.Itoa(cfg.TBAdjudicationPieces),
+		"-tbadjudicate", "BOTH",
+	}
+}
+
 func initialStatus(cfg matchConfig) matchStatus {
 	now := time.Now()
 	return matchStatus{
 		RunID: filepath.Base(cfg.RunDir), State: "starting", Stage: "setup", StartedAt: now, UpdatedAt: now,
 		Baseline: cfg.Baseline, Candidate: cfg.Candidate, OptimizerMode: cfg.OptimizerMode, ChangeClass: cfg.ChangeClass, ValidationPolicy: cfg.ValidationPolicy, TimeControl: cfg.TC, NodeBudget: cfg.Nodes, TargetGames: cfg.Games,
+		TBAdjudicationPath: cfg.TBAdjudicationPath, TBAdjudicationPieces: cfg.TBAdjudicationPieces,
 		ProgressEvery: cfg.ProgressEvery, ProgressTime: cfg.ProgressTime, OpeningFile: cfg.Openings, OpeningCount: cfg.BookCount, RandomSeed: cfg.Seed, RunDir: cfg.RunDir,
 		OpeningBook: cfg.OpeningBook, OpeningBlockIndex: cfg.OpeningBlockIndex, OpeningBlockSize: cfg.OpeningBlockSize,
 		OpeningBookSHA256: cfg.OpeningBookSHA256, OpeningBlockSHA256: cfg.OpeningBlockSHA256, OpeningBlockColorSwap: cfg.OpeningBlockColorSwap,

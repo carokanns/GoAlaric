@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -353,8 +354,8 @@ func TestSyzygyPathUsesLocalTablesByDefault(t *testing.T) {
 	if cfg.SyzygyPath != tables {
 		t.Fatalf("Syzygy path = %q, want %q", cfg.SyzygyPath, tables)
 	}
-	if cfg.DrawMoveNumber != defaultDrawMoveNumber {
-		t.Fatalf("draw adjudication starts at move %d, want %d", cfg.DrawMoveNumber, defaultDrawMoveNumber)
+	if cfg.DrawMoveNumber != 60 {
+		t.Fatalf("draw adjudication starts at move %d, want 60", cfg.DrawMoveNumber)
 	}
 	for _, engine := range []string{cfg.Candidate, cfg.Baseline} {
 		if !strings.Contains(strings.Join(fastchessEngineArgs(engine, "test", tables, cfg), " "), "option.SyzygyPath="+tables) {
@@ -395,6 +396,39 @@ func TestSyzygyPathCanBeDisabled(t *testing.T) {
 	}
 	if path != "" {
 		t.Fatalf("disabled Syzygy path = %q, want empty", path)
+	}
+}
+
+func TestFastchessTablebaseAdjudicationArgs(t *testing.T) {
+	tables := filepath.Join(t.TempDir(), "tables")
+	if err := os.MkdirAll(tables, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := matchConfig{TBAdjudicationPath: tables, TBAdjudicationPieces: 5}
+	args := fastchessTablebaseAdjudicationArgs(cfg)
+	want := []string{"-tb", tables, "-tbpieces", "5", "-tbadjudicate", "BOTH"}
+	if !slices.Equal(args, want) {
+		t.Fatalf("Fastchess tablebase arguments = %q, want %q", args, want)
+	}
+	if args := fastchessTablebaseAdjudicationArgs(matchConfig{}); len(args) != 0 {
+		t.Fatalf("disabled tablebase adjudication arguments = %q, want none", args)
+	}
+	status := initialStatus(cfg)
+	if status.TBAdjudicationPath != tables || status.TBAdjudicationPieces != 5 {
+		t.Fatalf("status omitted tablebase adjudication: %+v", status)
+	}
+}
+
+func TestFastchessTablebaseAdjudicationRequiresPathAndPieceLimit(t *testing.T) {
+	base := []string{"--baseline", "baseline", "--candidate", "candidate"}
+	for _, extra := range [][]string{
+		{"--tablebase-adjudication-path", "tables"},
+		{"--tablebase-adjudication-pieces", "5"},
+		{"--tablebase-adjudication-path", "tables", "--tablebase-adjudication-pieces", "-1"},
+	} {
+		if _, err := parseMatchConfig("test", append(append([]string{}, base...), extra...)); err == nil {
+			t.Fatalf("configuration %q unexpectedly accepted", extra)
+		}
 	}
 }
 

@@ -1103,20 +1103,13 @@ func (bd *Board) CreateFen() string {
 		strturn = "w"
 	}
 	castlStr := ""
-	if bd.Flags() == 0 {
+	castl := bd.Flags()
+	if castl == 0 {
 		castlStr = "-"
 	} else {
-		for _, right := range []struct {
-			index uint
-			fen   string
-		}{
-			{index: 0, fen: "K"},
-			{index: 1, fen: "Q"},
-			{index: 2, fen: "k"},
-			{index: 3, fen: "q"},
-		} {
-			if CastleFlag(bd.Flags(), right.index) {
-				castlStr += right.fen
+		for index, symbol := range "KQkq" {
+			if CastleFlag(castl, uint(index)) {
+				castlStr += string(symbol)
 			}
 		}
 	}

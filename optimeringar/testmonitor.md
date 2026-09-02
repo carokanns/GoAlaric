@@ -109,8 +109,11 @@ materialiserade filen verifieras då mot bok, seed, blockindex och storlek.
 
 Fastchess dömer vinst när båda motorerna är överens om minst 500 centipawns
 fördel för samma sida under tre på varandra följande bedömningar. Det motsvarar
-ungefär värdet av ett torn. Remiavdömningen börjar efter drag 40 och kräver åtta
+ungefär värdet av ett torn. Remiavdömningen börjar efter drag 60 och kräver åtta
 bedömningar inom ±10 centipawns; drag 200 avslutar återstående partier som remi.
+Fastchess-regeln kan inte villkoras på material eller spelfas. Det senare
+startdraget används därför för alla ställningar och skyddar i synnerhet
+fortsättningsbara slutspel från för tidig score-baserad avdömning.
 
 Om den lokala tabellmappen `.tools/syzygy/3-4` finns, skickar testmonitor
 automatiskt samma `SyzygyPath` till både baseline och kandidat i screening,
@@ -119,7 +122,21 @@ För en enskild körning kan det stängas av med `--syzygy-path off`, eller peka
 ut en annan tabellmapp med `--syzygy-path <sökväg>`.
 `--candidate-syzygy-path` och `--baseline-syzygy-path` kan användas för ett
 A/B-test där bara den ena motorn har tabeller. Remiavdömningens startdrag kan
-ändras med `--draw-movenumber`; standardvärdet är fortsatt 40.
+ändras med `--draw-movenumber`; standardvärdet är 60.
+
+Fastchess kan avdöma tabellställningar symmetriskt och oberoende av motorernas
+egna Syzygy-stöd. Ange både tabellmapp och pjäsgräns:
+
+```bash
+--tablebase-adjudication-path .tools/syzygy/3-4-5-complete \
+--tablebase-adjudication-pieces 5
+```
+
+Testmonitor skickar då `-tb PATH -tbpieces 5 -tbadjudicate BOTH` till
+Fastchess. Både vinster och remier avdöms med WDL-tabellerna och
+50-dragsregeln behålls. Vanlig resign-, remi- eller regelavdömning kan fortsatt
+avsluta partiet innan en tabellställning nås. Motorernas `SyzygyPath` styr bara
+deras interna sökning och är separat från Fastchess avdömning.
 
 ## Fristående depth pre-scan
 

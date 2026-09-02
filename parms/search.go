@@ -17,9 +17,9 @@ var Search = SearchParameters{
 	Contempt:                  0,
 	SearchRepetitionContempt:  5,
 	LMRDivisorX100:            225,
-	LMPMoveMultiplier:         4,
-	AspirationInitialMarginCP: 15,
-	AspirationMinDepth:        6,
+	LMPMoveMultiplier:         3,
+	AspirationInitialMarginCP: 10,
+	AspirationMinDepth:        5,
 }
 
 // SearchRegistryVersion identifies the named search-parameter interface.
@@ -46,7 +46,7 @@ var searchRegistry = [...]ParameterDescriptor{
 var searchLMPRegistry = [...]ParameterDescriptor{
 	{
 		Name:        "lmp_move_multiplier",
-		Default:     4,
+		Default:     3,
 		Min:         3,
 		Max:         5,
 		Step:        1,
@@ -58,7 +58,7 @@ var searchLMPRegistry = [...]ParameterDescriptor{
 var searchAspirationRegistry = [...]ParameterDescriptor{
 	{
 		Name:        "aspiration_initial_margin_cp",
-		Default:     15,
+		Default:     10,
 		Min:         5,
 		Max:         15,
 		Step:        5,
@@ -70,7 +70,7 @@ var searchAspirationRegistry = [...]ParameterDescriptor{
 var searchAspirationDepthRegistry = [...]ParameterDescriptor{
 	{
 		Name:        "aspiration_min_depth",
-		Default:     6,
+		Default:     5,
 		Min:         5,
 		Max:         7,
 		Step:        1,
