@@ -46,3 +46,9 @@ python3 optimeringar/aspiration-budget-profile-20260902/summarize.py
 
 Ingen parameter promoveras automatiskt. Resultatet används endast för att
 avgöra om aspirationsmarginalens bästa område flyttar sig med sökbudgeten.
+
+Dashboarden startas separat och är helt skrivskyddad:
+
+```bash
+python3 optimeringar/aspiration-budget-profile-20260902/dashboard.py --port 8804
+```
